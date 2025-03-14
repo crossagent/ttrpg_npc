@@ -102,10 +102,6 @@ class RoundManager:
             action_message = TextMessage(
                 content=player_response.action,
                 source=player_agent.name,
-                metadata={
-                    "timestamp": message_timestamp,
-                    "round": state.round_number
-                }
             )
             
             player_history_message = HistoryMessage(
@@ -148,11 +144,7 @@ class RoundManager:
             # 创建TextMessage
             human_text_message = TextMessage(
                 content=user_input,
-                source=self.human_agent.name,
-                metadata={
-                    "timestamp": message_timestamp,
-                    "round": state.round_number
-                }
+                source=self.human_agent.name
             )
             
             # 创建标准的HistoryMessage对象，标记为玩家消息
