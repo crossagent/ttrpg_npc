@@ -217,14 +217,17 @@ class GameEngine:
         """
         显示全局聊天历史
         """
-        if not hasattr(self, 'round_manager') or not self.round_manager.message_history:
+        if not self.state.chat_history:
             print("聊天历史为空")
             return
         
         print("\n--- 全局聊天历史 ---")
-        for i, message in enumerate(self.round_manager.message_history):
+        for i, history_msg in enumerate(self.state.chat_history):
+            # 获取消息
+            message = history_msg.message
+            
             # 获取消息时间戳
-            timestamp = message.metadata.get("timestamp", "未知时间") if hasattr(message, 'metadata') and message.metadata else "未知时间"
+            timestamp = history_msg.timestamp
             
             # 根据消息来源确定颜色
             if message.source == "dm":

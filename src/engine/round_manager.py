@@ -68,8 +68,7 @@ class RoundManager:
         dm_message = HistoryMessage(
             timestamp=round_start_time,
             round=state.round_number,
-            character_name=self.dm_agent.name if self.dm_agent else "系统",
-            message=dm_text_message.content
+            message=dm_text_message
         )
         
         # 添加到聊天历史
@@ -83,7 +82,7 @@ class RoundManager:
         }
         temp_message_history.append(dm_text_message)
         
-        print(format_dm_message(dm_message.character_name, dm_message.message))
+        print(format_dm_message(dm_message.message.source, dm_message.message.content))
         
         # 收集所有玩家的响应
         player_messages = []
@@ -100,11 +99,19 @@ class RoundManager:
             message_timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
             
             # 创建标准的HistoryMessage对象
+            action_message = TextMessage(
+                content=player_response.action,
+                source=player_agent.name,
+                metadata={
+                    "timestamp": message_timestamp,
+                    "round": state.round_number
+                }
+            )
+            
             player_history_message = HistoryMessage(
                 timestamp=message_timestamp,
                 round=state.round_number,
-                character_name=player_agent.name,
-                message=player_response.action
+                message=action_message
             )
             
             # 添加到聊天历史
@@ -145,12 +152,21 @@ class RoundManager:
             # 获取当前时间作为消息时间戳
             message_timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
             
+            # 创建TextMessage
+            human_text_message = TextMessage(
+                content=user_input,
+                source=self.human_agent.name,
+                metadata={
+                    "timestamp": message_timestamp,
+                    "round": state.round_number
+                }
+            )
+            
             # 创建标准的HistoryMessage对象
             human_history_message = HistoryMessage(
                 timestamp=message_timestamp,
                 round=state.round_number,
-                character_name=self.human_agent.name,
-                message=user_input
+                message=human_text_message
             )
             
             # 添加到聊天历史
@@ -195,20 +211,12 @@ class RoundManager:
         if previous_round <= 0:
             return []
         
-        # 从chat_history中提取上一回合的消息，并转换为ChatMessage格式
+        # 从chat_history中提取上一回合的消息
         previous_messages = []
         for msg in state.chat_history:
             if msg.round == previous_round:
-                # 创建TextMessage对象
-                text_msg = TextMessage(
-                    content=msg.message,
-                    source=msg.character_name,
-                    metadata={
-                        "timestamp": msg.timestamp,
-                        "round": msg.round
-                    }
-                )
-                previous_messages.append(text_msg)
+                # 直接使用消息中的ChatMessage对象
+                previous_messages.append(msg.message)
                 
         return previous_messages
     

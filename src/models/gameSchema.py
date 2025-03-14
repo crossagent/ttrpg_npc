@@ -1,5 +1,6 @@
 from pydantic import BaseModel, Field
 from typing import Dict, List, Any, Callable, Optional
+from autogen_agentchat.messages import ChatMessage
 
 # 角色状态模型
 class CharacterState(BaseModel):
