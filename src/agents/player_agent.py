@@ -6,6 +6,7 @@ import json
 from datetime import datetime
 
 from src.models.gameSchema import PlayerResponse, CharacterState, HistoryMessage
+from src.utils.message_converter import convert_history_to_chat_messages
 
 class PlayerAgent(AssistantAgent):
     """
@@ -79,7 +80,7 @@ class PlayerAgent(AssistantAgent):
 注意：只有"action"部分会被其他人看到，其他部分只有你自己知道。
 根据当前情境和角色性格来调整你的目标、计划、心情和行动。
 """
-        
+
     async def generate_response(self, messages: List[HistoryMessage], cancellation_token: CancellationToken, round_number: int = 0) -> PlayerResponse:
         """
         根据聊天历史生成玩家响应
@@ -100,8 +101,11 @@ class PlayerAgent(AssistantAgent):
             # 消息已经是HistoryMessage格式，直接添加到历史记录中
             self.history.append(msg)
         
+        # 将HistoryMessage转换为ChatMessage
+        chat_messages = convert_history_to_chat_messages(messages)
+        
         # 调用LLM生成响应
-        response = await super().on_messages(messages, cancellation_token)
+        response = await super().on_messages(chat_messages, cancellation_token)
         llm_response = response.chat_message
         
         # 解析响应中的JSON
