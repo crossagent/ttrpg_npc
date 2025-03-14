@@ -6,7 +6,7 @@ import asyncio
 from datetime import datetime
 
 # 导入我们的数据模型
-from src.models.gameSchema import GameState, HistoryMessage
+from src.models.gameSchema import GameState, HistoryMessage, MessageType
 from src.agents.player_agent import PlayerAgent
 
 # 导入颜色工具
@@ -64,23 +64,23 @@ class RoundManager:
         # DM发言（描述场景）
         dm_text_message = await self._generate_dm_message(state, previous_messages)
         
-        # 创建标准的HistoryMessage对象
+        # 创建标准的HistoryMessage对象，标记为DM消息
         dm_message = HistoryMessage(
             timestamp=round_start_time,
             round=state.round_number,
-            message=dm_text_message
+            character_name=self.dm_agent.name if self.dm_agent else "系统",
+            message=dm_text_message,
+            message_type=MessageType.DM
         )
         
         # 添加到聊天历史
         state.chat_history.append(dm_message)
         
-        # 将原始TextMessage添加到临时消息列表中，用于传递给Agent
-        temp_message_history = []
+        # 设置DM消息的元数据
         dm_text_message.metadata = {
             "timestamp": round_start_time,
             "round": state.round_number
         }
-        temp_message_history.append(dm_text_message)
         
         print(format_dm_message(dm_message.message.source, dm_message.message.content))
         
@@ -89,8 +89,8 @@ class RoundManager:
         
         # 首先处理AI玩家
         for player_agent in self.player_agents:
-            # 复制当前消息历史供玩家Agent使用
-            agent_context = temp_message_history.copy()
+            # 创建消息上下文：上一轮的玩家响应集合 + 当前轮的DM消息
+            agent_context = previous_messages + [dm_text_message]
             
             # 玩家Agent生成响应，传递当前回合数
             player_response = await player_agent.generate_response(agent_context, self.cancellation_token, state.round_number)
@@ -98,7 +98,7 @@ class RoundManager:
             # 获取当前时间作为消息时间戳
             message_timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
             
-            # 创建标准的HistoryMessage对象
+            # 创建标准的HistoryMessage对象，标记为玩家消息
             action_message = TextMessage(
                 content=player_response.action,
                 source=player_agent.name,
@@ -111,22 +111,15 @@ class RoundManager:
             player_history_message = HistoryMessage(
                 timestamp=message_timestamp,
                 round=state.round_number,
-                message=action_message
+                character_name=player_agent.name,
+                message=action_message,
+                message_type=MessageType.PLAYER
             )
             
             # 添加到聊天历史
             state.chat_history.append(player_history_message)
             
-            # 创建只包含行动部分的消息添加到临时消息列表，用于传递给其他Agent
-            action_message = TextMessage(
-                content=player_response.action,
-                source=player_agent.name,
-                metadata={
-                    "timestamp": message_timestamp,
-                    "round": state.round_number
-                }
-            )
-            temp_message_history.append(action_message)
+            # 添加到玩家消息列表
             player_messages.append(player_history_message)
             
             # 使用绿色打印玩家发言
@@ -162,26 +155,19 @@ class RoundManager:
                 }
             )
             
-            # 创建标准的HistoryMessage对象
+            # 创建标准的HistoryMessage对象，标记为玩家消息
             human_history_message = HistoryMessage(
                 timestamp=message_timestamp,
                 round=state.round_number,
-                message=human_text_message
+                character_name=self.human_agent.name,
+                message=human_text_message,
+                message_type=MessageType.PLAYER
             )
             
             # 添加到聊天历史
             state.chat_history.append(human_history_message)
             
-            # 创建TextMessage添加到临时消息列表，用于传递给Agent
-            human_text_message = TextMessage(
-                content=user_input,
-                source=self.human_agent.name,
-                metadata={
-                    "timestamp": message_timestamp,
-                    "round": state.round_number
-                }
-            )
-            temp_message_history.append(human_text_message)
+            # 添加到玩家消息列表
             player_messages.append(human_history_message)
         
         # 更新游戏状态上下文
@@ -197,7 +183,7 @@ class RoundManager:
             state: 当前游戏状态
             
         Returns:
-            List[ChatMessage]: 上一轮的响应消息列表
+            List[ChatMessage]: 上一轮的玩家响应消息列表
         """
         # 如果没有历史记录，返回空列表
         if not state.chat_history:
@@ -211,11 +197,11 @@ class RoundManager:
         if previous_round <= 0:
             return []
         
-        # 从chat_history中提取上一回合的消息
+        # 从chat_history中提取上一回合的玩家响应消息
         previous_messages = []
         for msg in state.chat_history:
-            if msg.round == previous_round:
-                # 直接使用消息中的ChatMessage对象
+            if msg.round == previous_round and hasattr(msg, 'message_type') and msg.message_type == MessageType.PLAYER:
+                # 只添加玩家响应消息
                 previous_messages.append(msg.message)
                 
         return previous_messages

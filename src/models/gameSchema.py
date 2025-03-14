@@ -18,13 +18,20 @@ class PlayerResponse(BaseModel):
     thinking: str = Field(description="玩家的思考过程")
     action: str = Field(description="玩家的行动，这部分会发送到群聊中")
 
+# 消息类型枚举
+class MessageType:
+    DM = "dm"
+    PLAYER = "player"
+    SYSTEM = "system"
+
 # 历史消息模型
 class HistoryMessage(BaseModel):
     """标准的历史消息格式"""
     timestamp: str = Field(description="消息的时间戳")
     round: int = Field(description="消息所属的回合数")
-    character_name: str = Field(description="发言角色的名称")
-    message: str = Field(description="消息内容")
+    character_name: str = Field(description="发言角色的名称", default="")
+    message: Any = Field(description="消息内容，可以是字符串或ChatMessage对象")
+    message_type: str = Field(description="消息类型：dm, player, system", default=MessageType.SYSTEM)
 
 # 游戏状态模型
 class GameState(BaseModel):
