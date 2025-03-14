@@ -1,8 +1,8 @@
 from typing import List
-from autogen_agentchat.messages import ChatMessage
+from autogen_agentchat.messages import TextMessage
 from src.models.gameSchema import HistoryMessage, MessageType
 
-def convert_history_to_chat_messages(history_messages: List[HistoryMessage]) -> List[ChatMessage]:
+def convert_history_to_chat_messages(history_messages: List[HistoryMessage]) -> List[TextMessage]:
     """
     将HistoryMessage列表转换为ChatMessage列表
     
@@ -29,7 +29,7 @@ def convert_history_to_chat_messages(history_messages: List[HistoryMessage]) -> 
             content = str(content)
             
         # 创建ChatMessage
-        chat_message = ChatMessage(
+        chat_message = TextMessage(
             role=role,
             content=content,
             sender=msg.character_name
