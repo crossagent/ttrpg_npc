@@ -39,16 +39,29 @@ async def show_player_history(round_manager, player_name: str) -> None:
         return
     
     print(f"\n--- {player_name} 的历史记录 ---")
-    for i, entry in enumerate(history):
-        print(f"\n回合 {i+1} ({entry['timestamp']})")
-        print(f"观察: {entry['observation']}")
-        print(f"状态: 目标={entry['character_state']['goal']}, " +
-             f"计划={entry['character_state']['plan']}, " +
-             f"心情={entry['character_state']['mood']}, " +
-             f"血量={entry['character_state']['health']}")
-        print(f"思考: {entry['thinking']}")
-        print(f"行动: {entry['action']}")
-        print("-" * 50)
+    
+    # 按回合分组
+    rounds = {}
+    for entry in history:
+        round_num = entry.get("round", 0)
+        if round_num not in rounds:
+            rounds[round_num] = []
+        rounds[round_num].append(entry)
+    
+    # 按回合显示历史记录
+    for round_num in sorted(rounds.keys()):
+        if round_num == 0:  # 跳过回合为0的记录
+            continue
+            
+        print(f"\n————第{round_num}回合————")
+        entries = rounds[round_num]
+        
+        # 按时间戳排序
+        entries.sort(key=lambda x: x.get("timestamp", ""))
+        
+        # 显示该回合的所有记录
+        for entry in entries:
+            print(entry.get("message", ""))
 
 async def main() -> None:
     """

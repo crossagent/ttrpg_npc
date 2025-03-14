@@ -33,7 +33,7 @@ class PlayerAgent(AssistantAgent):
             health=100
         )
         
-        # 系统记录的玩家历史
+        # 系统记录的玩家历史，格式为 {timestamp, round, character_name, message}
         self.history = []
         
     def _generate_system_message(self, character_profile: Dict[str, Any]) -> str:
@@ -80,17 +80,32 @@ class PlayerAgent(AssistantAgent):
 根据当前情境和角色性格来调整你的目标、计划、心情和行动。
 """
         
-    async def generate_response(self, messages: List[ChatMessage], cancellation_token: CancellationToken) -> PlayerResponse:
+    async def generate_response(self, messages: List[ChatMessage], cancellation_token: CancellationToken, round_number: int = 0) -> PlayerResponse:
         """
         根据聊天历史生成玩家响应
         
         Args:
             messages: 聊天历史消息
             cancellation_token: 取消令牌
+            round_number: 当前回合数（新增参数）
             
         Returns:
             PlayerResponse: 包含观察、状态、思考和行动的响应
         """
+        # 记录传入的消息到history中
+        current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        
+        # 将传入的消息记录到history中
+        for msg in messages:
+            # 只记录最近的消息（假设是本回合的）
+            if hasattr(msg, 'source') and hasattr(msg, 'content'):
+                self.history.append({
+                    "timestamp": current_time,
+                    "round": round_number,
+                    "character_name": msg.source,
+                    "message": msg.content
+                })
+        
         # 调用LLM生成响应
         response = await super().on_messages(messages, cancellation_token)
         llm_response = response.chat_message
@@ -127,8 +142,37 @@ class PlayerAgent(AssistantAgent):
                 action=response_dict.get("action", "")
             )
             
-            # 系统记录这次响应
-            self.record_response(player_response)
+            # 记录玩家的响应到history
+            self.history.append({
+                "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                "round": round_number,
+                "character_name": self.name,
+                "message": f"{self.name}：观察-{player_response.observation}"
+            })
+            
+            # 记录角色状态
+            self.history.append({
+                "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                "round": round_number,
+                "character_name": self.name,
+                "message": f"{self.name}：状态-目标：{character_state.goal}，计划：{character_state.plan}，心情：{character_state.mood}，血量：{character_state.health}"
+            })
+            
+            # 记录思考过程
+            self.history.append({
+                "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                "round": round_number,
+                "character_name": self.name,
+                "message": f"{self.name}：思考-{player_response.thinking}"
+            })
+            
+            # 记录行动
+            self.history.append({
+                "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                "round": round_number,
+                "character_name": self.name,
+                "message": f"{self.name}：行动-{player_response.action}"
+            })
             
             return player_response
             
@@ -143,27 +187,16 @@ class PlayerAgent(AssistantAgent):
             )
             
             # 记录失败的响应
-            self.record_response(default_response)
+            self.history.append({
+                "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                "round": round_number,
+                "character_name": self.name,
+                "message": f"{self.name}：行动-{default_response.action} (解析失败)"
+            })
             
             return default_response
     
-    def record_response(self, response: PlayerResponse) -> None:
-        """
-        系统记录玩家响应
-        
-        Args:
-            response: 玩家响应
-        """
-        timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        
-        # 记录到历史中
-        self.history.append({
-            "timestamp": timestamp,
-            "observation": response.observation,
-            "character_state": response.character_state.model_dump(),
-            "thinking": response.thinking,
-            "action": response.action
-        })
+    # record_response方法已不再需要，所有记录都在generate_response中完成
         
     def get_history(self) -> List[Dict[str, Any]]:
         """

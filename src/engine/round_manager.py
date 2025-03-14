@@ -79,8 +79,8 @@ class RoundManager:
             # 复制当前消息历史供玩家Agent使用
             agent_context = self.message_history.copy()
             
-            # 玩家Agent生成响应
-            player_response = await player_agent.generate_response(agent_context, self.cancellation_token)
+            # 玩家Agent生成响应，传递当前回合数
+            player_response = await player_agent.generate_response(agent_context, self.cancellation_token, state.round_number)
             
             # 获取当前时间作为消息时间戳
             message_timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
