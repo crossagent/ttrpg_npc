@@ -14,14 +14,6 @@ def convert_history_to_chat_messages(history_messages: List[HistoryMessage]) -> 
     """
     chat_messages = []
     for msg in history_messages:
-        # 使用枚举确定角色（role）
-        if msg.message_type == MessageType.DM:
-            role = "assistant"  # DM通常是助手角色
-        elif msg.message_type == MessageType.PLAYER:
-            role = "user"  # 玩家通常是用户角色
-        else:  # MessageType.SYSTEM
-            role = "system"  # 系统消息
-            
         # 获取消息内容
         content = msg.message
         if not isinstance(content, str):
@@ -30,9 +22,8 @@ def convert_history_to_chat_messages(history_messages: List[HistoryMessage]) -> 
             
         # 创建ChatMessage
         chat_message = TextMessage(
-            role=role,
             content=content,
-            sender=msg.character_name
+            source=msg.character_name
         )
         chat_messages.append(chat_message)
     

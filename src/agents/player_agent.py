@@ -145,7 +145,10 @@ class PlayerAgent(AssistantAgent):
                 timestamp=datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
                 round=round_number,
                 character_name=self.name,
-                message=f"{self.name}：观察-{player_response.observation}"
+                message=TextMessage(
+                    content=f"观察-{player_response.observation}",
+                    source=self.name
+                )
             ))
             
             # 记录角色状态
@@ -153,7 +156,10 @@ class PlayerAgent(AssistantAgent):
                 timestamp=datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
                 round=round_number,
                 character_name=self.name,
-                message=f"{self.name}：状态-目标：{character_state.goal}，计划：{character_state.plan}，心情：{character_state.mood}，血量：{character_state.health}"
+                message=TextMessage(
+                    content=f"状态-目标：{character_state.goal}，计划：{character_state.plan}，心情：{character_state.mood}，血量：{character_state.health}",
+                    source=self.name
+                )
             ))
             
             # 记录思考过程
@@ -161,7 +167,10 @@ class PlayerAgent(AssistantAgent):
                 timestamp=datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
                 round=round_number,
                 character_name=self.name,
-                message=f"{self.name}：思考-{player_response.thinking}"
+                message=TextMessage(
+                    content=f"思考-{player_response.thinking}",
+                    source=self.name
+                )
             ))
             
             # 记录行动
@@ -169,7 +178,10 @@ class PlayerAgent(AssistantAgent):
                 timestamp=datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
                 round=round_number,
                 character_name=self.name,
-                message=f"{self.name}：行动-{player_response.action}"
+                message=TextMessage(
+                    content=f"行动-{player_response.action}",
+                    source=self.name
+                )
             ))
             
             return player_response

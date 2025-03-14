@@ -231,8 +231,8 @@ class GameEngine:
             for entry in entries:
                 if hasattr(entry, 'message'):
                     # 如果message是TextMessage对象
-                    if hasattr(entry.message, 'content'):
-                        print(entry.message.content)
+                    if hasattr(entry.message, 'content') and hasattr(entry.message, 'source'):
+                        print(entry.message.sourec + ": " + entry.message.content)
                     # 如果message是字符串
                     elif isinstance(entry.message, str):
                         print(entry.message)
