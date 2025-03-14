@@ -6,6 +6,7 @@ import asyncio
 
 # 导入我们的数据模型
 from src.models.gameSchema import GameState
+from src.agents.player_agent import PlayerAgent
 
 class RoundManager:
     """
@@ -24,9 +25,16 @@ class RoundManager:
         self.cancellation_token = cancellation_token
         
         # 获取专门的agent引用，便于后续使用
-        self.counting_agent = next((a for a in agents if a.name == "counter"), None)
         self.dm_agent = next((a for a in agents if a.name == "dm"), None)
-        self.player_agent = next((a for a in agents if a.name == "player"), None)
+        
+        # 获取所有玩家Agent
+        self.player_agents = [a for a in agents if isinstance(a, PlayerAgent)]
+        
+        # 获取人类玩家Agent
+        self.human_agent = next((a for a in agents if a.name == "human_player"), None)
+        
+        # 初始化消息历史
+        self.message_history = []
     
     async def execute_round(self, state: GameState) -> GameState:
         """
@@ -42,39 +50,99 @@ class RoundManager:
         state.round_number += 1
         print(f"\n--- 回合 {state.round_number} 开始 ---\n")
         
+        # 从历史中提取上一轮的玩家响应
+        previous_messages = self._extract_previous_responses()
+        
         # DM发言（描述场景）
-        dm_message = TextMessage(
-            content=f"这是第{state.round_number}回合，请计数者继续数数。",
-            source=self.dm_agent.name
-        )
+        dm_message = await self._generate_dm_message(state, previous_messages)
+        self.message_history.append(dm_message)
         print(f"{self.dm_agent.name}: {dm_message.content}")
         
-        # 数数Agent回应
-        if state.round_number == 1:
-            # 第一回合，从1开始
-            state.current_count = 1
-        else:
-            # 之后的回合，每次+1
-            state.current_count += 1
-            
-        count_message = TextMessage(
-            content=str(state.current_count),
-            source=self.counting_agent.name
-        )
-        print(f"{self.counting_agent.name}: {count_message.content}")
+        # 收集所有玩家的响应
+        player_messages = []
         
-        # 获取玩家输入
-        from src.scripts.cli_runner import get_user_input
-        user_input = await get_user_input()
-        player_message = TextMessage(
-            content=user_input,
-            source=self.player_agent.name
-        )
+        # 首先处理AI玩家
+        for player_agent in self.player_agents:
+            # 复制当前消息历史供玩家Agent使用
+            agent_context = self.message_history.copy()
+            
+            # 玩家Agent生成响应
+            player_response = await player_agent.generate_response(agent_context, self.cancellation_token)
+            
+            # 创建只包含行动部分的消息添加到群聊历史
+            action_message = TextMessage(
+                content=player_response.action,
+                source=player_agent.name
+            )
+            self.message_history.append(action_message)
+            player_messages.append(action_message)
+            
+            print(f"{player_agent.name}: {player_response.action}")
+            
+            # 打印内部状态（仅用于调试）
+            print(f"--- {player_agent.name}的内部状态 ---")
+            print(f"观察: {player_response.observation}")
+            print(f"角色状态: 目标={player_response.character_state.goal}, " +
+                 f"计划={player_response.character_state.plan}, " +
+                 f"心情={player_response.character_state.mood}, " +
+                 f"血量={player_response.character_state.health}")
+            print(f"思考: {player_response.thinking}")
+            print("-------------------------")
+        
+        # 如果有人类玩家，获取人类输入
+        if self.human_agent:
+            from src.scripts.cli_runner import get_user_input
+            user_input = await get_user_input()
+            human_message = TextMessage(
+                content=user_input,
+                source=self.human_agent.name
+            )
+            self.message_history.append(human_message)
+            player_messages.append(human_message)
         
         # 更新游戏状态上下文
-        state = self.update_context(state, [dm_message, count_message, player_message])
+        state = self.update_context(state, [dm_message] + player_messages)
         
         return state
+    
+    def _extract_previous_responses(self) -> List[ChatMessage]:
+        """
+        从聊天历史中提取上一轮的玩家响应
+        
+        Returns:
+            List[ChatMessage]: 上一轮的响应消息列表
+        """
+        # 在这个简单实现中，我们直接返回所有历史消息
+        return self.message_history
+    
+    async def _generate_dm_message(self, state: GameState, previous_messages: List[ChatMessage]) -> TextMessage:
+        """
+        生成DM的场景描述消息
+        
+        Args:
+            state: 当前游戏状态
+            previous_messages: 上一轮的消息历史
+            
+        Returns:
+            TextMessage: DM的场景描述消息
+        """
+        if not self.dm_agent:
+            # 如果没有DM Agent，使用默认消息
+            return TextMessage(
+                content=f"这是第{state.round_number}回合，游戏继续进行中...",
+                source="系统"
+            )
+        
+        # 暂时使用伪装的DM消息 - 未来替换为真正的DMAgent
+        if state.round_number == 1:
+            dm_content = "你们站在一座古老城堡的入口处。高耸的石墙上爬满了藤蔓，铁门已经生锈，但仍然紧闭着。周围是茂密的森林，有微弱的光从城堡的窗户透出。你们听到城堡内传来奇怪的声音。"
+        else:
+            dm_content = f"第{state.round_number}回合：随着你们的探索，城堡内的气氛变得更加紧张。走廊上的火把忽明忽暗，墙上的画像似乎在注视着你们。远处传来金属碰撞的声音和低沉的咆哮。"
+        
+        return TextMessage(
+            content=dm_content,
+            source=self.dm_agent.name
+        )
     
     def update_context(self, state: GameState, messages: List[TextMessage]) -> GameState:
         """
@@ -87,7 +155,7 @@ class RoundManager:
         Returns:
             GameState: 更新后的游戏状态
         """
-        # 在这个简单实现中，我们只存储消息历史
+        # 在这个实现中，我们只存储消息历史
         if "message_history" not in state.context:
             state.context["message_history"] = []
             
@@ -106,3 +174,18 @@ class RoundManager:
         """
         # 如果达到最大回合数或游戏已结束，则终止
         return state.round_number >= state.max_rounds or state.is_finished
+        
+    def get_player_history(self, player_name: str) -> List[Dict[str, Any]]:
+        """
+        获取指定玩家的历史记录
+        
+        Args:
+            player_name: 玩家名称
+            
+        Returns:
+            List[Dict[str, Any]]: 玩家历史记录列表
+        """
+        player_agent = next((a for a in self.player_agents if a.name == player_name), None)
+        if player_agent:
+            return player_agent.get_history()
+        return []

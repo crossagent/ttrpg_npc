@@ -25,14 +25,41 @@ async def display_output(message: TextMessage) -> None:
     """
     print(f"{message.source}: {message.content}")
 
+async def show_player_history(round_manager, player_name: str) -> None:
+    """
+    显示指定玩家的历史记录
+    
+    Args:
+        round_manager: 回合管理器
+        player_name: 玩家名称
+    """
+    history = round_manager.get_player_history(player_name)
+    if not history:
+        print(f"找不到玩家 '{player_name}' 的历史记录")
+        return
+    
+    print(f"\n--- {player_name} 的历史记录 ---")
+    for i, entry in enumerate(history):
+        print(f"\n回合 {i+1} ({entry['timestamp']})")
+        print(f"观察: {entry['observation']}")
+        print(f"状态: 目标={entry['character_state']['goal']}, " +
+             f"计划={entry['character_state']['plan']}, " +
+             f"心情={entry['character_state']['mood']}, " +
+             f"血量={entry['character_state']['health']}")
+        print(f"思考: {entry['thinking']}")
+        print(f"行动: {entry['action']}")
+        print("-" * 50)
+
 async def main() -> None:
     """
     CLI入口，管理整个游戏流程
     """
     print("=== TTRPG NPC游戏系统启动 ===")
-    print("这是一个最多5回合的简单游戏，包含一个只会数数的Agent")
-    print("每回合Agent会给出一个比上回合大1的数字")
-    print("你可以输入任何内容回应，游戏会继续\n")
+    print("这是一个多人角色扮演游戏，包含3个AI玩家和1个人类玩家")
+    print("每回合DM会描述场景，然后所有玩家依次行动")
+    print("可用命令:")
+    print("  /history [玩家名称] - 查看指定玩家的内部状态历史")
+    print("  /quit - 退出游戏\n")
     
     # 创建游戏引擎
     engine = GameEngine(max_rounds=5)
@@ -42,7 +69,6 @@ async def main() -> None:
         final_state = await engine.start_game()
         print("\n=== 游戏结束 ===")
         print(f"共进行了{final_state.round_number}回合")
-        print(f"最终计数: {final_state.current_count}")
     except KeyboardInterrupt:
         print("\n游戏被用户中断")
     except Exception as e:

@@ -1,13 +1,17 @@
-from autogen_agentchat.agents import AssistantAgent
+from autogen_agentchat.agents import AssistantAgent, BaseChatAgent
 from autogen_ext.models.openai import OpenAIChatCompletionClient
 from autogen_core import CancellationToken
 from autogen_agentchat.messages import TextMessage, ChatMessage
 from typing import Dict, List, Any, Callable, Optional
 import asyncio
 
-# 导入我们的数据模型
+# 导入我们的数据模型和Agent
 from src.models.gameSchema import GameState, AgentConfig
-from src.config.settings import DEFAULT_MAX_ROUNDS, DEFAULT_MODEL
+from src.agents.player_agent import PlayerAgent
+from src.config.config_loader import load_llm_settings
+
+# 默认配置
+DEFAULT_MAX_ROUNDS = 5
 
 class GameEngine:
     """
@@ -22,7 +26,28 @@ class GameEngine:
             max_rounds: 最大回合数，默认为配置中的DEFAULT_MAX_ROUNDS
         """
         self.state = GameState(max_rounds=max_rounds)
-        self.model_client = OpenAIChatCompletionClient(model=DEFAULT_MODEL)
+        
+        # 加载LLM配置
+        llm_settings = load_llm_settings()
+        
+        # 使用配置初始化模型客户端
+        self.model_client = OpenAIChatCompletionClient(
+            model=llm_settings.model,
+            api_key=llm_settings.openai_api_key,
+            temperature=llm_settings.temperature,
+            base_url=llm_settings.base_url,
+            model_info={
+                "name": llm_settings.model,
+                "context_length": 16000,  # 通义千问模型的上下文窗口大小
+                "token_limit": 16000,     # 通义千问模型的令牌限制
+                "max_tokens": 8000,        # 通义千问模型的最大输出令牌数
+                "vision": False,
+                "function_calling": False,
+                "json_output": False,
+                'family': 'gpt-4o'
+            }
+        )
+        
         self.agents = []
         self.cancellation_token = CancellationToken()
     
@@ -36,35 +61,59 @@ class GameEngine:
         # 在这个简单实现中，我们直接返回已初始化的状态
         return self.state
     
-    def initialize_agents(self) -> List[AssistantAgent]:
+    def initialize_agents(self) -> List[BaseChatAgent]:
         """
         根据配置创建并注册各Agent
         
         Returns:
-            List[AssistantAgent]: 初始化后的Agent列表
+            List[BaseChatAgent]: 初始化后的Agent列表
         """
-        # 创建一个只会数数的Agent
-        counting_agent = AssistantAgent(
-            name="counter",
-            model_client=self.model_client,
-            system_message="你只会数数，从1开始，每次回应都只输出下一个数字，不解释也不做其他回应。",
-        )
-        
-        # 创建一个DM代理（可以扩展为更复杂的角色）
+        # 创建DM代理 - 暂时使用简单的伪装DM
         dm_agent = AssistantAgent(
             name="dm",
             model_client=self.model_client,
-            system_message="你是游戏的主持人，负责推动故事和描述场景。",
+            system_message="你是游戏的主持人，负责推动故事和描述场景。描述要生动有趣，富有想象力。",
         )
         
-        # 玩家代理（用于接收用户输入）
-        player_agent = AssistantAgent(
-            name="player",
+        # 创建3个玩家Agent
+        player1 = PlayerAgent(
+            name="warrior",
+            character_profile={
+                "name": "高山",
+                "personality": "勇敢，直接，喜欢冲锋在前",
+                "background": "来自北方山区的战士，精通近战技能",
+            },
+            model_client=self.model_client
+        )
+        
+        player2 = PlayerAgent(
+            name="mage",
+            character_profile={
+                "name": "星辰",
+                "personality": "聪明，谨慎，思考周全",
+                "background": "皇家魔法学院的毕业生，精通元素魔法",
+            },
+            model_client=self.model_client
+        )
+        
+        player3 = PlayerAgent(
+            name="rogue",
+            character_profile={
+                "name": "影子",
+                "personality": "狡猾，机智，喜欢探索",
+                "background": "出身于贫民窟，自学成才的地下城探险家",
+            },
+            model_client=self.model_client
+        )
+        
+        # 人类玩家代理
+        human_agent = AssistantAgent(
+            name="human_player",
             model_client=self.model_client, 
-            system_message="你是玩家角色的代理人，负责转达玩家的指令。"
+            system_message="你是人类玩家的代理人，负责转达玩家的指令。"
         )
         
-        self.agents = [counting_agent, dm_agent, player_agent]
+        self.agents = [dm_agent, player1, player2, player3, human_agent]
         return self.agents
     
     async def start_game(self) -> GameState:
@@ -85,9 +134,60 @@ class GameEngine:
         from src.engine.round_manager import RoundManager
         round_manager = RoundManager(self.agents, self.cancellation_token)
         
+        # 保存回合管理器的引用，以便CLI可以访问
+        self.round_manager = round_manager
+        
         # 执行游戏循环
         while not round_manager.should_terminate(self.state):
             self.state = await round_manager.execute_round(self.state)
             
+            # 检查是否有命令
+            cmd = input("输入命令(例如 /history warrior)或按回车继续: ").strip()
+            if cmd.startswith("/"):
+                parts = cmd.split()
+                command = parts[0]
+                args = parts[1:] if len(parts) > 1 else []
+                
+                if command == "/history" and args:
+                    await self._show_player_history(args[0])
+                elif command == "/quit":
+                    break
+                else:
+                    print("未知命令，可用命令: /history [玩家名称], /quit")
+        
         print(f"游戏结束，共进行了{self.state.round_number}回合。")
-        return self.state
+    
+    async def _show_player_history(self, player_name: str) -> None:
+        """
+        显示指定玩家的历史记录
+        
+        Args:
+            player_name: 玩家名称
+        """
+        # 中文名称到英文名称的映射
+        name_mapping = {
+            "战士": "warrior",
+            "法师": "mage",
+            "盗贼": "rogue"
+        }
+        
+        # 如果输入的是中文名称，转换为对应的英文名称
+        if player_name in name_mapping:
+            player_name = name_mapping[player_name]
+            
+        history = self.round_manager.get_player_history(player_name)
+        if not history:
+            print(f"找不到玩家 '{player_name}' 的历史记录")
+            return
+        
+        print(f"\n--- {player_name} 的历史记录 ---")
+        for i, entry in enumerate(history):
+            print(f"\n回合 {i+1} ({entry['timestamp']})")
+            print(f"观察: {entry['observation']}")
+            print(f"状态: 目标={entry['character_state']['goal']}, " +
+                 f"计划={entry['character_state']['plan']}, " +
+                 f"心情={entry['character_state']['mood']}, " +
+                 f"血量={entry['character_state']['health']}")
+            print(f"思考: {entry['thinking']}")
+            print(f"行动: {entry['action']}")
+            print("-" * 50)
