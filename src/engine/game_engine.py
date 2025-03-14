@@ -148,7 +148,7 @@ class GameEngine:
             self.state = await round_manager.execute_round(self.state)
             
             # 检查是否有命令
-            cmd = input("输入命令(例如 /history warrior)或按回车继续: ").strip()
+            cmd = input("输入命令(例如 /history warrior /chat)或按回车继续: ").strip()
             if cmd.startswith("/"):
                 parts = cmd.split()
                 command = parts[0]
@@ -233,10 +233,6 @@ class GameEngine:
                     # 如果message是TextMessage对象
                     if hasattr(entry.message, 'content') and hasattr(entry.message, 'source'):
                         print(entry.message.source + ": " + entry.message.content)
-                    # 如果message是字符串
-                    elif isinstance(entry.message, str):
-                        print(entry.message)
-                    # 其他情况
                     else:
                         print(str(entry.message))
                 else:
