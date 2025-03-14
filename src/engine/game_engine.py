@@ -4,11 +4,17 @@ from autogen_core import CancellationToken
 from autogen_agentchat.messages import TextMessage, ChatMessage
 from typing import Dict, List, Any, Callable, Optional
 import asyncio
+from datetime import datetime
 
 # 导入我们的数据模型和Agent
 from src.models.gameSchema import GameState, AgentConfig
 from src.agents.player_agent import PlayerAgent
 from src.config.config_loader import load_llm_settings
+from src.config.color_utils import (
+    format_dm_message, format_player_message, format_observation,
+    format_state, format_thinking, print_colored,
+    Color, green_text, yellow_text, gray_text
+)
 
 # 默认配置
 DEFAULT_MAX_ROUNDS = 5
@@ -150,12 +156,14 @@ class GameEngine:
                 
                 if command == "/history" and args:
                     await self._show_player_history(args[0])
+                elif command == "/chat":
+                    await self._show_chat_history()
                 elif command == "/quit":
                     break
                 else:
-                    print("未知命令，可用命令: /history [玩家名称], /quit")
+                    print("未知命令，可用命令: /history [玩家名称], /chat, /quit")
         
-        print(f"游戏结束，共进行了{self.state.round_number}回合。")
+        print(green_text(f"游戏结束，共进行了{self.state.round_number}回合。"))
     
     async def _show_player_history(self, player_name: str) -> None:
         """
@@ -183,11 +191,39 @@ class GameEngine:
         print(f"\n--- {player_name} 的历史记录 ---")
         for i, entry in enumerate(history):
             print(f"\n回合 {i+1} ({entry['timestamp']})")
-            print(f"观察: {entry['observation']}")
-            print(f"状态: 目标={entry['character_state']['goal']}, " +
-                 f"计划={entry['character_state']['plan']}, " +
-                 f"心情={entry['character_state']['mood']}, " +
-                 f"血量={entry['character_state']['health']}")
-            print(f"思考: {entry['thinking']}")
-            print(f"行动: {entry['action']}")
+            print(format_observation(entry['observation']))
+            print(format_state(
+                entry['character_state']['goal'],
+                entry['character_state']['plan'],
+                entry['character_state']['mood'],
+                entry['character_state']['health']
+            ))
+            print(format_thinking(entry['thinking']))
+            print(green_text(f"行动: {entry['action']}"))
             print("-" * 50)
+    
+    async def _show_chat_history(self) -> None:
+        """
+        显示全局聊天历史
+        """
+        if not hasattr(self, 'round_manager') or not self.round_manager.message_history:
+            print("聊天历史为空")
+            return
+        
+        print("\n--- 全局聊天历史 ---")
+        for i, message in enumerate(self.round_manager.message_history):
+            # 获取消息时间戳
+            timestamp = message.metadata.get("timestamp", "未知时间") if hasattr(message, 'metadata') and message.metadata else "未知时间"
+            
+            # 根据消息来源确定颜色
+            if message.source == "dm":
+                # DM消息使用绿色
+                print(f"\n[{timestamp}] {format_dm_message(message.source, message.content)}")
+            elif message.source == "human_player":
+                # 人类玩家输入使用灰色
+                print(f"\n[{timestamp}] {gray_text(f'{message.source}: {message.content}')}")
+            else:
+                # 其他玩家消息使用绿色
+                print(f"\n[{timestamp}] {format_player_message(message.source, message.content)}")
+        
+        print("\n" + "-" * 50)

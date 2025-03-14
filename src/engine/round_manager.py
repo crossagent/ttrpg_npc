@@ -3,10 +3,18 @@ from autogen_agentchat.messages import TextMessage, ChatMessage
 from autogen_core import CancellationToken
 from typing import List, Dict, Any, Optional
 import asyncio
+from datetime import datetime
 
 # 导入我们的数据模型
 from src.models.gameSchema import GameState
 from src.agents.player_agent import PlayerAgent
+
+# 导入颜色工具
+from src.config.color_utils import (
+    format_dm_message, format_player_message, format_observation,
+    format_state, format_thinking, print_colored,
+    Color
+)
 
 class RoundManager:
     """
@@ -50,13 +58,18 @@ class RoundManager:
         state.round_number += 1
         print(f"\n--- 回合 {state.round_number} 开始 ---\n")
         
+        # 记录回合开始时间
+        round_start_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        
         # 从历史中提取上一轮的玩家响应
         previous_messages = self._extract_previous_responses()
         
         # DM发言（描述场景）
         dm_message = await self._generate_dm_message(state, previous_messages)
+        # 添加时间戳
+        dm_message.metadata = {"timestamp": round_start_time}
         self.message_history.append(dm_message)
-        print(f"{self.dm_agent.name}: {dm_message.content}")
+        print(format_dm_message(self.dm_agent.name, dm_message.content))
         
         # 收集所有玩家的响应
         player_messages = []
@@ -69,33 +82,45 @@ class RoundManager:
             # 玩家Agent生成响应
             player_response = await player_agent.generate_response(agent_context, self.cancellation_token)
             
+            # 获取当前时间作为消息时间戳
+            message_timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            
             # 创建只包含行动部分的消息添加到群聊历史
             action_message = TextMessage(
                 content=player_response.action,
-                source=player_agent.name
+                source=player_agent.name,
+                metadata={"timestamp": message_timestamp}
             )
             self.message_history.append(action_message)
             player_messages.append(action_message)
             
-            print(f"{player_agent.name}: {player_response.action}")
+            # 使用绿色打印玩家发言
+            print(format_player_message(player_agent.name, player_response.action))
             
-            # 打印内部状态（仅用于调试）
+            # 打印内部状态（仅用于调试）- 使用黄色
             print(f"--- {player_agent.name}的内部状态 ---")
-            print(f"观察: {player_response.observation}")
-            print(f"角色状态: 目标={player_response.character_state.goal}, " +
-                 f"计划={player_response.character_state.plan}, " +
-                 f"心情={player_response.character_state.mood}, " +
-                 f"血量={player_response.character_state.health}")
-            print(f"思考: {player_response.thinking}")
+            print(format_observation(player_response.observation))
+            print(format_state(
+                player_response.character_state.goal,
+                player_response.character_state.plan,
+                player_response.character_state.mood,
+                player_response.character_state.health
+            ))
+            print(format_thinking(player_response.thinking))
             print("-------------------------")
         
         # 如果有人类玩家，获取人类输入
         if self.human_agent:
             from src.scripts.cli_runner import get_user_input
             user_input = await get_user_input()
+            
+            # 获取当前时间作为消息时间戳
+            message_timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            
             human_message = TextMessage(
                 content=user_input,
-                source=self.human_agent.name
+                source=self.human_agent.name,
+                metadata={"timestamp": message_timestamp}
             )
             self.message_history.append(human_message)
             player_messages.append(human_message)
