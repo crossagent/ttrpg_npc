@@ -193,7 +193,13 @@ class GameEngine:
         # 按回合分组
         rounds = {}
         for entry in history:
-            round_num = entry.get("round", 0)
+            # 检查entry是否为HistoryMessage对象
+            if hasattr(entry, 'round'):
+                round_num = entry.round
+            else:
+                # 兼容字典类型
+                round_num = entry.get("round", 0) if hasattr(entry, 'get') else 0
+                
             if round_num not in rounds:
                 rounds[round_num] = []
             rounds[round_num].append(entry)
@@ -202,16 +208,41 @@ class GameEngine:
         for round_num in sorted(rounds.keys()):
             if round_num == 0:  # 跳过回合为0的记录
                 continue
+            
+            # 获取时间戳
+            first_entry = rounds[round_num][0]
+            if hasattr(first_entry, 'timestamp'):
+                timestamp = first_entry.timestamp
+            else:
+                timestamp = first_entry.get('timestamp', '') if hasattr(first_entry, 'get') else ''
                 
-            print(f"\n回合 {round_num} ({rounds[round_num][0].get('timestamp', '')})")
+            print(f"\n回合 {round_num} ({timestamp})")
             entries = rounds[round_num]
             
             # 按时间戳排序
-            entries.sort(key=lambda x: x.get("timestamp", ""))
+            def get_timestamp(x):
+                if hasattr(x, 'timestamp'):
+                    return x.timestamp
+                return x.get('timestamp', '') if hasattr(x, 'get') else ''
+            
+            entries.sort(key=get_timestamp)
             
             # 显示该回合的所有记录
             for entry in entries:
-                print(entry.get("message", ""))
+                if hasattr(entry, 'message'):
+                    # 如果message是TextMessage对象
+                    if hasattr(entry.message, 'content'):
+                        print(entry.message.content)
+                    # 如果message是字符串
+                    elif isinstance(entry.message, str):
+                        print(entry.message)
+                    # 其他情况
+                    else:
+                        print(str(entry.message))
+                else:
+                    # 兼容字典类型
+                    message = entry.get('message', '') if hasattr(entry, 'get') else str(entry)
+                    print(message)
     
     async def _show_chat_history(self) -> None:
         """

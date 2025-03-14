@@ -76,12 +76,6 @@ class RoundManager:
         # 添加到聊天历史
         state.chat_history.append(dm_message)
         
-        # 设置DM消息的元数据
-        dm_text_message.metadata = {
-            "timestamp": round_start_time,
-            "round": state.round_number
-        }
-        
         print(format_dm_message(dm_message.message.source, dm_message.message.content))
         
         # 收集所有玩家的响应
@@ -90,7 +84,7 @@ class RoundManager:
         # 首先处理AI玩家
         for player_agent in self.player_agents:
             # 创建消息上下文：上一轮的玩家响应集合 + 当前轮的DM消息
-            agent_context = previous_messages + [dm_text_message]
+            agent_context = previous_messages + [dm_message]
             
             # 玩家Agent生成响应，传递当前回合数
             player_response = await player_agent.generate_response(agent_context, self.cancellation_token, state.round_number)
@@ -167,7 +161,7 @@ class RoundManager:
         
         return state
     
-    def _extract_previous_responses(self, state: GameState) -> List[ChatMessage]:
+    def _extract_previous_responses(self, state: GameState) -> List[HistoryMessage]:
         """
         从聊天历史中提取上一轮的玩家响应
         
@@ -175,7 +169,7 @@ class RoundManager:
             state: 当前游戏状态
             
         Returns:
-            List[ChatMessage]: 上一轮的玩家响应消息列表
+            List[HistoryMessage]: 上一轮的玩家响应消息列表
         """
         # 如果没有历史记录，返回空列表
         if not state.chat_history:
@@ -193,12 +187,12 @@ class RoundManager:
         previous_messages = []
         for msg in state.chat_history:
             if msg.round == previous_round and hasattr(msg, 'message_type') and msg.message_type == MessageType.PLAYER:
-                # 只添加玩家响应消息
-                previous_messages.append(msg.message)
+                # 返回完整的HistoryMessage对象
+                previous_messages.append(msg)
                 
         return previous_messages
     
-    async def _generate_dm_message(self, state: GameState, previous_messages: List[ChatMessage]) -> TextMessage:
+    async def _generate_dm_message(self, state: GameState, previous_messages: List[HistoryMessage]) -> TextMessage:
         """
         生成DM的场景描述消息
         
