@@ -61,7 +61,9 @@ async def show_player_history(round_manager, player_name: str) -> None:
         
         # 显示该回合的所有记录
         for entry in entries:
-            print(entry.get("message", ""))
+            character_name = entry.get("character_name", "")
+            message = entry.get("message", "")
+            print(f"{character_name}: {message}")
 
 async def main() -> None:
     """
