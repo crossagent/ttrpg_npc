@@ -1,9 +1,13 @@
 from typing import List, Dict, Any, Optional, Tuple
 from datetime import datetime
+import uuid
+import asyncio
+import logging
 
-from src.models.game_state_models import GameState
-from src.models.message_models import Message, MessageType
-from src.models.action_models import PlayerAction, ActionResult
+from src.models.game_state_models import GameState, Event
+from src.models.message_models import Message, MessageType, MessageVisibility
+from src.models.action_models import PlayerAction, ActionResult, ItemQuery, DiceResult
+from src.models.context_models import StateUpdateRequest
 from src.engine.game_state_manager import GameStateManager
 from src.communication.perspective_info_manager import PersonalContextManager
 from src.communication.message_dispatcher import MessageDispatcher
@@ -16,8 +20,11 @@ class RoundManager:
     回合管理器类，负责协调整个回合的执行流程，调度各个模块之间的交互。
     """
     
-    def __init__(self, game_state_manager=None, message_dispatcher=None, 
-                 personal_context_manager=None, agent_manager=None, scenario_manager=None):
+    def __init__(self, game_state_manager: GameStateManager = None, 
+                 message_dispatcher: MessageDispatcher = None, 
+                 personal_context_manager: PersonalContextManager = None, 
+                 agent_manager: AgentManager = None, 
+                 scenario_manager: ScenarioManager = None):
         """
         初始化回合管理器
         
@@ -28,11 +35,22 @@ class RoundManager:
             agent_manager: Agent系统
             scenario_manager: 剧本管理器
         """
-        self.game_state_manager:GameStateManager = game_state_manager
-        self.message_dispatcher:MessageDispatcher = message_dispatcher
-        self.personal_context_manager:PersonalContextManager = personal_context_manager
-        self.agent_manager:AgentManager = agent_manager
-        self.scenario_manager:ScenarioManager = scenario_manager
+        self.game_state_manager = game_state_manager
+        self.message_dispatcher = message_dispatcher
+        self.personal_context_manager = personal_context_manager
+        self.agent_manager = agent_manager
+        self.scenario_manager = scenario_manager
+        
+        # 回合状态相关变量
+        self.current_round_id: int = 0
+        self.round_start_time: datetime = None
+        self.current_state: GameState = None
+        self.dm_narrative: str = None
+        self.player_actions: List[PlayerAction] = []
+        self.action_results: List[ActionResult] = []
+        
+        # 日志配置
+        self.logger = logging.getLogger("RoundManager")
     
     def start_round(self, round_id: int) -> None:
         """
@@ -41,7 +59,21 @@ class RoundManager:
         Args:
             round_id: 回合ID
         """
-        pass
+        # 记录回合信息
+        self.current_round_id = round_id
+        self.round_start_time = datetime.now()
+        
+        # 初始化回合状态
+        self.current_state = self.game_state_manager.get_current_state()
+        self.current_state.round_number = round_id
+        
+        # 重置回合变量
+        self.dm_narrative = None
+        self.player_actions = []
+        self.action_results = []
+        
+        # 记录日志
+        self.logger.info(f"回合 {round_id} 开始于 {self.round_start_time}")
     
     def process_dm_turn(self) -> Message:
         """
@@ -50,7 +82,44 @@ class RoundManager:
         Returns:
             Message: DM的叙述消息
         """
-        pass
+        # 获取当前游戏状态和剧本
+        game_state = self.current_state
+        scenario = self.scenario_manager.get_current_scenario()
+        
+        # 通过DM代理生成叙述
+        dm_agent = self.agent_manager.get_dm_agent()
+        dm_narrative = asyncio.run(dm_agent.dm_generate_narrative(game_state, scenario))
+        self.dm_narrative = dm_narrative
+        
+        # 创建DM消息
+        message_id = str(uuid.uuid4())
+        timestamp = datetime.now().isoformat()
+        
+        dm_message = Message(
+            message_id=message_id,
+            type=MessageType.DM,
+            sender="DM",
+            content=dm_narrative,
+            timestamp=timestamp,
+            visibility=MessageVisibility.PUBLIC,
+            recipients=self.game_state_manager.get_player_ids(),
+            round_id=self.current_round_id
+        )
+        
+        # 广播DM消息
+        self.message_dispatcher.broadcast_message(dm_message)
+        
+        # 更新游戏状态
+        update_request = StateUpdateRequest(
+            dm_narrative=dm_narrative,
+            action_context={
+                "type": "dm_narration",
+                "round": self.current_round_id
+            }
+        )
+        self.current_state = self.game_state_manager.update_state(update_request)
+        
+        return dm_message
     
     def process_player_turns(self) -> List[PlayerAction]:
         """
@@ -59,7 +128,46 @@ class RoundManager:
         Returns:
             List[PlayerAction]: 玩家行动列表
         """
-        pass
+        player_actions = []
+        player_ids = self.game_state_manager.get_player_ids()
+        
+        # 处理每个玩家回合
+        for player_id in player_ids:
+            # 获取玩家上下文
+            player_context = self.personal_context_manager.get_player_context(player_id)
+            
+            # 玩家决策行动
+            player_agent = self.agent_manager.get_player_agent(player_id)
+            player_action = asyncio.run(player_agent.player_decide_action(player_id, player_context))
+            player_actions.append(player_action)
+            
+            # 创建玩家消息
+            message_id = str(uuid.uuid4())
+            timestamp = datetime.now().isoformat()
+            
+            player_message = Message(
+                message_id=message_id,
+                type=MessageType.PLAYER if player_action.action_type == "对话" else MessageType.ACTION,
+                sender=player_id,
+                content=player_action.content,
+                timestamp=timestamp,
+                visibility=MessageVisibility.PUBLIC,
+                recipients=player_action.target if isinstance(player_action.target, list) else [player_action.target],
+                round_id=self.current_round_id
+            )
+            
+            # 广播玩家消息
+            self.message_dispatcher.broadcast_message(player_message)
+            
+            # 更新其他玩家的上下文
+            for other_player_id in player_ids:
+                if other_player_id != player_id:
+                    self.personal_context_manager.update_player_context(other_player_id, player_message)
+        
+        # 保存玩家行动
+        self.player_actions = player_actions
+        
+        return player_actions
     
     def resolve_actions(self, actions: List[PlayerAction]) -> List[ActionResult]:
         """
@@ -71,7 +179,115 @@ class RoundManager:
         Returns:
             List[ActionResult]: 行动结果列表
         """
-        pass
+        action_results = []
+        
+        # 过滤出需要解析的实质性行动（非对话类）
+        substantive_actions = [action for action in actions if action.action_type == "行动"]
+        
+        # 处理每个实质性行动
+        for action in substantive_actions:
+            # 检查前置条件（如物品检查）
+            if "使用" in action.content.lower():
+                # 简单的物品检查示例
+                item_name = action.content.split("使用")[1].strip().split()[0]
+                item_result = self.game_state_manager.check_item(action.player_id, item_name)
+                
+                if not item_result.has_item:
+                    # 如果玩家没有物品，创建失败结果
+                    action_result = ActionResult(
+                        player_id=action.player_id,
+                        action=action,
+                        success=False,
+                        narrative=f"{action.player_id}尝试使用{item_name}，但没有这个物品。",
+                        state_changes={}
+                    )
+                    action_results.append(action_result)
+                    
+                    # 创建结果消息
+                    message_id = str(uuid.uuid4())
+                    timestamp = datetime.now().isoformat()
+                    
+                    result_message = Message(
+                        message_id=message_id,
+                        type=MessageType.RESULT,
+                        sender="DM",
+                        content=action_result.narrative,
+                        timestamp=timestamp,
+                        visibility=MessageVisibility.PUBLIC,
+                        recipients=self.game_state_manager.get_player_ids(),
+                        round_id=self.current_round_id
+                    )
+                    
+                    # 广播结果消息
+                    self.message_dispatcher.broadcast_message(result_message)
+                    continue
+            
+            # 检查是否需要掷骰子
+            dice_result = None
+            if any(keyword in action.content.lower() for keyword in ["检查", "尝试", "技能", "攻击"]):
+                raw_value = self.agent_manager.roll_dice("d20")
+                dice_result = DiceResult(
+                    raw_value=raw_value,
+                    modified_value=raw_value + 5,  # 简单示例，实际应考虑角色技能加成
+                    modifiers={"技能": 3, "属性": 2}
+                )
+                
+                # 创建骰子消息
+                message_id = str(uuid.uuid4())
+                timestamp = datetime.now().isoformat()
+                
+                dice_message = Message(
+                    message_id=message_id,
+                    type=MessageType.DICE,
+                    sender=action.player_id,
+                    content=f"掷骰结果: {dice_result.raw_value} + 修正值 {5} = {dice_result.modified_value}",
+                    timestamp=timestamp,
+                    visibility=MessageVisibility.PUBLIC,
+                    recipients=self.game_state_manager.get_player_ids(),
+                    round_id=self.current_round_id
+                )
+                
+                # 广播骰子消息
+                self.message_dispatcher.broadcast_message(dice_message)
+            
+            # DM解析行动结果
+            dm_agent = self.agent_manager.get_dm_agent()
+            action_result = asyncio.run(dm_agent.dm_resolve_action(action, self.current_state))
+            action_results.append(action_result)
+            
+            # 创建结果消息
+            message_id = str(uuid.uuid4())
+            timestamp = datetime.now().isoformat()
+            
+            result_message = Message(
+                message_id=message_id,
+                type=MessageType.RESULT,
+                sender="DM",
+                content=action_result.narrative,
+                timestamp=timestamp,
+                visibility=MessageVisibility.PUBLIC,
+                recipients=self.game_state_manager.get_player_ids(),
+                round_id=self.current_round_id
+            )
+            
+            # 广播结果消息
+            self.message_dispatcher.broadcast_message(result_message)
+            
+            # 更新游戏状态
+            update_request = StateUpdateRequest(
+                dm_narrative=action_result.narrative,
+                action_context={
+                    "player": action.player_id,
+                    "action": action.content,
+                    "success": action_result.success
+                }
+            )
+            self.current_state = self.game_state_manager.update_state(update_request)
+        
+        # 保存行动结果
+        self.action_results = action_results
+        
+        return action_results
     
     def end_round(self) -> GameState:
         """
@@ -80,7 +296,40 @@ class RoundManager:
         Returns:
             GameState: 更新后的游戏状态
         """
-        pass
+        # 检查是否有新的事件触发
+        triggered_events = self.scenario_manager.check_event_triggers(self.current_state)
+        
+        # 处理触发的事件
+        for event in triggered_events:
+            if not any(e.event_id == event.event_id for e in self.current_state.active_events):
+                self.current_state.active_events.append(event)
+                self.logger.info(f"触发新事件: {event.name}")
+        
+        # 检查是否有完成的事件
+        completed_events = []
+        for event in self.current_state.active_events:
+            if event.is_completed:
+                completed_events.append(event)
+                self.scenario_manager.complete_event(event.event_id)
+        
+        # 将完成的事件从活跃事件中移除，添加到已完成事件中
+        for event in completed_events:
+            self.current_state.active_events.remove(event)
+            self.current_state.completed_events.append(event)
+        
+        # 保存当前游戏状态
+        self.game_state_manager.save_state()
+        
+        # 检查游戏是否结束
+        if self.should_terminate(self.current_state):
+            self.current_state.is_finished = True
+            self.logger.info("游戏满足结束条件，已标记为结束状态")
+        
+        # 记录回合结束
+        round_duration = datetime.now() - self.round_start_time
+        self.logger.info(f"回合 {self.current_round_id} 结束，持续时间: {round_duration}")
+        
+        return self.current_state
 
     async def execute_round(self, state: GameState) -> GameState:
         """
@@ -92,6 +341,32 @@ class RoundManager:
         Returns:
             GameState: 更新后的游戏状态
         """
+        try:
+            # 设置当前状态
+            self.current_state = state
+            
+            # 1. 开始回合
+            round_id = state.round_number + 1
+            self.start_round(round_id)
+            
+            # 2. 处理DM回合
+            dm_message = self.process_dm_turn()
+            
+            # 3. 处理玩家回合
+            player_actions = self.process_player_turns()
+            
+            # 4. 解析玩家行动
+            action_results = self.resolve_actions(player_actions)
+            
+            # 5. 结束回合
+            updated_state = self.end_round()
+            
+            return updated_state
+            
+        except Exception as e:
+            self.logger.error(f"回合执行过程中出现错误: {str(e)}")
+            # 处理异常情况，记录错误并返回原始状态
+            return state
 
     def should_terminate(self, state: GameState) -> bool:
         """
@@ -103,3 +378,36 @@ class RoundManager:
         Returns:
             bool: 是否应该终止游戏
         """
+        # 检查是否达到最大回合数
+        if state.round_number >= state.max_rounds:
+            self.logger.info(f"已达到最大回合数 {state.max_rounds}，游戏将结束")
+            return True
+        
+        # 检查是否有特殊事件触发游戏结束
+        for event in state.active_events:
+            if hasattr(event, 'consequences') and "终止游戏" in event.consequences:
+                self.logger.info(f"事件 '{event.name}' 触发了游戏结束")
+                return True
+        
+        # 检查玩家状态，例如是否所有玩家都已达成目标或全部阵亡
+        all_players_completed = True
+        all_players_dead = True
+        
+        for player_id, status in state.characters.items():
+            # 假设玩家有目标完成标志
+            if not status.metadata.get('goal_completed', False):
+                all_players_completed = False
+            
+            # 假设血量为0表示阵亡
+            if status.health > 0:
+                all_players_dead = False
+        
+        if all_players_completed:
+            self.logger.info("所有玩家都已完成目标，游戏将结束")
+            return True
+            
+        if all_players_dead:
+            self.logger.info("所有玩家都已阵亡，游戏将结束")
+            return True
+        
+        return False

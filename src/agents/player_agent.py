@@ -7,7 +7,6 @@ from datetime import datetime
 from src.models.scenario_models import Scenario
 from src.models.context_models import PlayerContext
 from src.models.game_state_models import GameState
-from src.utils.message_converter import convert_history_to_chat_messages
 from src.models.action_models import PlayerAction
 
 class PlayerAgent(AssistantAgent):
