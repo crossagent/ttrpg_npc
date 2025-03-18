@@ -4,7 +4,7 @@ from typing import List, Dict, Any, Optional
 from datetime import datetime
 
 from src.models.game_state_models import GameState, Event, CharacterInfo
-from src.models.scenario_models import GameScenario, StoryInfo, ScenarioEvent
+from src.models.scenario_models import Scenario, StoryInfo, ScenarioEvent
 from src.config.config_loader import load_config
 
 class ScenarioManager:
@@ -12,7 +12,7 @@ class ScenarioManager:
     剧本管理器类，负责管理游戏剧本，提供事件和剧情线索。
     """
     
-    def __init__(self, scenario: Optional[GameScenario] = None):
+    def __init__(self, scenario: Optional[Scenario] = None):
         """
         初始化剧本管理器
         
@@ -45,7 +45,7 @@ class ScenarioManager:
         """
         pass
     
-    def get_current_scenario(self) -> GameScenario:
+    def get_current_scenario(self) -> Scenario:
         """
         获取当前剧本
         
@@ -54,7 +54,7 @@ class ScenarioManager:
         """
         pass
     
-    def load_scenario(self, scenario_id: Optional[str] = None) -> GameScenario:
+    def load_scenario(self, scenario_id: Optional[str] = None) -> Scenario:
         """
         加载剧本
         
@@ -102,7 +102,7 @@ class ScenarioManager:
                 ))
             
             # 创建完整剧本
-            return GameScenario(
+            return Scenario(
                 story_info=story_info,
                 characters=characters,
                 events=events

@@ -4,8 +4,9 @@ from autogen_core import CancellationToken
 from typing import List, Dict, Any, Optional
 import json
 from datetime import datetime
-
-from src.models.gameSchema import PlayerResponse, CharacterState, HistoryMessage
+from src.models.scenario_models import Scenario, CharacterInfo
+from src.models.game_state_models import GameState
+from src.models.gameSchema import HistoryMessage
 from src.utils.message_converter import convert_history_to_chat_messages
 
 class PlayerAgent(AssistantAgent):
@@ -27,11 +28,10 @@ class PlayerAgent(AssistantAgent):
         self.character_profile = character_profile
         
         # 初始化角色状态
-        self.character_state = CharacterState(
+        self.character_state = CharacterInfo(
             goal="探索冒险世界",
             plan="跟随团队，根据情况调整策略",
             mood="期待",
-            health=100
         )
         
         # 系统记录的玩家历史，使用标准的HistoryMessage格式
@@ -81,132 +81,18 @@ class PlayerAgent(AssistantAgent):
 根据当前情境和角色性格来调整你的目标、计划、心情和行动。
 """
 
-    async def generate_response(self, messages: List[HistoryMessage], cancellation_token: CancellationToken, round_number: int = 0) -> PlayerResponse:
+    async def dm_generate_narrative(game_state: GameState, scenario: Scenario) -> str:
         """
-        根据聊天历史生成玩家响应
+        DM生成叙述
         
         Args:
-            messages: 聊天历史消息，使用HistoryMessage格式
-            cancellation_token: 取消令牌
-            round_number: 当前回合数（新增参数）
+            game_state: 游戏状态
+            script: 剧本
             
         Returns:
-            PlayerResponse: 包含观察、状态、思考和行动的响应
+            str: 生成的叙述文本
         """
-        # 记录传入的消息到history中
-        current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        
-        # 将传入的消息记录到history中
-        for msg in messages:
-            # 消息已经是HistoryMessage格式，直接添加到历史记录中
-            self.history.append(msg)
-        
-        # 将HistoryMessage转换为ChatMessage
-        chat_messages = convert_history_to_chat_messages(messages)
-        
-        # 调用LLM生成响应
-        response = await super().on_messages(chat_messages, cancellation_token)
-        llm_response = response.chat_message
-        
-        # 解析响应中的JSON
-        try:
-            content = llm_response.content
-            # 提取JSON部分
-            if "```json" in content and "```" in content:
-                json_str = content.split("```json")[1].split("```")[0].strip()
-            elif "```" in content:
-                json_str = content.split("```")[1].split("```")[0].strip()
-            else:
-                json_str = content
-                
-            response_dict = json.loads(json_str)
-            
-            # 解析角色状态
-            character_state_dict = response_dict.get("character_state", {})
-            character_state = CharacterState(
-                goal=character_state_dict.get("goal", self.character_state.goal),
-                plan=character_state_dict.get("plan", self.character_state.plan),
-                mood=character_state_dict.get("mood", self.character_state.mood),
-                health=character_state_dict.get("health", self.character_state.health)
-            )
-            
-            # 更新角色状态
-            self.character_state = character_state
-            
-            player_response = PlayerResponse(
-                observation=response_dict.get("observation", ""),
-                character_state=character_state,
-                thinking=response_dict.get("thinking", ""),
-                action=response_dict.get("action", "")
-            )
-            
-            # 记录玩家的响应到history
-            self.history.append(HistoryMessage(
-                timestamp=datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-                round=round_number,
-                character_name=self.name,
-                message=TextMessage(
-                    content=f"观察-{player_response.observation}",
-                    source=self.name
-                )
-            ))
-            
-            # 记录角色状态
-            self.history.append(HistoryMessage(
-                timestamp=datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-                round=round_number,
-                character_name=self.name,
-                message=TextMessage(
-                    content=f"状态-目标：{character_state.goal}，计划：{character_state.plan}，心情：{character_state.mood}，血量：{character_state.health}",
-                    source=self.name
-                )
-            ))
-            
-            # 记录思考过程
-            self.history.append(HistoryMessage(
-                timestamp=datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-                round=round_number,
-                character_name=self.name,
-                message=TextMessage(
-                    content=f"思考-{player_response.thinking}",
-                    source=self.name
-                )
-            ))
-            
-            # 记录行动
-            self.history.append(HistoryMessage(
-                timestamp=datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-                round=round_number,
-                character_name=self.name,
-                message=TextMessage(
-                    content=f"行动-{player_response.action}",
-                    source=self.name
-                )
-            ))
-            
-            return player_response
-            
-        except Exception as e:
-            # 如果解析失败，返回一个默认响应
-            print(f"解析玩家响应失败: {e}")
-            default_response = PlayerResponse(
-                observation="(解析失败)",
-                character_state=self.character_state,
-                thinking="(解析失败)",
-                action=llm_response.content
-            )
-            
-            # 记录失败的响应
-            self.history.append(HistoryMessage(
-                timestamp=datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-                round=round_number,
-                character_name=self.name,
-                message=f"{self.name}：行动-{default_response.action} (解析失败)"
-            ))
-            
-            return default_response
-    
-    # record_response方法已不再需要，所有记录都在generate_response中完成
+        pass
         
     def get_history(self) -> List[HistoryMessage]:
         """

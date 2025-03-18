@@ -3,8 +3,10 @@ from typing import List, Dict, Any, Optional, Union
 
 class CharacterInfo(BaseModel):
     """角色信息模型"""
-    public_identity: str = Field(..., description="角色的公开身份")
-    secret_goal: str = Field(..., description="角色的秘密目标")
+    identity: str = Field(..., description="角色的公开身份")
+    goal: str = Field(..., description="角色的秘密目标")
+    plan: str = Field(..., description="角色的计划")
+    mood: str = Field(..., description="角色的情绪")
     
 class ScenarioEvent(BaseModel):
     """剧本事件模型"""
@@ -24,7 +26,7 @@ class StoryInfo(BaseModel):
     background: str = Field(..., description="故事背景")
     secrets: Dict[str, str] = Field(..., description="故事重要秘密")
     
-class GameScenario(BaseModel):
+class Scenario(BaseModel):
     """完整游戏剧本模型"""
     story_info: StoryInfo = Field(..., description="故事背景信息")
     characters: Dict[str, CharacterInfo] = Field(..., description="角色信息字典，键为角色名")
