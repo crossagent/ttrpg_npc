@@ -1,8 +1,11 @@
+import os
+import json
 from typing import List, Dict, Any, Optional
 from datetime import datetime
 
 from src.models.game_state_models import GameState, Event, CharacterInfo
 from src.models.scenario_models import GameScenario, StoryInfo, ScenarioEvent
+from src.config.config_loader import load_config
 
 class ScenarioManager:
     """
@@ -51,50 +54,65 @@ class ScenarioManager:
         """
         pass
     
-    def load_scenario(self, scenario_id: str) -> GameScenario:
+    def load_scenario(self, scenario_id: Optional[str] = None) -> GameScenario:
         """
         加载剧本
         
         Args:
-            scenario_id: 剧本ID
+            scenario_id: 剧本ID，如果为None则加载默认剧本
             
         Returns:
-            bool: 是否加载成功
+            GameScenario: 加载的游戏剧本对象
         """
+        # 如果未指定剧本ID，则使用配置中的默认剧本
+        if scenario_id is None:
+            config = load_config('game_config.yaml')
+            scenario_id = config['scenario']['default_name']
+            
+        # 构建剧本文件路径
+        scenario_path = os.path.join('scenarios', scenario_id)
         
-        scenario_data = {}  # 从数据库加载剧本数据
-
-        # 转换故事信息
-        story_info = StoryInfo(
-            background=GameScenario["story_info"]["背景"],
-            secrets={"货轮秘密": scenario_data["story_info"]["货轮秘密"]}
-        )
-        
-        # 转换角色信息
-        characters = {}
-        for name, info in scenario_data["角色信息"].items():
-            characters[name] = CharacterInfo(
-                public_identity=info["公开身份"],
-                secret_goal=info["秘密目标"]
+        try:
+            # 加载剧本JSON文件
+            with open(scenario_path, 'r', encoding='utf-8') as f:
+                scenario_data = json.load(f)
+            
+            # 转换故事信息
+            story_info = StoryInfo(
+                background=scenario_data["story_info"]["背景"],
+                secrets={"货轮秘密": scenario_data["story_info"]["货轮秘密"]}
             )
-        
-        # 转换事件信息
-        events = []
-        for event_data in scenario_data["剧本事件"]:
-            events.append(ScenarioEvent(
-                event_id=event_data["事件ID"],
-                descenarioion=event_data["描述"],
-                trigger_condition=event_data["触发条件"],
-                aware_players=event_data["可感知玩家"],
-                possible_outcomes=event_data["可能结局"]
-            ))
-        
-        # 创建完整剧本
-        return GameScenario(
-            story_info=story_info,
-            characters=characters,
-            events=events
-        )
+            
+            # 转换角色信息
+            characters = {}
+            for name, info in scenario_data["角色信息"].items():
+                characters[name] = CharacterInfo(
+                    background=info["公开身份"],
+                    goals=info["秘密目标"]
+                )
+            
+            # 转换事件信息
+            events = []
+            for event_data in scenario_data["剧本事件"]:
+                events.append(ScenarioEvent(
+                    event_id=event_data["事件ID"],
+                    description=event_data["描述"],
+                    trigger_condition=event_data["触发条件"],
+                    possible_outcomes=event_data["可能结局"]
+                ))
+            
+            # 创建完整剧本
+            return GameScenario(
+                story_info=story_info,
+                characters=characters,
+                events=events
+            )
+        except FileNotFoundError:
+            raise FileNotFoundError(f"剧本文件 '{scenario_path}' 未找到")
+        except json.JSONDecodeError:
+            raise ValueError(f"剧本文件 '{scenario_path}' 格式错误")
+        except KeyError as e:
+            raise KeyError(f"剧本文件缺少必要字段: {str(e)}")
     
     def get_active_events(self) -> List[Event]:
         """

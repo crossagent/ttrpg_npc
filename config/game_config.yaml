@@ -34,3 +34,7 @@ room:
 system:
   # 自动清理未活动房间（小时）
   cleanup_inactive_rooms: 24
+
+scenario:
+  # 默认剧本名字
+  default_name: "rust.json"
