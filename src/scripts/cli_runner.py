@@ -5,7 +5,6 @@ from typing import Optional, List, Dict, Any
 
 # 导入我们的游戏引擎
 from src.engine.game_engine import GameEngine
-from src.models.gameSchema import GameState
 
 async def get_user_input() -> str:
     """

@@ -1,6 +1,5 @@
 from pydantic import BaseModel, Field
 from typing import Dict, List, Any, Callable, Optional
-from autogen_agentchat.messages import ChatMessage
 
 # 历史消息模型
 class HistoryMessage(BaseModel):
