@@ -3,10 +3,8 @@ from typing import List, Dict, Any, Optional, Union
 
 class CharacterInfo(BaseModel):
     """角色信息模型"""
-    identity: str = Field(..., description="角色的公开身份")
-    goal: str = Field(..., description="角色的秘密目标")
-    plan: str = Field(..., description="角色的计划")
-    mood: str = Field(..., description="角色的情绪")
+    public_identity: str = Field(..., description="角色的公开身份")
+    secret_goal: str = Field(..., description="角色的秘密目标")
     
 class ScenarioEvent(BaseModel):
     """剧本事件模型"""
