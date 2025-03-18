@@ -4,7 +4,7 @@ from datetime import datetime
 from src.models.game_state_models import GameState, Event, CharacterInfo, Script
 
 
-class ScriptManager:
+class ScenarioManager:
     """
     剧本管理器类，负责管理游戏剧本，提供事件和剧情线索。
     """

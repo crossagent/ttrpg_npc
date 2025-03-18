@@ -4,6 +4,11 @@ from datetime import datetime
 from src.models.game_state_models import GameState
 from src.models.message_models import Message, MessageType
 from src.models.action_models import PlayerAction, ActionResult
+from src.engine.game_state_manager import GameStateManager
+from src.communication.perspective_info_manager import PersonalContextManager
+from src.communication.message_dispatcher import MessageDispatcher
+from src.engine.agent_manager import AgentManager
+from src.engine.scenario_manager import ScenarioManager
 
 
 class RoundManager:
@@ -12,7 +17,7 @@ class RoundManager:
     """
     
     def __init__(self, game_state_manager=None, message_dispatcher=None, 
-                 personal_context_manager=None, agent_system=None, script_manager=None):
+                 personal_context_manager=None, agent_manager=None, scenario_manager=None):
         """
         初始化回合管理器
         
@@ -20,10 +25,14 @@ class RoundManager:
             game_state_manager: 游戏状态管理器
             message_dispatcher: 消息分发器
             personal_context_manager: 个人视角信息管理器
-            agent_system: Agent系统
-            script_manager: 剧本管理器
+            agent_manager: Agent系统
+            scenario_manager: 剧本管理器
         """
-        pass
+        self.game_state_manager:GameStateManager = game_state_manager
+        self.message_dispatcher:MessageDispatcher = message_dispatcher
+        self.personal_context_manager:PersonalContextManager = personal_context_manager
+        self.agent_manager:AgentManager = agent_manager
+        self.scenario_manager:ScenarioManager = scenario_manager
     
     def start_round(self, round_id: int) -> None:
         """
