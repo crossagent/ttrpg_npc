@@ -72,3 +72,25 @@ class RoundManager:
             GameState: 更新后的游戏状态
         """
         pass
+
+    async def execute_round(self, state: GameState) -> GameState:
+        """
+        执行单个回合的所有步骤
+        
+        Args:
+            state: 当前游戏状态
+            
+        Returns:
+            GameState: 更新后的游戏状态
+        """
+
+    def should_terminate(self, state: GameState) -> bool:
+        """
+        判断当前回合是否满足终止条件
+        
+        Args:
+            state: 当前游戏状态
+            
+        Returns:
+            bool: 是否应该终止游戏
+        """

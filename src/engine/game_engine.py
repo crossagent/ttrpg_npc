@@ -5,9 +5,11 @@ from autogen_agentchat.messages import TextMessage, ChatMessage
 from typing import Dict, List, Any, Callable, Optional
 import asyncio
 from datetime import datetime
+from autogen_core.models import ModelFamily
 
 # 导入我们的数据模型和Agent
-from src.models.gameSchema import GameState, AgentConfig
+from src.models.gameSchema import AgentConfig
+from src.models.game_state_models import GameState
 from src.agents.player_agent import PlayerAgent
 from src.config.config_loader import load_llm_settings
 from src.config.color_utils import (
@@ -44,13 +46,10 @@ class GameEngine:
             base_url=llm_settings.base_url,
             model_info={
                 "name": llm_settings.model,
-                "context_length": 16000,  # 通义千问模型的上下文窗口大小
-                "token_limit": 16000,     # 通义千问模型的令牌限制
-                "max_tokens": 8000,        # 通义千问模型的最大输出令牌数
                 "vision": False,
                 "function_calling": False,
                 "json_output": False,
-                'family': 'gpt-4o'
+                'family': ModelFamily.UNKNOWN
             }
         )
         
