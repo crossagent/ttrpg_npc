@@ -64,15 +64,3 @@ class GameState(BaseModel):
     context: Dict[str, Any] = Field(default_factory=dict, description="游戏上下文")
     metadata: Dict[str, Any] = Field(default_factory=dict, description="额外元数据")
 
-
-class Script(BaseModel):
-    """剧本模型，表示游戏剧本"""
-    script_id: str = Field(..., description="剧本ID")
-    title: str = Field(..., description="剧本标题")
-    description: str = Field(..., description="剧本描述")
-    characters: List[CharacterInfo] = Field(..., description="剧本角色")
-    events: List[Event] = Field(..., description="剧本事件")
-    locations: Dict[str, Dict[str, Any]] = Field(..., description="剧本位置")
-    items: Dict[str, Dict[str, Any]] = Field(..., description="剧本物品")
-    initial_state: Dict[str, Any] = Field(..., description="初始状态")
-    metadata: Dict[str, Any] = Field(default_factory=dict, description="额外元数据")
