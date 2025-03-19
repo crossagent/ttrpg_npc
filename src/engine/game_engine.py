@@ -9,7 +9,7 @@ import uuid
 from autogen_core.models import ModelFamily
 
 # 导入我们的数据模型和Agent
-from models.schema import AgentConfig
+from src.models.schema import AgentConfig
 from src.models.game_state_models import GameState
 from src.agents.player_agent import PlayerAgent
 from src.config.config_loader import load_llm_settings
