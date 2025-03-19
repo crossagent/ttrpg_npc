@@ -169,37 +169,3 @@ class GameStateManager:
         """获取在指定位置的角色ID列表"""
         return [char_id for char_id, status in self.game_state.character_status.items() 
                 if status.location == location_id]
-
-    def is_event_trigger_condition_met(self, event_id: str) -> bool:
-        """检查事件触发条件是否满足"""
-        # 实现触发条件检查逻辑
-        if not self.game_state or not self.scenario_manager:
-            return False
-            
-        event = self.scenario_manager.get_event_info(event_id)
-        if not event:
-            return False
-            
-        # 解析触发条件并检查
-        # 这里实现具体的条件检查逻辑
-        condition = event.trigger_condition
-        
-        # 示例：检查游戏阶段条件
-        if "探索阶段" in condition and self.game_state.current_phase != GamePhase.EXPLORATION:
-            return False
-        if "博弈阶段" in condition and self.game_state.current_phase != GamePhase.NEGOTIATION:
-            return False
-        if "冲突阶段" in condition and self.game_state.current_phase != GamePhase.CONFLICT:
-            return False
-        
-        # 示例：检查角色位置条件
-        for character_id, status in self.game_state.character_status.items():
-            character_name = self.game_state.characters[character_id].name
-            if f"{character_name}进入" in condition:
-                location_name = condition.split("进入")[1].split()[0]
-                if status.location != location_name:
-                    return False
-        
-        # 更多条件检查...
-        
-        return True  # 通过所有检查后返回True
