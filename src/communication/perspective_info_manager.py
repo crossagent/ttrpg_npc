@@ -27,7 +27,7 @@ class PerspectiveInfoManager:
             message: 消息对象
         """
         if player_id not in self.player_message_memories:
-            self.initialize_player_context(player_id, "未知角色")
+            self.initialize_player_memory(player_id, "未知角色")
             
         # 存储消息本身
         self.stored_messages[message.message_id] = copy.deepcopy(message)
@@ -41,7 +41,7 @@ class PerspectiveInfoManager:
         # 更新玩家消息记录
         self.player_message_memories[player_id].history_messages[message.message_id] = message_status
     
-    def get_player_context(self, player_id: str) -> MessageReadMemory:
+    def get_player_memory(self, player_id: str) -> MessageReadMemory:
         """
         获取玩家当前上下文
         
@@ -52,7 +52,7 @@ class PerspectiveInfoManager:
             MessageReadMemory: 玩家消息记录
         """
         if player_id not in self.player_message_memories:
-            return self.initialize_player_context(player_id, "未知角色")
+            return self.initialize_player_memory(player_id, "未知角色")
             
         return self.player_message_memories[player_id]
     
@@ -77,7 +77,7 @@ class PerspectiveInfoManager:
         # 返回消息的副本，避免修改原始消息
         return copy.deepcopy(message)
     
-    def initialize_player_context(self, player_id: str, character_name: str) -> MessageReadMemory:
+    def initialize_player_memory(self, player_id: str, character_name: str) -> MessageReadMemory:
         """
         初始化玩家上下文
         

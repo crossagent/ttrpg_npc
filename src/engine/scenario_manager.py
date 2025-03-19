@@ -3,7 +3,7 @@ import json
 from typing import List, Dict, Any, Optional
 from datetime import datetime
 
-from src.models.game_state_models import GameState, Event, CharacterInfo
+from src.models.game_state_models import GameState
 from src.models.scenario_models import Scenario, StoryInfo, ScenarioEvent
 from src.config.config_loader import load_config
 from src.models.scenario_models import ScenarioCharacterInfo, LocationInfo, ItemInfo, GameStageInfo

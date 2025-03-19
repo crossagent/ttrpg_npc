@@ -48,7 +48,7 @@ class AgentManager:
             # 如果是玩家代理，同时初始化该玩家的视角信息
             if self.perspective_manager:
                 character_name = getattr(agent_instance, 'character_profile', {}).get('name', agent_id)
-                self.perspective_manager.initialize_player_context(agent_id, character_name)
+                self.perspective_manager.initialize_player_memory(agent_id, character_name)
                 
             return True
         else:
@@ -88,7 +88,7 @@ class AgentManager:
         if not self.perspective_manager:
             raise ValueError("视角管理器未初始化")
             
-        return self.perspective_manager.get_player_context(player_id)
+        return self.perspective_manager.get_player_memory(player_id)
     
     def get_all_players(self) -> List[str]:
         """

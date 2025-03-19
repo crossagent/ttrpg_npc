@@ -2,7 +2,7 @@ from pydantic import BaseModel, Field
 from typing import List, Dict, Any, Optional, Union
 from enum import Enum
 from datetime import datetime
-from autogen_agentchat.messages import ChatMessage
+from autogen_agentchat.messages import BaseChatMessage
 
 class MessageType(str, Enum):
     """消息类型枚举"""
@@ -19,9 +19,10 @@ class MessageVisibility(str, Enum):
     PUBLIC = "public"    # 广播消息，所有人可见
     PRIVATE = "private"  # 私聊消息，仅特定接收者可见
 
-class Message(ChatMessage):
+class Message(BaseChatMessage):
     """消息模型，表示游戏中的消息，扩展自ChatMessage"""
     message_id: str = Field(..., description="消息ID")
+    content: str = Field(..., description="消息内容") 
     type: MessageType = Field(..., description="消息类型")
     timestamp: str = Field(..., description="时间戳")
     visibility: MessageVisibility = Field(MessageVisibility.PUBLIC, description="消息可见性：广播或私聊")

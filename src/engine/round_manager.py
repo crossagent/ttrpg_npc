@@ -4,7 +4,7 @@ import uuid
 import asyncio
 import logging
 
-from src.models.game_state_models import GameState, Event
+from src.models.game_state_models import GameState
 from src.models.message_models import Message, MessageType, MessageVisibility
 from src.models.action_models import PlayerAction, ActionResult, ItemQuery, DiceResult
 from src.models.context_models import StateUpdateRequest
@@ -137,11 +137,11 @@ class RoundManager:
         
         for i, player_id in enumerate(player_ids):
             # 获取玩家上下文
-            player_context = self.perspective_info_manager.get_player_context(player_id)
+            player_memory = self.perspective_info_manager.get_player_memory(player_id)
             
             # 玩家决策行动（异步）
             player_agent = self.agent_manager.get_player_agent(player_id)
-            task = player_agent.player_decide_action(player_id, player_context)
+            task = player_agent.player_decide_action(player_id, player_memory)
             player_tasks.append(task)
             player_id_to_index[player_id] = i
         

@@ -5,9 +5,9 @@ from typing import List, Dict, Any, Optional
 import json
 from datetime import datetime
 from src.models.scenario_models import Scenario
-from src.models.context_models import PlayerContext
 from src.models.game_state_models import GameState
 from src.models.action_models import PlayerAction
+from src.models.message_models import MessageReadMemory
 
 class PlayerAgent(AssistantAgent):
     """
@@ -26,13 +26,6 @@ class PlayerAgent(AssistantAgent):
         system_message = self._generate_system_message(character_profile)
         super().__init__(name=name, model_client=model_client, system_message=system_message, **kwargs)
         self.character_profile = character_profile
-        
-        # 初始化角色状态
-        self.character_state = PlayerContext(
-            goal="探索冒险世界",
-            plan="跟随团队，根据情况调整策略",
-            mood="期待",
-        )
 
     def _generate_system_message(self, character_profile: Dict[str, Any]) -> str:
         """
@@ -77,13 +70,13 @@ class PlayerAgent(AssistantAgent):
 注意：只有"action"部分会被其他人看到，其他部分只有你自己知道。
 根据当前情境和角色性格来调整你的目标、计划、心情和行动。
 """
-async def player_decide_action(player_id: str, context: PlayerContext) -> PlayerAction:
+async def player_decide_action(player_id: str, memory: MessageReadMemory) -> PlayerAction:
     """
     玩家决策行动
     
     Args:
         player_id: 玩家ID
-        context: 玩家上下文
+        memory: 玩家上下文
         
     Returns:
         PlayerAction: 玩家行动
