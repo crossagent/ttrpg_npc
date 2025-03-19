@@ -410,28 +410,32 @@ class RoundManager:
             return True
         
         # 检查是否有特殊事件触发游戏结束
-        for event in state.active_events:
-            if hasattr(event, 'consequences') and "终止游戏" in event.consequences:
-                self.logger.info(f"事件 '{event.name}' 触发了游戏结束")
+        for event_id, event in state.active_events.items():
+            if "终止游戏" in event.get("consequences", {}):
+                self.logger.info(f"事件 '{event.get('description', event_id)}' 触发了游戏结束")
                 return True
         
         # 检查玩家状态，例如是否所有玩家都已达成目标或全部阵亡
         all_players_completed = True
         all_players_dead = True
         
-        for player_id, status in state.characters.items():
-            # 假设玩家有目标完成标志
-            if not status.metadata.get('goal_completed', False):
+        for char_id, character_ref in state.characters.items():
+            # 直接访问嵌套的状态
+            char_status = character_ref.status
+            
+            # 检查是否完成目标 - 从additional_info中获取
+            if not character_ref.additional_info.get('goal_completed', False):
                 all_players_completed = False
             
-            # 假设血量为0表示阵亡
-            if status.health > 0:
+            # 检查是否阵亡 - 直接从嵌套的状态获取健康值
+            if char_status.health > 0:
                 all_players_dead = False
         
+
         if all_players_completed:
             self.logger.info("所有玩家都已完成目标，游戏将结束")
             return True
-            
+                
         if all_players_dead:
             self.logger.info("所有玩家都已阵亡，游戏将结束")
             return True

@@ -80,10 +80,10 @@ class GameStateManager:
         # 设置游戏阶段
         game_state.current_phase = GamePhase.EXPLORATION
         
-        # 存储场景信息到上下文
+        # 存储场景信息到上下文 - 修复后的代码
         game_state.context["scenario"] = {
-            "background": getattr(scenario, "story_info", {}).get("background", ""),
-            "secret": getattr(scenario, "story_info", {}).get("secret", "")
+            "background": getattr(scenario.story_info, "background", "") if hasattr(scenario, "story_info") else "",
+            "secret": getattr(scenario.story_info, "secrets", {}).get("main_secret", "") if hasattr(scenario, "story_info") else ""
         }
         
         # 存储游戏阶段信息
@@ -114,27 +114,12 @@ class GameStateManager:
         """
         # 清空现有角色信息
         game_state.characters = {}
-        game_state.character_status = {}
         
         # 从剧本中加载角色
         if hasattr(scenario, 'characters') and scenario.characters:
             for char_id, character_info in scenario.characters.items():
                 # 获取公开身份
                 public_identity = getattr(character_info, 'public_identity', f"角色_{char_id}")
-                
-                # 创建角色引用
-                character_ref = CharacterReference(
-                    character_id=char_id,
-                    scenario_character_id=char_id,
-                    name=public_identity,
-                    player_controlled=False,  # 默认为NPC
-                    additional_info={
-                        "secret_goal": getattr(character_info, 'secret_goal', ''),
-                        "background": getattr(character_info, 'background_story', ''),
-                        "special_ability": getattr(character_info, 'special_ability', ''),
-                        "weakness": getattr(character_info, 'weakness', '')
-                    }
-                )
                 
                 # 确定初始位置
                 initial_location = getattr(game_state.environment, 'current_location_id', "main_location")
@@ -149,9 +134,23 @@ class GameStateManager:
                     relationships={}
                 )
                 
+                # 创建角色引用，直接嵌套状态
+                character_ref = CharacterReference(
+                    character_id=char_id,
+                    scenario_character_id=char_id,
+                    name=public_identity,
+                    player_controlled=False,  # 默认为NPC
+                    status=character_status,  # 直接嵌套状态
+                    additional_info={
+                        "secret_goal": getattr(character_info, 'secret_goal', ''),
+                        "background": getattr(character_info, 'background_story', ''),
+                        "special_ability": getattr(character_info, 'special_ability', ''),
+                        "weakness": getattr(character_info, 'weakness', '')
+                    }
+                )
+                
                 # 将角色添加到游戏状态
                 game_state.characters[char_id] = character_ref
-                game_state.character_status[char_id] = character_status
         
         # 记录角色初始化信息
         game_state.metadata["character_count"] = len(game_state.characters)

@@ -64,12 +64,16 @@ class EventInstance(BaseModel):
 
 
 class CharacterReference(BaseModel):
-    """角色引用模型，游戏状态中引用剧本中的角色"""
-    character_id: str = Field(..., description="游戏中的角色ID")
+    """角色引用模型，表示游戏中的一个角色实例"""
+    character_id: str = Field(..., description="角色ID")
     scenario_character_id: str = Field(..., description="对应剧本角色ID")
     name: str = Field(..., description="角色名称")
     player_controlled: bool = Field(False, description="是否由玩家控制")
-    status_id: Optional[str] = Field(None, description="对应的角色状态ID")
+    # 移除 status_id 字段
+    # status_id: Optional[str] = Field(None, description="对应的角色状态ID")
+    
+    # 直接嵌套状态
+    status: CharacterStatus = Field(..., description="角色状态")
     additional_info: Dict[str, Any] = Field(default_factory=dict, description="运行时附加信息")
 
 
@@ -84,7 +88,9 @@ class GameState(BaseModel):
     
     # 使用ID索引的核心数据
     characters: Dict[str, CharacterReference] = Field(default_factory=dict, description="角色引用字典，键为角色ID")
-    character_status: Dict[str, CharacterStatus] = Field(default_factory=dict, description="角色状态字典，键为状态ID")
+    # 移除单独的角色状态字典
+    # character_status: Dict[str, CharacterStatus] = Field(default_factory=dict, description="角色状态字典，键为状态ID")
+    
     environment: EnvironmentStatus = Field(..., description="环境状态")
     active_events: Dict[str, EventInstance] = Field(default_factory=dict, description="活跃事件，键为实例ID")
     completed_events: Dict[str, EventInstance] = Field(default_factory=dict, description="已完成事件，键为实例ID")
