@@ -1,5 +1,6 @@
 from typing import List, Dict, Any, Optional
 from datetime import datetime
+from autogen_agentchat.agents import BaseChatAgent
 
 from src.models.game_state_models import GameState
 from src.models.scenario_models import Scenario
@@ -9,12 +10,13 @@ from src.agents.dm_agent import DMAgent
 from src.agents.player_agent import PlayerAgent
 from src.communication.perspective_info_manager import PerspectiveInfoManager
 
+
 class AgentManager:
     """
     Agent管理器类，负责管理DM和玩家的AI代理，处理决策生成。
     """
     
-    def __init__(self, dm_agent=None, player_agents=None, perspective_manager=None):
+    def __init__(self, perspective_manager=None):
         """
         初始化Agent系统
         
@@ -23,8 +25,8 @@ class AgentManager:
             player_agents: 玩家代理字典，键为玩家ID
             perspective_manager: 个人视角信息管理器
         """
-        self.dm_agent = dm_agent
-        self.player_agents = player_agents or {}
+        self.dm_agent = None
+        self.player_agents = []
         self.perspective_manager = perspective_manager or PerspectiveInfoManager()
     
     def register_agent(self, agent_id: str, agent_type: str, agent_instance) -> bool:
@@ -75,7 +77,7 @@ class AgentManager:
         """
         return self.player_agents.get(agent_id)
     
-    def get_player_context(self, player_id: str) -> MessageReadMemory:
+    def get_player_memory(self, player_id: str) -> MessageReadMemory:
         """
         获取玩家上下文
         
@@ -90,14 +92,14 @@ class AgentManager:
             
         return self.perspective_manager.get_player_memory(player_id)
     
-    def get_all_players(self) -> List[str]:
+    def get_all_players(self) -> List[BaseChatAgent]:
         """
         获取所有玩家ID
         
         Returns:
             List[str]: 所有玩家ID列表
         """
-        return list(self.player_agents.keys())
+        return list(self.player_agents)
     
     def roll_dice(self, dice_type: str, modifiers: Dict[str, int] = None) -> int:
         """

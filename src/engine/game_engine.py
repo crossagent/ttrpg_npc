@@ -86,7 +86,6 @@ class GameEngine:
             perspective_manager=self.perspective_info_manager
         )
         
-        self.agents = []
         self.cancellation_token = CancellationToken()
     
     def init_config(self) -> GameState:
@@ -157,8 +156,9 @@ class GameEngine:
             system_message="你是人类玩家的代理人，负责转达玩家的指令。"
         )
         
-        self.agents = [dm_agent, player1, player2, player3, human_agent]
-        return self.agents
+        self.agent_manager.register_agent("human_player", "player", human_agent)
+
+        return self.agent_manager.get_all_players()
     
     async def start_game(self) -> GameState:
         """
@@ -171,7 +171,7 @@ class GameEngine:
         self.state = self.init_config()
         
         # 初始化代理
-        if not self.agents:
+        if not self.agent_manager.get_all_players():
             self.initialize_agents()
             
             # 代理已经在initialize_agents中注册并初始化了上下文
