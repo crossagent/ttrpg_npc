@@ -6,6 +6,7 @@ from datetime import datetime
 from src.models.game_state_models import GameState, Event, CharacterInfo
 from src.models.scenario_models import Scenario, StoryInfo, ScenarioEvent
 from src.config.config_loader import load_config
+from src.models.scenario_models import ScenarioCharacterInfo, LocationInfo, ItemInfo, GameStageInfo
 
 class ScenarioManager:
     """
@@ -19,40 +20,9 @@ class ScenarioManager:
         Args:
             scenario: 初始剧本，如果为None则创建空剧本
         """
-        pass
-    
-    def check_event_triggers(self, game_state: GameState) -> List[Event]:
-        """
-        检查状态是否触发新事件
-        
-        Args:
-            game_state: 游戏状态
-            
-        Returns:
-            List[Event]: 触发的事件列表
-        """
-        pass
-    
-    def get_character_info(self, character_id: str) -> Optional[CharacterInfo]:
-        """
-        获取角色信息
-        
-        Args:
-            character_id: 角色ID
-            
-        Returns:
-            Optional[CharacterInfo]: 角色信息，如果不存在则为None
-        """
-        pass
-    
-    def get_current_scenario(self) -> Scenario:
-        """
-        获取当前剧本
-        
-        Returns:
-            scenario: 当前剧本
-        """
-        pass
+        self.config = load_config()
+        self.scenario = scenario
+        self.scenarios_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'scenarios')
     
     def load_scenario(self, scenario_id: Optional[str] = None) -> Scenario:
         """
@@ -62,87 +32,113 @@ class ScenarioManager:
             scenario_id: 剧本ID，如果为None则加载默认剧本
             
         Returns:
-            GameScenario: 加载的游戏剧本对象
+            Scenario: 加载的游戏剧本对象
         """
-        # 如果未指定剧本ID，则使用配置中的默认剧本
         if scenario_id is None:
-            config = load_config('game_config.yaml')
-            scenario_id = config['scenario']['default_name']
-            
-        # 构建剧本文件路径
-        scenario_path = os.path.join('scenarios', scenario_id)
+            scenario_id = self.config.get('default_scenario', 'rust')
+        
+        scenario_path = os.path.join(self.scenarios_path, f"{scenario_id}.json")
         
         try:
-            # 加载剧本JSON文件
             with open(scenario_path, 'r', encoding='utf-8') as f:
                 scenario_data = json.load(f)
             
-            # 转换故事信息
-            story_info = StoryInfo(
-                background=scenario_data["story_info"]["背景"],
-                secrets={"货轮秘密": scenario_data["story_info"]["货轮秘密"]}
-            )
+            # 使用Scenario.from_json方法创建Scenario对象
+            self.scenario = Scenario.from_json(scenario_data)
+            return self.scenario
             
-            # 转换角色信息
-            characters = {}
-            for name, info in scenario_data["角色信息"].items():
-                characters[name] = CharacterInfo(
-                    background=info["公开身份"],
-                    goals=info["秘密目标"]
-                )
-            
-            # 转换事件信息
-            events = []
-            for event_data in scenario_data["剧本事件"]:
-                events.append(ScenarioEvent(
-                    event_id=event_data["事件ID"],
-                    description=event_data["描述"],
-                    trigger_condition=event_data["触发条件"],
-                    possible_outcomes=event_data["可能结局"]
-                ))
-            
-            # 创建完整剧本
-            return Scenario(
-                story_info=story_info,
-                characters=characters,
-                events=events
-            )
         except FileNotFoundError:
-            raise FileNotFoundError(f"剧本文件 '{scenario_path}' 未找到")
+            raise ValueError(f"找不到指定的剧本文件: {scenario_path}")
         except json.JSONDecodeError:
-            raise ValueError(f"剧本文件 '{scenario_path}' 格式错误")
-        except KeyError as e:
-            raise KeyError(f"剧本文件缺少必要字段: {str(e)}")
+            raise ValueError(f"剧本文件格式错误: {scenario_path}")
     
-    def get_active_events(self) -> List[Event]:
+    def get_character_info(self, character_id: str) -> Optional[ScenarioCharacterInfo]:
         """
-        获取当前活跃事件
+        获取角色信息
         
+        Args:
+            character_id: 角色ID
+            
         Returns:
-            List[Event]: 活跃事件列表
+            Optional[ScenarioCharacterInfo]: 角色信息对象，如果不存在则返回None
         """
-        pass
+        if self.scenario is None:
+            return None
+        
+        return self.scenario.characters.get(character_id)
     
-    def complete_event(self, event_id: str) -> bool:
+    def get_event_info(self, event_id: str) -> Optional[ScenarioEvent]:
         """
-        完成事件
+        获取事件信息
         
         Args:
             event_id: 事件ID
             
         Returns:
-            bool: 是否成功完成
+            Optional[ScenarioEvent]: 事件信息对象，如果不存在则返回None
         """
-        pass
+        if self.scenario is None:
+            return None
+        
+        for event in self.scenario.events:
+            if event.event_id == event_id:
+                return event
+        
+        return None
     
-    def get_location_info(self, location_id: str) -> Dict[str, Any]:
+    def get_story_info(self) -> Optional[StoryInfo]:
         """
-        获取位置信息
+        获取故事背景信息
+        
+        Returns:
+            Optional[StoryInfo]: 故事背景信息对象
+        """
+        if self.scenario is None:
+            return None
+        
+        return self.scenario.story_info
+    
+    def get_location_info(self, location_id: str) -> Optional[LocationInfo]:
+        """
+        获取地点信息
         
         Args:
-            location_id: 位置ID
+            location_id: 地点ID
             
         Returns:
-            Dict[str, Any]: 位置信息
+            Optional[LocationInfo]: 地点信息对象，如果不存在则返回None
         """
-        pass
+        if self.scenario is None or self.scenario.locations is None:
+            return None
+        
+        return self.scenario.locations.get(location_id)
+    
+    def get_item_info(self, item_id: str) -> Optional[ItemInfo]:
+        """
+        获取物品信息
+        
+        Args:
+            item_id: 物品ID
+            
+        Returns:
+            Optional[ItemInfo]: 物品信息对象，如果不存在则返回None
+        """
+        if self.scenario is None or self.scenario.items is None:
+            return None
+        
+        return self.scenario.items.get(item_id)
+    
+    def get_game_stage_info(self, stage_name: str) -> Optional[GameStageInfo]:
+        """
+        获取游戏阶段信息
+        
+        Args:
+            stage_name: 阶段名称
+            
+        Returns:
+            Optional[GameStageInfo]: 游戏阶段信息对象，如果不存在则返回None
+        """
+        if self.scenario is None or self.scenario.game_stages is None:
+            return None
+        
+        return self.scenario.game_stages.get(stage_name)
