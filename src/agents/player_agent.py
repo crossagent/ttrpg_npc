@@ -8,8 +8,6 @@ from src.models.scenario_models import Scenario
 from src.models.context_models import PlayerContext
 from src.models.game_state_models import GameState
 from src.models.action_models import PlayerAction
-from src.models.message_models import MessageReadMemory
-from src.models.message_models import Message
 
 class PlayerAgent(AssistantAgent):
     """
@@ -35,8 +33,6 @@ class PlayerAgent(AssistantAgent):
             plan="跟随团队，根据情况调整策略",
             mood="期待",
         )
-        
-        self.message_memory = MessageReadMemory()
 
     def _generate_system_message(self, character_profile: Dict[str, Any]) -> str:
         """
@@ -91,18 +87,6 @@ async def player_decide_action(player_id: str, context: PlayerContext) -> Player
         
     Returns:
         PlayerAction: 玩家行动
-    """
-    pass
-
-async def receive_message(messages:List[Message]) -> bool:
-    """
-    接收消息
-    
-    Args:
-        message: 消息
-        
-    Returns:
-        bool: 是否接收成功
     """
     pass
 
