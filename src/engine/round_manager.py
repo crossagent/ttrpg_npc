@@ -121,54 +121,80 @@ class RoundManager:
         
         return dm_message
     
-    def process_player_turns(self) -> List[PlayerAction]:
+    async def process_player_turns(self) -> List[PlayerAction]:
         """
         处理所有玩家回合，收集玩家行动
+        使用gather模式并行处理所有玩家行动，统一处理结果
         
         Returns:
             List[PlayerAction]: 玩家行动列表
         """
-        player_actions = []
         player_ids = self.game_state_manager.get_player_ids()
         
-        # 处理每个玩家回合
-        for player_id in player_ids:
+        # 准备所有玩家的行动任务
+        player_tasks = []
+        player_id_to_index = {}
+        
+        for i, player_id in enumerate(player_ids):
             # 获取玩家上下文
             player_context = self.perspective_info_manager.get_player_context(player_id)
             
-            # 玩家决策行动
+            # 玩家决策行动（异步）
             player_agent = self.agent_manager.get_player_agent(player_id)
-            player_action = asyncio.run(player_agent.player_decide_action(player_id, player_context))
-            player_actions.append(player_action)
-            
-            # 创建玩家消息
-            message_id = str(uuid.uuid4())
-            timestamp = datetime.now().isoformat()
-            
-            player_message = Message(
-                message_id=message_id,
-                type=MessageType.PLAYER if player_action.action_type == "对话" else MessageType.ACTION,
-                sender=player_id,
-                content=player_action.content,
-                timestamp=timestamp,
-                visibility=MessageVisibility.PUBLIC,
-                recipients=player_action.target if isinstance(player_action.target, list) else [player_action.target],
-                round_id=self.current_round_id
-            )
-            
-            # 广播玩家消息
-            self.message_dispatcher.broadcast_message(player_message)
-            
-            # 更新其他玩家的上下文
-            for other_player_id in player_ids:
-                if other_player_id != player_id:
-                    self.perspective_info_manager.update_player_context(other_player_id, player_message)
+            task = player_agent.player_decide_action(player_id, player_context)
+            player_tasks.append(task)
+            player_id_to_index[player_id] = i
         
-        # 保存玩家行动
-        self.player_actions = player_actions
-        
-        return player_actions
-    
+        # 并行等待所有玩家行动完成
+        try:
+            # 使用gather并行处理所有行动
+            action_results = await asyncio.gather(*player_tasks)
+            player_actions = []
+            player_messages = []
+            
+            # 处理每个玩家的行动结果
+            for i, player_id in enumerate(player_ids):
+                player_action = action_results[i]
+                player_actions.append(player_action)
+                
+                # 创建玩家消息
+                message_id = str(uuid.uuid4())
+                timestamp = datetime.now().isoformat()
+                
+                player_message = Message(
+                    message_id=message_id,
+                    type=MessageType.PLAYER if player_action.action_type == "对话" else MessageType.ACTION,
+                    sender=player_id,
+                    content=player_action.content,
+                    timestamp=timestamp,
+                    visibility=MessageVisibility.PUBLIC,
+                    recipients=player_action.target if isinstance(player_action.target, list) else [player_action.target],
+                    round_id=self.current_round_id
+                )
+                player_messages.append(player_message)
+            
+            # 统一广播所有玩家消息
+            for message in player_messages:
+                self.message_dispatcher.broadcast_message(message)
+            
+            # 统一更新所有玩家上下文
+            for player_id in player_ids:
+                for message in player_messages:
+                    if message.sender != player_id:  # 不更新自己发的消息
+                        self.perspective_info_manager.update_player_context(player_id, message)
+            
+            self.logger.info(f"所有玩家行动已完成并广播，共 {len(player_actions)} 个")
+            
+            # 统一保存玩家行动
+            self.player_actions = player_actions
+            
+            return player_actions
+            
+        except Exception as e:
+            self.logger.error(f"处理玩家行动时出错: {str(e)}")
+            # 发生错误时返回空列表
+            return []
+
     def resolve_actions(self, actions: List[PlayerAction]) -> List[ActionResult]:
         """
         解析处理玩家行动的判定
@@ -353,7 +379,7 @@ class RoundManager:
             dm_message = self.process_dm_turn()
             
             # 3. 处理玩家回合
-            player_actions = self.process_player_turns()
+            player_actions = await self.process_player_turns()
             
             # 4. 解析玩家行动
             action_results = self.resolve_actions(player_actions)
