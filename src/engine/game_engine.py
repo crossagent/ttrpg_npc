@@ -93,7 +93,7 @@ class GameEngine:
 
         # 创建回合管理器
         round_manager = RoundManager(
-            game_state_manager = game_state,
+            game_state_manager = game_state_manager,
             message_dispatcher = message_dispatcher,
             perspective_info_manager = perspective_info_manager,
             agent_manager = agent_manager,

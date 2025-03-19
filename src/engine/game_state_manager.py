@@ -258,7 +258,7 @@ class GameStateManager:
         Returns:
             GameState: 当前游戏状态
         """
-        pass
+        return self.game_state
     
     def extract_state_changes(self, dm_narrative: str) -> StateChanges:
         """
