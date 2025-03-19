@@ -16,7 +16,7 @@ class AgentManager:
     Agent管理器类，负责管理DM和玩家的AI代理，处理决策生成。
     """
     
-    def __init__(self, perspective_manager=None):
+    def __init__(self, game_state=None, perspective_manager=None):
         """
         初始化Agent系统
         
@@ -27,8 +27,71 @@ class AgentManager:
         """
         self.dm_agent = None
         self.player_agents = []
+        self.game_state = game_state
         self.perspective_manager = perspective_manager or PerspectiveInfoManager()
     
+    def initialize_agents_from_characters(self, scenario: Scenario):
+        """
+        从游戏角色初始化代理
+        
+        Args:
+            scenario: 剧本对象
+        """
+        if not self.game_state or not self.player_manager:
+            raise ValueError("游戏状态或玩家管理器未初始化")
+        
+        # 初始化DM代理
+        self.dm_agent = DMAgent(
+            scenario=scenario,
+            game_state=self.game_state
+        )
+        
+        # 对每个已分配给玩家的角色，创建相应的代理
+        for character_id, character_ref in self.game_state.characters.items():
+            controller = self.player_manager.get_character_controller(character_id)
+            
+            if controller:  # 角色由玩家控制
+                # 角色已分配给玩家，创建玩家代理
+                player_agent = PlayerAgent(
+                    player_id=controller.player_id,
+                    character_id=character_id,
+                    character_name=character_ref.name,
+                    character_profile=self._build_character_profile(character_id, scenario)
+                )
+                self.player_agents.append(player_agent)
+                
+                # 初始化玩家代理的视角
+                self.perspective_manager.initialize_player_memory(
+                    controller.player_id, 
+                    character_ref.name
+                )
+    
+    def _build_character_profile(self, character_id: str, scenario: Scenario) -> Dict[str, Any]:
+        """
+        构建角色档案，用于代理初始化
+        
+        Args:
+            character_id: 角色ID
+            scenario: 剧本对象
+            
+        Returns:
+            Dict[str, Any]: 角色档案
+        """
+        character_info = scenario.角色信息.get(character_id, {})
+        character_ref = self.game_state.characters.get(character_id)
+        
+        if not character_ref:
+            return {}
+        
+        return {
+            "name": character_ref.name,
+            "background": character_info.get("背景故事", ""),
+            "goal": character_info.get("秘密目标", ""),
+            "abilities": character_info.get("特殊能力", ""),
+            "weaknesses": character_info.get("弱点", ""),
+            "personality": character_info.get("性格", "")
+        }
+
     def register_agent(self, agent_id: str, agent_type: str, agent_instance) -> bool:
         """
         注册代理

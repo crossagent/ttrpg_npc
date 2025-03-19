@@ -12,9 +12,14 @@ from autogen_core.models import ModelFamily
 from src.models.schema import AgentConfig
 from src.models.game_state_models import GameState
 from src.agents.player_agent import PlayerAgent
-from src.config.config_loader import load_llm_settings
+from src.config.config_loader import load_llm_settings, load_config
 from src.communication.message_dispatcher import MessageDispatcher
 from src.communication.perspective_info_manager import PerspectiveInfoManager
+from src.engine.agent_manager import AgentManager
+from src.engine.game_state_manager import GameStateManager
+from src.engine.scenario_manager import ScenarioManager
+
+
 from src.config.color_utils import (
     format_dm_message, format_player_message, format_observation,
     format_state, format_thinking, print_colored,
@@ -36,24 +41,8 @@ class GameEngine:
         Args:
             max_rounds: 最大回合数，默认为配置中的DEFAULT_MAX_ROUNDS
         """
-        # 创建默认环境状态
-        default_environment = {
-            "current_location_id": "起始位置",
-            "time": datetime.now(),
-            "weather": "晴朗",
-            "lighting": "明亮",
-            "atmosphere": "平静"
-        }
+        confing = load_config()
         
-        from src.models.game_state_models import EnvironmentStatus
-        environment_status = EnvironmentStatus(**default_environment)
-        
-        self.state = GameState(
-            game_id=str(uuid.uuid4()),
-            scenario_id="default",
-            max_rounds=max_rounds,
-            environment=environment_status
-        )
         
         # 加载LLM配置
         llm_settings = load_llm_settings()
@@ -73,93 +62,77 @@ class GameEngine:
             }
         )
         
+        self.cancellation_token = CancellationToken()
+
+
+    def initialize_game_manager(self, scenario_id: str):
+        """
+        初始化游戏
+        
+        Args:
+            scenario_id: 剧本ID
+        """
+       
+        # 加载剧本
+        self.scenario_manager = ScenarioManager()
+        scenario = self.scenario_manager.load_scenario(scenario_id)
+
+        # 初始化游戏状态
+        self.game_state_manager = GameStateManager()
+        self.game_state = self.game_state_manager.initialize_game_state(scenario)
+
         # 初始化通信组件
         self.perspective_info_manager = PerspectiveInfoManager()
         self.message_dispatcher = MessageDispatcher(
             game_state=self.state,
             perspective_info_manager=self.perspective_info_manager
         )
-        
-        # 初始化代理管理器
-        from src.engine.agent_manager import AgentManager
-        self.agent_manager = AgentManager(
-            perspective_manager=self.perspective_info_manager
-        )
-        
-        self.cancellation_token = CancellationToken()
-    
-    def init_config(self) -> GameState:
-        """
-        加载并解析全局配置和剧本数据
-        
-        Returns:
-            GameState: 初始化后的游戏状态
-        """
-        # 在这个简单实现中，我们直接返回已初始化的状态
-        return self.state
-    
-    def initialize_agents(self) -> List[BaseChatAgent]:
-        """
-        根据配置创建并注册各Agent
-        
-        Returns:
-            List[BaseChatAgent]: 初始化后的Agent列表
-        """
-        # 创建DM代理 - 暂时使用简单的伪装DM
-        dm_agent = AssistantAgent(
-            name="dm",
-            model_client=self.model_client,
-            system_message="你是游戏的主持人，负责推动故事和描述场景。描述要生动有趣，富有想象力。",
-        )
-        
-        # 注册DM代理
-        self.agent_manager.register_agent("dm", "dm", dm_agent)
-        
-        # 创建3个玩家Agent并注册
-        player1 = PlayerAgent(
-            name="warrior",
-            character_profile={
-                "name": "高山",
-                "personality": "勇敢，直接，喜欢冲锋在前",
-                "background": "来自北方山区的战士，精通近战技能",
-            },
-            model_client=self.model_client
-        )
-        self.agent_manager.register_agent("warrior", "player", player1)
-        
-        player2 = PlayerAgent(
-            name="mage",
-            character_profile={
-                "name": "星辰",
-                "personality": "聪明，谨慎，思考周全",
-                "background": "皇家魔法学院的毕业生，精通元素魔法",
-            },
-            model_client=self.model_client
-        )
-        self.agent_manager.register_agent("mage", "player", player2)
-        
-        player3 = PlayerAgent(
-            name="rogue",
-            character_profile={
-                "name": "影子",
-                "personality": "狡猾，机智，喜欢探索",
-                "background": "出身于贫民窟，自学成才的地下城探险家",
-            },
-            model_client=self.model_client
-        )
-        self.agent_manager.register_agent("rogue", "player", player3)
-        
-        # 人类玩家代理
-        human_agent = AssistantAgent(
-            name="human_player",
-            model_client=self.model_client, 
-            system_message="你是人类玩家的代理人，负责转达玩家的指令。"
-        )
-        
-        self.agent_manager.register_agent("human_player", "player", human_agent)
 
-        return self.agent_manager.get_all_players()
-    
+        # 创建代理管理器
+        self.agent_manager = AgentManager(
+            perspective_manager=self.perspective_info_manager,
+            game_state=self.game_state
+        )
+
+
+    def build_character_to_player(self, player_id: str, character_id: str) -> bool:
+        """
+        为玩家分配角色
+        
+        Args:
+            player_id: 玩家ID
+            character_id: 角色ID
+            
+        Returns:
+            bool: 是否分配成功
+        """
+        # 使用玩家管理器分配角色
+        success = self.player_manager.assign_character(character_id, player_id)
+        
+        if success:
+            # 角色分配成功后，初始化对应的代理
+            character_ref = self.game_state.characters[character_id]
+            scenario = self.scenario_manager.scenario
+            
+            # 构建角色档案
+            character_profile = self.agent_manager._build_character_profile(character_id, scenario)
+            
+            # 创建并注册玩家代理
+            player_agent = PlayerAgent(
+                player_id=player_id,
+                character_id=character_id,
+                character_name=character_ref.name,
+                character_profile=character_profile
+            )
+            
+            # 将代理添加到列表
+            self.agent_manager.player_agents.append(player_agent)
+            
+            # 初始化玩家视角
+            self.perspective_manager.initialize_player_memory(player_id, character_ref.name)
+        
+        return success
+
     async def start_game(self) -> GameState:
         """
         启动游戏，执行回合流程
@@ -168,13 +141,8 @@ class GameEngine:
             GameState: 游戏结束后的最终状态
         """
         # 初始化配置
-        self.state = self.init_config()
-        
-        # 初始化代理
-        if not self.agent_manager.get_all_players():
-            self.initialize_agents()
-            
-            # 代理已经在initialize_agents中注册并初始化了上下文
+
+        self.initialize_game_manager("default")
         
         # 创建回合管理器
         from src.engine.round_manager import RoundManager
@@ -223,6 +191,8 @@ class GameEngine:
         self.perspective_info_manager = None
         self.message_dispatcher = None
         self.agent_manager = None
+        self.scenario_manager = None
+        self.game_state_manager = None
     
     async def _show_player_history(self, player_id: str) -> None:
         """

@@ -20,7 +20,6 @@ class ScenarioManager:
         Args:
             scenario: 初始剧本，如果为None则创建空剧本
         """
-        self.config = load_config()
         self.scenario = scenario
         self.scenarios_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'scenarios')
     
@@ -34,9 +33,6 @@ class ScenarioManager:
         Returns:
             Scenario: 加载的游戏剧本对象
         """
-        if scenario_id is None:
-            scenario_id = self.config.get('default_scenario', 'rust')
-        
         scenario_path = os.path.join(self.scenarios_path, f"{scenario_id}.json")
         
         try:

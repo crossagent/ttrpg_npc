@@ -75,6 +75,128 @@ class Scenario(BaseModel):
     def from_json(cls, json_data: Dict[str, Any]) -> "Scenario":
         """从JSON数据创建剧本模型实例
         
+        处理标准化的英文字段JSON结构
+        """
+        # 处理story_info
+        story_info_data = json_data.get("story_info", {})
+        
+        # 创建StoryInfo对象
+        story_info = StoryInfo(
+            background=story_info_data.get("background", ""),
+            secrets={"main_secret": story_info_data.get("secret", "")}
+        )
+        
+        # 处理地点描述 - 将数组转换为字典
+        locations_description = {}
+        for location in story_info_data.get("locations", []):
+            if "id" in location and "description" in location:
+                locations_description[location["id"]] = location["description"]
+        
+        story_info.locations_description = locations_description
+        
+        # 处理characters
+        characters = {}
+        for char_id, info in json_data.get("characters", {}).items():
+            character = ScenarioCharacterInfo(
+                public_identity=info.get("public_identity", ""),
+                secret_goal=info.get("secret_goal", "")
+            )
+            
+            # 添加可选字段
+            if "background" in info:
+                character.background_story = info["background"]
+            if "special_ability" in info:
+                character.special_ability = info["special_ability"]
+            if "weakness" in info:
+                character.weakness = info["weakness"]
+                
+            characters[char_id] = character
+        
+        # 处理events
+        events = []
+        for event_data in json_data.get("events", []):
+            event = ScenarioEvent(
+                event_id=event_data.get("event_id", ""),
+                description=event_data.get("description", ""),
+                trigger_condition=event_data.get("trigger_condition", ""),
+                aware_players=event_data.get("perceptible_players", ["all"]),
+                possible_outcomes=event_data.get("possible_outcomes", [])
+            )
+            
+            # 添加可选字段
+            if "content" in event_data:
+                event.content = event_data["content"]
+            if "consequences" in event_data:
+                event.outcome_effects = event_data["consequences"]
+            
+            events.append(event)
+        
+        # 创建基本剧本
+        scenario = cls(
+            story_info=story_info,
+            characters=characters,
+            events=events
+        )
+        
+        # 添加可选的游戏阶段
+        if "game_phases" in json_data:
+            game_stages = {}
+            for phase_id, phase_info in json_data["game_phases"].items():
+                game_stages[phase_id] = GameStageInfo(
+                    description=phase_info.get("description", ""),
+                    objectives=phase_info.get("objective", ""),
+                    key_events=phase_info.get("key_events", [])
+                )
+            scenario.game_stages = game_stages
+            
+        # 添加关键物品 - 处理数组格式
+        if "key_items" in json_data:
+            items = {}
+            for item_data in json_data["key_items"]:
+                if "id" in item_data and "description" in item_data:
+                    item_id = item_data["id"]
+                    items[item_id] = ItemInfo(
+                        description=item_data["description"],
+                        location=item_data.get("location"),
+                        related_characters=item_data.get("related_characters", []),
+                        difficulty=item_data.get("acquisition_difficulty")
+                    )
+                    
+                    # 添加额外效果信息
+                    if "difficulty_details" in item_data:
+                        if not items[item_id].effects:
+                            items[item_id].effects = {}
+                        items[item_id].effects["difficulty_details"] = item_data["difficulty_details"]
+                        
+            scenario.items = items
+        
+        # 处理地点详情
+        if "locations" in json_data.get("story_info", {}):
+            locations = {}
+            for loc_data in json_data["story_info"]["locations"]:
+                if "id" in loc_data and "description" in loc_data:
+                    loc_id = loc_data["id"]
+                    
+                    # 构建基本LocationInfo
+                    location_info = LocationInfo(
+                        description=loc_data["description"]
+                    )
+                    
+                    # 添加可选字段
+                    if "connected_locations" in loc_data:
+                        location_info.connected_locations = loc_data["connected_locations"]
+                    if "available_items" in loc_data:
+                        location_info.available_items = loc_data["available_items"]
+                    if "danger_level" in loc_data:
+                        location_info.danger_level = loc_data["danger_level"]
+                        
+                    locations[loc_id] = location_info
+                    
+            scenario.locations = locations
+            
+        return scenario
+        """从JSON数据创建剧本模型实例
+        
         处理中英文字段名称映射和数据结构转换
         """
         # 处理story_info
