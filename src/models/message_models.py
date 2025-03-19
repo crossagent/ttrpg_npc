@@ -38,3 +38,19 @@ class MessageFilter(BaseModel):
     max_messages: Optional[int] = Field(None, description="最大消息数")
     include_metadata: bool = Field(False, description="是否包含元数据")
     visibility: Optional[MessageVisibility] = Field(None, description="按可见性过滤")
+
+class MessageStatus(BaseModel):
+    """消息状态模型"""
+    message_id: str = Field(..., description="消息ID")
+    read_status: bool = Field(False, description="是否已读")
+    read_timestamp: Optional[datetime] = Field(None, description="读取时间")
+    
+    class Config:
+        json_encoders = {
+            datetime: lambda v: v.isoformat()
+        }
+
+class MessageReadMemory(BaseModel):
+    """消息已读记录模型"""
+    player_id: str = Field(..., description="玩家ID")
+    history_messages: Dict[str, MessageStatus] = Field(default_factory=dict, description="可见的消息状态，键为消息ID")

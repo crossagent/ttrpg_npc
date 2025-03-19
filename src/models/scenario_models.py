@@ -1,8 +1,8 @@
 from pydantic import BaseModel, Field
 from typing import List, Dict, Any, Optional, Union
 
-class CharacterInfo(BaseModel):
-    """角色信息模型"""
+class ScenarioCharacterInfo(BaseModel):
+    """剧本角色信息模型 - 静态数据，游戏过程中不变"""
     public_identity: str = Field(..., description="角色的公开身份")
     secret_goal: str = Field(..., description="角色的秘密目标")
     
@@ -27,7 +27,7 @@ class StoryInfo(BaseModel):
 class Scenario(BaseModel):
     """完整游戏剧本模型"""
     story_info: StoryInfo = Field(..., description="故事背景信息")
-    characters: Dict[str, CharacterInfo] = Field(..., description="角色信息字典，键为角色名")
+    characters: Dict[str, ScenarioCharacterInfo] = Field(..., description="角色信息字典，键为角色ID")
     events: List[ScenarioEvent] = Field(..., description="剧本事件列表")
     
     # 可选的扩展字段
@@ -38,4 +38,3 @@ class Scenario(BaseModel):
     class Config:
         """模型配置"""
         arbitrary_types_allowed = True
-        
