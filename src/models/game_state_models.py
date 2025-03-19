@@ -3,6 +3,7 @@ from typing import Dict, List, Any, Optional, Union
 from enum import Enum
 from datetime import datetime
 from src.models.scenario_models import ScenarioEvent
+from src.models.message_models import Message
 
 
 class CharacterStatus(BaseModel):
@@ -65,6 +66,6 @@ class GameState(BaseModel):
     completed_events: Dict[str, EventInstance] = Field(default_factory=dict, description="已完成事件，键为实例ID")
     
     # 游戏进度相关
-    chat_history: List[str] = Field(default_factory=list, description="消息历史记录ID列表")
+    chat_history: List[Message] = Field(default_factory=list, description="完整消息历史记录列表")
     context: Dict[str, Any] = Field(default_factory=dict, description="游戏上下文")
     metadata: Dict[str, Any] = Field(default_factory=dict, description="额外元数据")

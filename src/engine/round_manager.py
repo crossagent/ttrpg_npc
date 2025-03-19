@@ -9,7 +9,7 @@ from src.models.message_models import Message, MessageType, MessageVisibility
 from src.models.action_models import PlayerAction, ActionResult, ItemQuery, DiceResult
 from src.models.context_models import StateUpdateRequest
 from src.engine.game_state_manager import GameStateManager
-from src.communication.perspective_info_manager import PersonalContextManager
+from src.communication.perspective_info_manager import PerspectiveInfoManager
 from src.communication.message_dispatcher import MessageDispatcher
 from src.engine.agent_manager import AgentManager
 from src.engine.scenario_manager import ScenarioManager
@@ -22,7 +22,7 @@ class RoundManager:
     
     def __init__(self, game_state_manager: GameStateManager = None, 
                  message_dispatcher: MessageDispatcher = None, 
-                 personal_context_manager: PersonalContextManager = None, 
+                 perspective_info_manager: PerspectiveInfoManager = None, 
                  agent_manager: AgentManager = None, 
                  scenario_manager: ScenarioManager = None):
         """
@@ -31,13 +31,13 @@ class RoundManager:
         Args:
             game_state_manager: 游戏状态管理器
             message_dispatcher: 消息分发器
-            personal_context_manager: 个人视角信息管理器
+            perspective_info_manager: 个人视角信息管理器
             agent_manager: Agent系统
             scenario_manager: 剧本管理器
         """
         self.game_state_manager = game_state_manager
         self.message_dispatcher = message_dispatcher
-        self.personal_context_manager = personal_context_manager
+        self.perspective_info_manager = perspective_info_manager
         self.agent_manager = agent_manager
         self.scenario_manager = scenario_manager
         
@@ -134,7 +134,7 @@ class RoundManager:
         # 处理每个玩家回合
         for player_id in player_ids:
             # 获取玩家上下文
-            player_context = self.personal_context_manager.get_player_context(player_id)
+            player_context = self.perspective_info_manager.get_player_context(player_id)
             
             # 玩家决策行动
             player_agent = self.agent_manager.get_player_agent(player_id)
@@ -162,7 +162,7 @@ class RoundManager:
             # 更新其他玩家的上下文
             for other_player_id in player_ids:
                 if other_player_id != player_id:
-                    self.personal_context_manager.update_player_context(other_player_id, player_message)
+                    self.perspective_info_manager.update_player_context(other_player_id, player_message)
         
         # 保存玩家行动
         self.player_actions = player_actions

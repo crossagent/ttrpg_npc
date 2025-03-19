@@ -3,25 +3,29 @@ from datetime import datetime
 
 from src.models.game_state_models import GameState
 from src.models.scenario_models import Scenario
-from src.models.context_models import PlayerContext
+from src.models.message_models import MessageReadMemory
 from src.models.action_models import PlayerAction, ActionResult
 from src.agents.dm_agent import DMAgent
 from src.agents.player_agent import PlayerAgent
+from src.communication.perspective_info_manager import PerspectiveInfoManager
 
 class AgentManager:
     """
     Agent管理器类，负责管理DM和玩家的AI代理，处理决策生成。
     """
     
-    def __init__(self, dm_agent=None, player_agents=None):
+    def __init__(self, dm_agent=None, player_agents=None, perspective_manager=None):
         """
         初始化Agent系统
         
         Args:
             dm_agent: DM代理
             player_agents: 玩家代理字典，键为玩家ID
+            perspective_manager: 个人视角信息管理器
         """
-        pass
+        self.dm_agent = dm_agent
+        self.player_agents = player_agents or {}
+        self.perspective_manager = perspective_manager or PerspectiveInfoManager()
     
     def register_agent(self, agent_id: str, agent_type: str, agent_instance) -> bool:
         """
@@ -35,31 +39,65 @@ class AgentManager:
         Returns:
             bool: 是否注册成功
         """
-        pass
+        if agent_type == "dm":
+            self.dm_agent = agent_instance
+            return True
+        elif agent_type == "player":
+            self.player_agents[agent_id] = agent_instance
+            
+            # 如果是玩家代理，同时初始化该玩家的视角信息
+            if self.perspective_manager:
+                character_name = getattr(agent_instance, 'character_profile', {}).get('name', agent_id)
+                self.perspective_manager.initialize_player_context(agent_id, character_name)
+                
+            return True
+        else:
+            return False
     
     def get_dm_agent(self) -> DMAgent:
         """
-        获取代理实例
+        获取DM代理实例
         
-        Args:
-            agent_id: 代理ID
-            
         Returns:
-            Any: 代理实例
+            DMAgent: DM代理实例
         """
-        pass
+        return self.dm_agent
 
-    def get_player_agent(self, agent_id: str) -> PlayerAgent:
+    def get_player_agent(self, agent_id: str) -> Optional[PlayerAgent]:
         """
-        获取代理实例
+        获取玩家代理实例
         
         Args:
             agent_id: 代理ID
             
         Returns:
-            Any: 代理实例
+            Optional[PlayerAgent]: 玩家代理实例，如果不存在则为None
         """
-        pass
+        return self.player_agents.get(agent_id)
+    
+    def get_player_context(self, player_id: str) -> MessageReadMemory:
+        """
+        获取玩家上下文
+        
+        Args:
+            player_id: 玩家ID
+            
+        Returns:
+            MessageReadMemory: 玩家消息记录
+        """
+        if not self.perspective_manager:
+            raise ValueError("视角管理器未初始化")
+            
+        return self.perspective_manager.get_player_context(player_id)
+    
+    def get_all_players(self) -> List[str]:
+        """
+        获取所有玩家ID
+        
+        Returns:
+            List[str]: 所有玩家ID列表
+        """
+        return list(self.player_agents.keys())
     
     def roll_dice(self, dice_type: str, modifiers: Dict[str, int] = None) -> int:
         """
