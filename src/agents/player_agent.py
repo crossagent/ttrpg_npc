@@ -6,7 +6,6 @@ from datetime import datetime
 from src.models.scenario_models import Scenario
 from src.models.game_state_models import GameState
 from src.models.action_models import PlayerAction
-from src.models.message_models import MessageReadMemory
 from src.agents.base_agent import BaseAgent
 import uuid
 

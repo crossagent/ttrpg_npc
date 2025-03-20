@@ -1,10 +1,9 @@
 from pydantic import BaseModel, Field
-from typing import Dict, List, Any, Optional, Union
+from typing import Dict, List, Any, Optional, Union, Literal
 from enum import Enum
 from datetime import datetime
 from src.models.scenario_models import ScenarioEvent
-from src.models.message_models import Message
-
+from src.models.message_models import Message, MessageStatus
 
 class GamePhase(str, Enum):
     """游戏阶段枚举"""
@@ -13,6 +12,20 @@ class GamePhase(str, Enum):
     CONFLICT = "冲突阶段"
     REVELATION = "真相阶段"
 
+# 添加角色内部思考记录模型
+class InnerThought(BaseModel):
+    """角色内部思考记录"""
+    timestamp: datetime = Field(default_factory=datetime.now, description="思考发生的时间")
+    round_id: int = Field(..., description="所属回合ID")
+    observe: str = Field(..., description="观察的内容")
+    thought: str = Field(..., description="思考的内容")
+    decision: str = Field(..., description="决策的内容")
+
+class MessageReadMemory(BaseModel):
+    """消息已读记录模型"""
+    player_id: str = Field(..., description="玩家ID")
+    history_messages: Dict[str, MessageStatus] = Field(default_factory=dict, description="可见的消息状态，键为消息ID")
+    inner_thoughts: List[InnerThought] = Field(default_factory=list, description="角色的心理活动记录（观察、思考、决策）")
 
 class CharacterStatus(BaseModel):
     """角色状态模型，表示角色的当前状态"""
@@ -24,6 +37,11 @@ class CharacterStatus(BaseModel):
     relationships: Dict[str, int] = Field(default_factory=dict, description="与其他角色的关系值(使用角色ID作为键)")
     known_information: List[str] = Field(default_factory=list, description="已知信息")
     radiation_level: Optional[str] = Field(None, description="辐射水平（特定场景使用）")
+    # 修改为单个字符串
+    goal: str = Field("", description="角色当前的主要目标")
+    plans: str = Field("", description="角色达成目标的计划")
+    # 添加内部思考历史
+    inner_thoughts: List[InnerThought] = Field(default_factory=list, description="角色的心理活动记录（观察、思考、决策）")
     attributes: Dict[str, Any] = Field(default_factory=dict, description="其他属性")
 
 
@@ -68,10 +86,6 @@ class CharacterReference(BaseModel):
     public_identity: str = Field(..., description="对应剧本角色ID")
     name: str = Field(..., description="角色名称")
     player_controlled: bool = Field(False, description="是否由玩家控制")
-    # 移除 status_id 字段
-    # status_id: Optional[str] = Field(None, description="对应的角色状态ID")
-    
-    # 直接嵌套状态
     status: CharacterStatus = Field(..., description="角色状态")
     additional_info: Dict[str, Any] = Field(default_factory=dict, description="运行时附加信息")
 

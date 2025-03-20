@@ -49,8 +49,4 @@ class MessageStatus(BaseModel):
         json_encoders = {
             datetime: lambda v: v.isoformat()
         }
-
-class MessageReadMemory(BaseModel):
-    """消息已读记录模型"""
-    player_id: str = Field(..., description="玩家ID")
-    history_messages: Dict[str, MessageStatus] = Field(default_factory=dict, description="可见的消息状态，键为消息ID")
+        

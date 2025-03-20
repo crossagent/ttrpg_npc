@@ -63,41 +63,48 @@ class DMAgent(BaseAgent):
     async def dm_generate_narrative(self, game_state: GameState, scenario: Scenario) -> str:
         """
         DM生成叙述
-        
-        Args:
-            game_state: 游戏状态
-            scenario: 剧本
-            
-        Returns:
-            str: 生成的叙述文本
         """
-        # 获取未读消息，了解最新情况
+        # 获取未读消息和当前场景
         unread_messages = self.get_unread_messages(game_state)
+        current_scene = self._get_current_scene(scenario, game_state.round_number)
         
-        # 生成系统消息
-        system_message = self._generate_system_message(scenario)
+        # 格式化未读消息
+        formatted_messages = "\n".join([f"{msg.source}: {msg.content}" for msg in unread_messages]) or "没有新消息"
         
-        # 这里是简化的实现，实际应该调用LLM生成叙述
-        round_number = game_state.round_number
+        # 如果有模型客户端，使用AutoGen的方式生成叙述
+        if hasattr(self, 'assistant') and self.assistant:
+            # 设置系统消息
+            system_message = self._generate_system_message(scenario)
+            self.assistant.config.system_message = system_message
+            
+            # 构建用户消息
+            user_message = TextMessage(
+                content=f"""
+    【第{game_state.round_number}回合】
+    
+    最近的玩家消息:
+    {formatted_messages}
+    
+    当前场景:
+    {current_scene}
+    
+    请基于以上信息，生成一段生动的场景描述。描述应该:
+    1. 提及重要的场景元素和NPC
+    2. 反映玩家之前行动的影响
+    3. 暗示可能的行动方向
+    4. 以一个引导性问题结束，如"你们看到了什么？你们将如何行动？"
+    """,
+                source="system"
+            )
+            
+            try:
+                # 使用assistant的on_messages方法
+                response = await self.assistant.on_messages([user_message], CancellationToken())
+                if response and response.chat_message:
+                    return response.chat_message.content
+            except Exception as e:
+                print(f"Assistant生成叙述失败，回退到模板方法: {str(e)}")
         
-        # 从游戏阶段或地点选择当前场景
-        current_scene = ""
-        if scenario.locations:
-            # 使用地点列表，简单示例
-            location_keys = list(scenario.locations.keys())
-            if location_keys:
-                current_loc_key = location_keys[min(round_number, len(location_keys) - 1)]
-                current_scene = scenario.locations[current_loc_key].description
-        
-
-        formatted = []
-        for msg in unread_messages:
-            formatted.append(f"{msg.source}: {msg.content}")
-
-        narrative = f"【第{round_number}回合】\n\n我读取了{formatted}\n\n{current_scene}场景中，冒险继续进行...\n\n"
-        narrative += "你们看到了什么？你们将如何行动？"
-        
-        return narrative
 
     async def dm_resolve_action(self, action: PlayerAction, game_state: GameState) -> ActionResult:
         """
@@ -129,3 +136,15 @@ class DMAgent(BaseAgent):
         )
         
         return result
+
+    def _get_current_scene(self, scenario: Scenario, round_number: int) -> str:
+        """获取当前场景描述"""
+        if not scenario.locations:
+            return "未指定场景"
+            
+        location_keys = list(scenario.locations.keys())
+        if not location_keys:
+            return "未指定场景"
+            
+        current_loc_key = location_keys[min(round_number, len(location_keys) - 1)]
+        return scenario.locations[current_loc_key].description

@@ -4,12 +4,13 @@ from autogen_agentchat.agents import BaseChatAgent
 
 from src.models.game_state_models import GameState
 from src.models.scenario_models import Scenario
-from src.models.message_models import MessageReadMemory
 from src.models.action_models import PlayerAction, ActionResult
 from src.agents.dm_agent import DMAgent
 from src.agents.player_agent import PlayerAgent
 from src.agents.base_agent import BaseAgent
-
+from autogen_ext.models.openai import OpenAIChatCompletionClient
+from src.config.config_loader import load_llm_settings, load_config
+from autogen_core.models import ModelFamily
 
 class AgentManager:
     """
@@ -27,6 +28,24 @@ class AgentManager:
         self.player_agents = {}  # 改为字典，键为玩家ID
         self.game_state = game_state
         self.all_agents = {}  # 存储所有Agent实例，键为agent_id
+        
+                # 加载LLM配置
+        llm_settings = load_llm_settings()
+        
+        # 使用配置初始化模型客户端
+        self.model_client = OpenAIChatCompletionClient(
+            model=llm_settings.model,
+            api_key=llm_settings.openai_api_key,
+            temperature=llm_settings.temperature,
+            base_url=llm_settings.base_url,
+            model_info={
+                "name": llm_settings.model,
+                "vision": False,
+                "function_calling": False,
+                "json_output": False,
+                'family': ModelFamily.UNKNOWN
+            }
+        )
     
     def initialize_agents_from_characters(self, scenario: Scenario):
         """
@@ -42,6 +61,7 @@ class AgentManager:
         self.dm_agent = DMAgent(
             agent_id="dm",
             agent_name="DM",
+            model_client=self.model_client
         )
         self.all_agents["char_dm"] = self.dm_agent
         
@@ -59,7 +79,8 @@ class AgentManager:
             player_agent = PlayerAgent(
                 agent_id=player_id,
                 agent_name=character_ref.name,
-                character_id=character_id
+                character_id=character_id,
+                model_client=self.model_client
             )
             
             # 设置是否由玩家控制的标志

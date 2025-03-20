@@ -2,8 +2,8 @@ from typing import List, Dict, Any, Optional, Union
 from datetime import datetime
 from pydantic import BaseModel
 from autogen_agentchat.agents import AssistantAgent
-from src.models.message_models import Message, MessageStatus, MessageReadMemory, MessageVisibility
-from src.models.game_state_models import GameState
+from src.models.message_models import Message, MessageStatus, MessageVisibility
+from src.models.game_state_models import GameState, MessageReadMemory
 from autogen_core import CancellationToken
 
 class BaseAgent (AssistantAgent):
@@ -26,16 +26,14 @@ class BaseAgent (AssistantAgent):
         self.is_player_controlled = False  # 默认为非玩家控制
         self.message_memory: MessageReadMemory = MessageReadMemory(
             player_id=agent_id,
-            history_messages={}
+            history_messages={},
+            inner_thoughts=[]
         )
         self.entity_knowledge: Dict[str, List[str]] = {
             "locations": [],
             "characters": [],
             "items": []
         }
-
-        self.cancellation_token = CancellationToken()
-
     
     def update_context(self, message: Message) -> None:
         """

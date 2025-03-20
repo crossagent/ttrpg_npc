@@ -1,17 +1,13 @@
-from autogen_agentchat.agents import AssistantAgent, BaseChatAgent
-from autogen_ext.models.openai import OpenAIChatCompletionClient
 from autogen_agentchat.messages import TextMessage, ChatMessage
 from typing import Dict, List, Any, Callable, Optional
 import asyncio
 from datetime import datetime
 import uuid
-from autogen_core.models import ModelFamily
 
 # 导入我们的数据模型和Agent
 from src.models.schema import AgentConfig
 from src.models.game_state_models import GameState
 from src.agents.player_agent import PlayerAgent
-from src.config.config_loader import load_llm_settings, load_config
 from src.communication.message_dispatcher import MessageDispatcher
 from src.engine.agent_manager import AgentManager
 from src.engine.game_state_manager import GameStateManager
@@ -53,25 +49,6 @@ class GameEngine:
         Args:
             max_rounds: 最大回合数，默认为配置中的DEFAULT_MAX_ROUNDS
         """
-        confing = load_config()
-        
-        # 加载LLM配置
-        llm_settings = load_llm_settings()
-        
-        # 使用配置初始化模型客户端
-        self.model_client = OpenAIChatCompletionClient(
-            model=llm_settings.model,
-            api_key=llm_settings.openai_api_key,
-            temperature=llm_settings.temperature,
-            base_url=llm_settings.base_url,
-            model_info={
-                "name": llm_settings.model,
-                "vision": False,
-                "function_calling": False,
-                "json_output": False,
-                'family': ModelFamily.UNKNOWN
-            }
-        )
 
     async def run_game(self) -> None:
         """
