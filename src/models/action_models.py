@@ -16,7 +16,6 @@ class PlayerAction(BaseModel):
     action_type: ActionType = Field(..., description="行动类型")
     content: str = Field(..., description="行动内容")
     target: Union[str, List[str]] = Field(..., description="行动目标，可以是单个角色ID或多个角色ID列表")
-    metadata: Dict[str, Any] = Field(default_factory=dict, description="额外的元数据")
 
 
 class DiceResult(BaseModel):

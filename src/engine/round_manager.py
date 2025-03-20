@@ -343,13 +343,13 @@ class RoundManager:
             round_id = state.round_number + 1
             self.start_round(round_id)
             
-            # 2. 处理DM回合
+            # 2. 处理DM开始叙事
             dm_message = await self.process_dm_turn()
             
             # 3. 处理玩家回合
             player_actions = await self.process_player_turns()
             
-            # 4. 解析玩家行动
+            # 4. 确认行为影响的后果和是否触发了新的事件
             action_results = self.resolve_actions(player_actions)
             
             # 5. 结束回合

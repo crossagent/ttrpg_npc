@@ -60,7 +60,6 @@ class EventInstance(BaseModel):
     occurred_at: Optional[datetime] = Field(None, description="事件发生时间")
     triggered_by: Optional[str] = Field(None, description="触发该事件的条件/动作")
     revealed_to: List[str] = Field(default_factory=list, description="事件对哪些角色可见")
-    metadata: Dict[str, Any] = Field(default_factory=dict, description="额外元数据")
 
 
 class CharacterReference(BaseModel):

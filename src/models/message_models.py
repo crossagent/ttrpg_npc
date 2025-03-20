@@ -37,7 +37,6 @@ class MessageFilter(BaseModel):
     message_types: Optional[List[MessageType]] = Field(None, description="要过滤的消息类型")
     since_timestamp: Optional[str] = Field(None, description="起始时间戳")
     max_messages: Optional[int] = Field(None, description="最大消息数")
-    include_metadata: bool = Field(False, description="是否包含元数据")
     visibility: Optional[MessageVisibility] = Field(None, description="按可见性过滤")
 
 class MessageStatus(BaseModel):
