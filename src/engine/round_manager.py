@@ -152,7 +152,7 @@ class RoundManager:
                 player_message = Message(
                     message_id=message_id,
                     type=MessageType.PLAYER if player_action.action_type == "对话" else MessageType.ACTION,
-                    sender=player_id,
+                    source=player_id,
                     content=player_action.content,
                     timestamp=timestamp,
                     visibility=MessageVisibility.PUBLIC,
@@ -166,9 +166,6 @@ class RoundManager:
                 self.message_dispatcher.broadcast_message(message)
             
             self.logger.info(f"所有玩家行动已完成并广播，共 {len(player_actions)} 个")
-            
-            # 统一保存玩家行动
-            self.player_actions = player_actions
             
             return player_actions
             
@@ -293,9 +290,6 @@ class RoundManager:
 
             self.game_state_manager.update_state(update_request)
         
-        # 保存行动结果
-        self.action_results = action_results
-        
         return action_results
     
     def end_round(self) -> GameState:
@@ -309,7 +303,7 @@ class RoundManager:
         game_state = self.game_state_manager.get_state()
         
         # 检查是否有新的事件触发
-        triggered_events = self.scenario_manager.check_event_triggers(game_state)
+        triggered_events = []
         
         # 处理触发的事件
         for event in triggered_events:
@@ -322,17 +316,11 @@ class RoundManager:
         for event in game_state.active_events:
             if event.is_completed:
                 completed_events.append(event)
-                self.scenario_manager.complete_event(event.event_id)
         
         # 将完成的事件从活跃事件中移除，添加到已完成事件中
         for event in completed_events:
             game_state.active_events.remove(event)
             game_state.completed_events.append(event)
-        
-        # 检查游戏是否结束
-        if self.should_terminate(game_state):
-            game_state.is_finished = True
-            self.logger.info("游戏满足结束条件，已标记为结束状态")
         
         # 记录回合结束
         round_duration = datetime.now() - self.round_start_time
