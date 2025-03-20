@@ -337,9 +337,6 @@ class RoundManager:
             game_state.active_events.remove(event)
             game_state.completed_events.append(event)
         
-        # 保存当前游戏状态
-        self.game_state_manager.save_state()
-        
         # 检查游戏是否结束
         if self.should_terminate(game_state):
             game_state.is_finished = True

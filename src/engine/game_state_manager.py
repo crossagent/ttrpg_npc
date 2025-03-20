@@ -19,9 +19,8 @@ class GameStateManager:
         Args:
             initial_state: 初始游戏状态，如果为None则创建新状态
         """
-        self.current_state = initial_state
+        self.game_state = initial_state
         self.state_history = []
-        self.game_state: GameState = None
     
     def initialize_game_state(self, scenario: Scenario) -> GameState:
         """
@@ -97,10 +96,6 @@ class GameStateManager:
                     "key_events": getattr(phase_info, "key_events", [])
                 }
             game_state.context["game_phases"] = game_phases
-        
-        # 存储当前状态
-        self.current_state = game_state
-        self.save_state()  # 保存初始状态到历史记录
         
         return game_state
     
@@ -308,36 +303,7 @@ class GameStateManager:
             List[Inconsistency]: 不一致列表
         """
         pass
-    
-    def save_state(self) -> bool:
-        """
-        保存当前游戏状态
-        
-        Returns:
-            bool: 是否保存成功
-        """
-        # 将当前状态添加到历史记录
-        if self.current_state:
-            self.state_history.append(self.current_state.copy(deep=True))
-            return True
-        return False
-    
-    def load_state(self, index: int = -1) -> Optional[GameState]:
-        """
-        加载历史游戏状态
-        
-        Args:
-            index: 历史索引，默认为-1（最新）
-            
-        Returns:
-            Optional[GameState]: 加载的游戏状态，如果失败则为None
-        """
-        if not self.state_history or index >= len(self.state_history) or index < -len(self.state_history):
-            return None
-        
-        self.current_state = self.state_history[index].copy(deep=True)
-        return self.current_state
-    
+
     def update_state(self, update_request: StateUpdateRequest) -> GameState:
         """
         更新游戏状态
@@ -369,10 +335,10 @@ class GameStateManager:
         Returns:
             List[str]: 玩家ID列表
         """
-        if not self.current_state:
+        if not self.game_state:
             return []
         
-        return list(self.current_state.characters.keys())
+        return list(self.game_state.characters.keys())
 
     def get_current_phase_events(self) -> List[str]:
         """获取当前阶段的关键事件ID列表"""
