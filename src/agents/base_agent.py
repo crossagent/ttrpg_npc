@@ -12,7 +12,7 @@ class BaseAgent (AssistantAgent):
     所有具体的Agent类（如PlayerAgent、DMAgent等）都应继承此类。
     """
     
-    def __init__(self, agent_id: str, name: str, model_client=None):
+    def __init__(self, agent_id: str, agent_name: str, model_client=None):
         """
         初始化基础Agent
         
@@ -21,7 +21,6 @@ class BaseAgent (AssistantAgent):
             name: Agent的名称
         """
         self.agent_id: str = agent_id
-        self.name: str = name
         self.is_player_controlled = False  # 默认为非玩家控制
         self.message_memory: MessageReadMemory = MessageReadMemory(
             player_id=agent_id,
@@ -35,7 +34,7 @@ class BaseAgent (AssistantAgent):
 
         # 如果提供了model_client，初始化AssistantAgent
         if model_client:
-            AssistantAgent.__init__(self, name=name, model_client=model_client)
+            AssistantAgent.__init__(self, name=agent_name, model_client=model_client)
     
     def update_context(self, message: Message) -> None:
         """

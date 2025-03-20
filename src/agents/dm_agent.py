@@ -13,19 +13,19 @@ class DMAgent(BaseAgent):
     DM Agent类，负责生成游戏叙述和处理玩家行动
     """
     
-    def __init__(self, agent_id: str, name: str):
+    def __init__(self, agent_id: str, agent_name: str, model_client=None):
         """
         初始化DMAgent
         
         Args:
             agent_id: Agent唯一标识符
-            name: Agent名称
+            agent_name: Agent名称
             scenario: 游戏剧本
             game_state: 游戏状态
             model_client: 模型客户端
         """
         # 初始化BaseAgent
-        BaseAgent.__init__(self, agent_id=agent_id, name=name)
+        BaseAgent.__init__(self, agent_id=agent_id, agent_name=agent_name, model_client=model_client)
 
     def _generate_system_message(self, scenario: Optional[Scenario]) -> str:
         """

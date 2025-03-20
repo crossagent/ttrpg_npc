@@ -41,7 +41,7 @@ class AgentManager:
         # 初始化DM代理
         self.dm_agent = DMAgent(
             agent_id="dm",
-            name="DM",
+            agent_name="DM",
         )
         self.all_agents["dm"] = self.dm_agent
         
@@ -58,7 +58,7 @@ class AgentManager:
             # 创建角色代理
             player_agent = PlayerAgent(
                 agent_id=player_id,
-                name=character_ref.name,
+                agent_name=character_ref.name,
                 character_id=character_id,
                 character_profile=self._build_character_profile(character_id, scenario)
             )
