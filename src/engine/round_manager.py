@@ -64,7 +64,7 @@ class RoundManager:
         self.round_start_time = datetime.now()
         
         # 初始化回合状态
-        self.current_state = self.game_state_manager.get_current_state()
+        self.current_state = self.game_state_manager.get_state()
         self.current_state.round_number = round_id
         
         # 重置回合变量

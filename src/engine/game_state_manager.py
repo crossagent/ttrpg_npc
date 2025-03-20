@@ -251,7 +251,7 @@ class GameStateManager:
         game_state.context["key_items"] = key_items
         game_state.metadata["item_count"] = len(key_items)
 
-    def get_current_state(self) -> GameState:
+    def get_state(self) -> GameState:
         """
         获取当前游戏状态
         
