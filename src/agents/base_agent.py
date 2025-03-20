@@ -1,12 +1,14 @@
-from typing import List, Dict, Any, Optional, Union
+from typing import List, Dict, Any, Optional, Union, Sequence
 from datetime import datetime
 from pydantic import BaseModel
 from autogen_agentchat.agents import AssistantAgent
+from autogen_agentchat.messages import ChatMessage
 from src.models.message_models import Message, MessageStatus, MessageVisibility
 from src.models.game_state_models import GameState, MessageReadMemory
 from autogen_core import CancellationToken
+from autogen_agentchat.base import Response
 
-class BaseAgent (AssistantAgent):
+class BaseAgent:
     """
     基础Agent类，提供消息处理和记忆管理的基础功能。
     所有具体的Agent类（如PlayerAgent、DMAgent等）都应继承此类。
@@ -18,11 +20,14 @@ class BaseAgent (AssistantAgent):
         
         Args:
             agent_id: Agent的唯一标识符
-            name: Agent的名称
+            agent_name: Agent的名称
+            model_client: 模型客户端
         """
-        AssistantAgent.__init__(self, name=agent_name, model_client=model_client)
+        # 使用组合而非继承
+        self.assistant: AssistantAgent = AssistantAgent(name=agent_name, model_client=model_client)
                 
         self.agent_id: str = agent_id
+        self.name: str = agent_name  # 保存agent_name以便访问
         self.is_player_controlled = False  # 默认为非玩家控制
         self.message_memory: MessageReadMemory = MessageReadMemory(
             player_id=agent_id,
@@ -34,6 +39,28 @@ class BaseAgent (AssistantAgent):
             "characters": [],
             "items": []
         }
+        
+    # 委托方法，将AssistantAgent的方法委托给self.assistant
+    async def on_messages(self, messages: Sequence[ChatMessage], cancellation_token: CancellationToken) -> Response:
+        """委托给assistant的on_messages方法"""
+        return await self.assistant.on_messages(messages, cancellation_token)
+    
+    async def on_messages_stream(self, messages: Sequence[ChatMessage], cancellation_token: CancellationToken):
+        """委托给assistant的on_messages_stream方法"""
+        return self.assistant.on_messages_stream(messages, cancellation_token)
+    
+    async def run(self, **kwargs):
+        """委托给assistant的run方法"""
+        return await self.assistant.run(**kwargs)
+    
+    async def run_stream(self, **kwargs):
+        """委托给assistant的run_stream方法"""
+        return self.assistant.run_stream(**kwargs)
+    
+    @property
+    def config(self):
+        """访问assistant的配置"""
+        return self.assistant.config
     
     def update_context(self, message: Message) -> None:
         """

@@ -25,7 +25,7 @@ class PlayerAgent(BaseAgent):
             model_client: 模型客户端
         """
         # 初始化BaseAgent
-        BaseAgent.__init__(self, agent_id=agent_id, agent_name=agent_name, model_client=model_client)
+        super().__init__(agent_id=agent_id, agent_name=agent_name, model_client=model_client)
 
         self.character_id = character_id
 
@@ -96,6 +96,10 @@ class PlayerAgent(BaseAgent):
                 "background": character_ref.additional_info.get("background", "无背景故事")
             }
             system_message = self._generate_system_message(character_profile)
+            
+            # 设置assistant的系统消息
+            if self.assistant:
+                self.assistant.config.system_message = system_message
         
         formatted = []
         for msg in unread_messages:
