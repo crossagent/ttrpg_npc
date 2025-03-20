@@ -62,7 +62,7 @@ class RoundManager:
         # 记录日志
         self.logger.info(f"回合 {round_id} 开始于 {self.round_start_time}")
     
-    def process_dm_turn(self) -> Message:
+    async def process_dm_turn(self) -> Message:
         """
         处理DM回合，获取DM的叙述推进
         
@@ -75,7 +75,7 @@ class RoundManager:
         
         # 通过DM代理生成叙述
         dm_agent = self.agent_manager.get_dm_agent()
-        dm_narrative = asyncio.run(dm_agent.dm_generate_narrative(game_state, scenario))
+        dm_narrative = dm_agent.dm_generate_narrative(game_state, scenario)
         
         # 创建DM消息
         message_id = str(uuid.uuid4())

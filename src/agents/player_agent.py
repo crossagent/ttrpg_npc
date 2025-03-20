@@ -8,13 +8,14 @@ from src.models.game_state_models import GameState
 from src.models.action_models import PlayerAction
 from src.models.message_models import MessageReadMemory
 from src.agents.base_agent import BaseAgent
+import uuid
 
 class PlayerAgent(BaseAgent):
     """
     玩家Agent类，负责生成玩家的观察、状态、思考和行动
     """
     
-    def __init__(self, agent_id: str, agent_name: str, character_id: str, model_client=None):
+    def __init__(self, agent_id: str, agent_name: str, character_id:str, model_client=None):
         """
         初始化玩家Agent
         
@@ -22,12 +23,11 @@ class PlayerAgent(BaseAgent):
             agent_id: Agent唯一标识符
             agent_name: Agent名称
             character_id: 角色ID
-            character_profile: 角色资料
             model_client: 模型客户端
         """
         # 初始化BaseAgent
         BaseAgent.__init__(self, agent_id=agent_id, agent_name=agent_name, model_client=model_client)
-            
+
         self.character_id = character_id
 
     def _generate_system_message(self, character_profile: Dict[str, Any]) -> str:

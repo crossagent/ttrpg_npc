@@ -119,21 +119,23 @@ class GameStateManager:
                 # 确定初始位置
                 initial_location = getattr(game_state.environment, 'current_location_id', "main_location")
                 
+                character_id=f"char_{uuid.uuid4().hex[:8]}"
+
                 # 创建角色状态
                 character_status = CharacterStatus(
-                    character_id=char_id,
+                    character_id=character_id,
                     location=initial_location,
                     health=100,  # 默认值
                     items=[],  # 初始无物品
                     conditions=[],
                     relationships={}
                 )
-                
+
                 # 创建角色引用，直接嵌套状态
                 character_ref = CharacterReference(
-                    character_id=char_id,
-                    scenario_character_id=char_id,
-                    name=public_identity,
+                    character_id=character_id,
+                    public_identity=public_identity,
+                    name=char_id,
                     player_controlled=False,  # 默认为NPC
                     status=character_status,  # 直接嵌套状态
                     additional_info={
@@ -145,7 +147,7 @@ class GameStateManager:
                 )
                 
                 # 将角色添加到游戏状态
-                game_state.characters[char_id] = character_ref
+                game_state.characters[character_id] = character_ref
         
         # 记录角色初始化信息
         game_state.metadata["character_count"] = len(game_state.characters)
