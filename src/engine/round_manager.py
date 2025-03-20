@@ -356,7 +356,7 @@ class RoundManager:
             self.start_round(round_id)
             
             # 2. 处理DM回合
-            dm_message = self.process_dm_turn()
+            dm_message = await self.process_dm_turn()
             
             # 3. 处理玩家回合
             player_actions = await self.process_player_turns()
