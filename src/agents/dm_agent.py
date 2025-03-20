@@ -1,4 +1,3 @@
-from autogen_agentchat.agents import AssistantAgent
 from autogen_agentchat.messages import TextMessage, ChatMessage
 from autogen_core import CancellationToken
 from typing import List, Dict, Any, Optional
@@ -9,12 +8,12 @@ from src.models.game_state_models import GameState
 from src.models.action_models import PlayerAction, ActionResult
 from src.agents.base_agent import BaseAgent
 
-class DMAgent(BaseAgent, AssistantAgent):
+class DMAgent(BaseAgent):
     """
     DM Agent类，负责生成游戏叙述和处理玩家行动
     """
     
-    def __init__(self, agent_id: str, name: str, scenario: Scenario = None, game_state: GameState = None, model_client=None, **kwargs):
+    def __init__(self, agent_id: str, name: str):
         """
         初始化DMAgent
         
@@ -27,14 +26,6 @@ class DMAgent(BaseAgent, AssistantAgent):
         """
         # 初始化BaseAgent
         BaseAgent.__init__(self, agent_id=agent_id, name=name)
-        
-        # 如果提供了model_client，初始化AssistantAgent
-        if model_client:
-            system_message = self._generate_system_message(scenario)
-            AssistantAgent.__init__(self, name=name, model_client=model_client, system_message=system_message, **kwargs)
-            
-        self.scenario = scenario
-        self.game_state = game_state
 
     def _generate_system_message(self, scenario: Optional[Scenario]) -> str:
         """
@@ -76,6 +67,9 @@ class DMAgent(BaseAgent, AssistantAgent):
         """
         # 获取未读消息，了解最新情况
         unread_messages = self.get_unread_messages(game_state)
+        
+        # 生成系统消息
+        system_message = self._generate_system_message(scenario)
         
         # 这里是简化的实现，实际应该调用LLM生成叙述
         round_number = game_state.round_number

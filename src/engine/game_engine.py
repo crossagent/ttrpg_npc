@@ -81,7 +81,8 @@ class GameEngine:
         agent_manager = AgentManager(
             game_state=game_state
         )
-        
+        agent_manager.initialize_agents_from_characters(scenario)
+
         # 初始化通信组件
         message_dispatcher = MessageDispatcher(
             game_state=game_state,

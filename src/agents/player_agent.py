@@ -1,4 +1,3 @@
-from autogen_agentchat.agents import AssistantAgent
 from autogen_agentchat.messages import TextMessage, ChatMessage
 from autogen_core import CancellationToken
 from typing import List, Dict, Any, Optional
@@ -10,12 +9,12 @@ from src.models.action_models import PlayerAction
 from src.models.message_models import MessageReadMemory
 from src.agents.base_agent import BaseAgent
 
-class PlayerAgent(BaseAgent, AssistantAgent):
+class PlayerAgent(BaseAgent):
     """
     玩家Agent类，负责生成玩家的观察、状态、思考和行动
     """
     
-    def __init__(self, agent_id: str, name: str, character_id: str, character_profile: Dict[str, Any], model_client=None, **kwargs):
+    def __init__(self, agent_id: str, name: str, character_id: str):
         """
         初始化玩家Agent
         
@@ -28,14 +27,8 @@ class PlayerAgent(BaseAgent, AssistantAgent):
         """
         # 初始化BaseAgent
         BaseAgent.__init__(self, agent_id=agent_id, name=name)
-        
-        # 如果提供了model_client，初始化AssistantAgent
-        if model_client:
-            system_message = self._generate_system_message(character_profile)
-            AssistantAgent.__init__(self, name=name, model_client=model_client, system_message=system_message, **kwargs)
             
         self.character_id = character_id
-        self.character_profile = character_profile
 
     def _generate_system_message(self, character_profile: Dict[str, Any]) -> str:
         """
@@ -94,6 +87,9 @@ class PlayerAgent(BaseAgent, AssistantAgent):
         # 获取未读消息
         unread_messages = self.get_unread_messages(game_state)
         
+
+        system_message = self._generate_system_message(self.character_id)
+
         # 处理未读消息，生成行动
         # 这里是简化的实现，实际应该调用LLM生成行动
         player_action = PlayerAction(

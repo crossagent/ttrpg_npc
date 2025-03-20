@@ -30,38 +30,49 @@ class AgentManager:
     
     def initialize_agents_from_characters(self, scenario: Scenario):
         """
-        从游戏角色初始化代理
+        从游戏角色初始化代理。为所有角色创建代理，无论是否已分配给玩家。
         
         Args:
             scenario: 剧本对象
         """
-        if not self.game_state or not hasattr(self, 'player_manager'):
-            raise ValueError("游戏状态或玩家管理器未初始化")
+        if not self.game_state:
+            raise ValueError("游戏状态未初始化")
         
         # 初始化DM代理
         self.dm_agent = DMAgent(
             agent_id="dm",
             name="DM",
-            scenario=scenario,
-            game_state=self.game_state
         )
         self.all_agents["dm"] = self.dm_agent
         
-        # 对每个已分配给玩家的角色，创建相应的代理
+        # 为所有角色创建代理，无论是否已分配给玩家
         for character_id, character_ref in self.game_state.characters.items():
-            controller = self.player_manager.get_character_controller(character_id)
+            # 检查角色是否已分配给玩家
+            player_id = None
+            is_player_controlled = False
             
-            if controller:  # 角色由玩家控制
-                player_id = controller.player_id
-                # 角色已分配给玩家，创建玩家代理
-                player_agent = PlayerAgent(
-                    agent_id=player_id,
-                    name=character_ref.name,
-                    character_id=character_id,
-                    character_profile=self._build_character_profile(character_id, scenario)
-                )
-                self.player_agents[player_id] = player_agent
-                self.all_agents[player_id] = player_agent
+            # 如果未分配给玩家，使用临时ID
+            if not player_id:
+                player_id = f"npc_{character_id}"
+            
+            # 创建角色代理
+            player_agent = PlayerAgent(
+                agent_id=player_id,
+                name=character_ref.name,
+                character_id=character_id,
+                character_profile=self._build_character_profile(character_id, scenario)
+            )
+            
+            # 设置是否由玩家控制的标志
+            player_agent.is_player_controlled = is_player_controlled
+            
+            # 添加到代理列表
+            self.player_agents[player_id] = player_agent
+            self.all_agents[player_id] = player_agent
+            
+            # 更新角色的控制状态
+            if character_ref:
+                character_ref.player_controlled = is_player_controlled
     
     def _build_character_profile(self, character_id: str, scenario: Scenario) -> Dict[str, Any]:
         """

@@ -1,18 +1,18 @@
 from typing import List, Dict, Any, Optional, Union
 from datetime import datetime
 from pydantic import BaseModel
-
+from autogen_agentchat.agents import AssistantAgent
 from src.models.message_models import Message, MessageStatus, MessageReadMemory, MessageVisibility
 from src.models.game_state_models import GameState
 
 
-class BaseAgent:
+class BaseAgent (AssistantAgent):
     """
     基础Agent类，提供消息处理和记忆管理的基础功能。
     所有具体的Agent类（如PlayerAgent、DMAgent等）都应继承此类。
     """
     
-    def __init__(self, agent_id: str, name: str):
+    def __init__(self, agent_id: str, name: str, model_client=None):
         """
         初始化基础Agent
         
@@ -22,6 +22,7 @@ class BaseAgent:
         """
         self.agent_id: str = agent_id
         self.name: str = name
+        self.is_player_controlled = False  # 默认为非玩家控制
         self.message_memory: MessageReadMemory = MessageReadMemory(
             player_id=agent_id,
             history_messages={}
@@ -31,6 +32,10 @@ class BaseAgent:
             "characters": [],
             "items": []
         }
+
+        # 如果提供了model_client，初始化AssistantAgent
+        if model_client:
+            AssistantAgent.__init__(self, name=name, model_client=model_client)
     
     def update_context(self, message: Message) -> None:
         """
