@@ -43,7 +43,7 @@ class AgentManager:
             agent_id="dm",
             agent_name="DM",
         )
-        self.all_agents["dm"] = self.dm_agent
+        self.all_agents["char_dm"] = self.dm_agent
         
         # 为所有角色创建代理，无论是否已分配给玩家
         for character_id, character_ref in self.game_state.characters.items():
@@ -66,8 +66,8 @@ class AgentManager:
             player_agent.is_player_controlled = is_player_controlled
             
             # 添加到代理列表
-            self.player_agents[player_id] = player_agent
-            self.all_agents[player_id] = player_agent
+            self.player_agents[character_id] = player_agent
+            self.all_agents[character_id] = player_agent
             
             # 更新角色的控制状态
             if character_ref:

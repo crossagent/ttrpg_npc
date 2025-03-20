@@ -87,9 +87,17 @@ class PlayerAgent(BaseAgent):
         # 获取未读消息
         unread_messages = self.get_unread_messages(game_state)
         
-
-        system_message = self._generate_system_message(self.character_id)
-
+        # 从game_state中获取角色信息
+        if self.character_id in game_state.characters:
+            character_ref = game_state.characters[self.character_id]
+            # 创建包含角色信息的字典
+            character_profile = {
+                "name": character_ref.name,
+                "personality": character_ref.additional_info.get("personality", "无特定性格"),
+                "background": character_ref.additional_info.get("background", "无背景故事")
+            }
+            system_message = self._generate_system_message(character_profile)
+        
         # 处理未读消息，生成行动
         # 这里是简化的实现，实际应该调用LLM生成行动
         player_action = PlayerAction(

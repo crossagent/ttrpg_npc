@@ -75,7 +75,7 @@ class RoundManager:
         
         # 通过DM代理生成叙述
         dm_agent = self.agent_manager.get_dm_agent()
-        dm_narrative = dm_agent.dm_generate_narrative(game_state, scenario)
+        dm_narrative = await dm_agent.dm_generate_narrative(game_state, scenario)
         
         # 创建DM消息
         message_id = str(uuid.uuid4())
@@ -84,7 +84,7 @@ class RoundManager:
         dm_message = Message(
             message_id=message_id,
             type=MessageType.DM,
-            sender="DM",
+            source="DM",
             content=dm_narrative,
             timestamp=timestamp,
             visibility=MessageVisibility.PUBLIC,

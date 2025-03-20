@@ -20,6 +20,8 @@ class BaseAgent (AssistantAgent):
             agent_id: Agent的唯一标识符
             name: Agent的名称
         """
+        AssistantAgent.__init__(self, name=agent_name, model_client=model_client)
+                
         self.agent_id: str = agent_id
         self.is_player_controlled = False  # 默认为非玩家控制
         self.message_memory: MessageReadMemory = MessageReadMemory(
@@ -32,9 +34,6 @@ class BaseAgent (AssistantAgent):
             "items": []
         }
 
-        # 如果提供了model_client，初始化AssistantAgent
-        if model_client:
-            AssistantAgent.__init__(self, name=agent_name, model_client=model_client)
     
     def update_context(self, message: Message) -> None:
         """

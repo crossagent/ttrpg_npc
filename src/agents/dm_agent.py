@@ -40,20 +40,26 @@ class DMAgent(BaseAgent):
         if not scenario:
             return "你是一个桌面角色扮演游戏的主持人(DM)，负责描述场景、推动故事情节发展，并处理玩家的行动。"
             
+        # 提取NPC列表（角色名称）
+        npc_list = list(scenario.characters.keys())
+        
+        # 提取地点列表
+        location_list = list(scenario.locations.keys()) if scenario.locations else []
+        
         return f"""你是一个桌面角色扮演游戏的主持人(DM)，负责描述场景、推动故事情节发展，并处理玩家的行动。
-当前游戏的背景设定是：{scenario.背景设定}
-主要场景包括：{', '.join(scenario.场景列表)}
-主要NPC包括：{', '.join(scenario.NPC列表)}
-
-你的任务是：
-1. 生成生动的场景描述
-2. 根据玩家行动给出合理的结果
-3. 推动故事情节发展
-4. 确保游戏体验有趣且具有挑战性
-
-请记住，你是一个公正的裁判，不要偏袒任何玩家，也不要过于严苛或宽松。
-"""
-
+    当前游戏的背景设定是：{scenario.story_info.background}
+    主要场景包括：{', '.join(location_list) if location_list else '未指定'}
+    主要NPC包括：{', '.join(npc_list) if npc_list else '未指定'}
+    
+    你的任务是：
+    1. 生成生动的场景描述
+    2. 根据玩家行动给出合理的结果
+    3. 推动故事情节发展
+    4. 确保游戏体验有趣且具有挑战性
+    
+    请记住，你是一个公正的裁判，不要偏袒任何玩家，也不要过于严苛或宽松。
+    """
+    
     async def dm_generate_narrative(self, game_state: GameState, scenario: Scenario) -> str:
         """
         DM生成叙述
@@ -73,7 +79,15 @@ class DMAgent(BaseAgent):
         
         # 这里是简化的实现，实际应该调用LLM生成叙述
         round_number = game_state.round_number
-        current_scene = scenario.场景列表[min(round_number, len(scenario.场景列表) - 1)]
+        
+        # 从游戏阶段或地点选择当前场景
+        current_scene = ""
+        if scenario.locations:
+            # 使用地点列表，简单示例
+            location_keys = list(scenario.locations.keys())
+            if location_keys:
+                current_loc_key = location_keys[min(round_number, len(location_keys) - 1)]
+                current_scene = scenario.locations[current_loc_key].description
         
         narrative = f"【第{round_number}回合】\n\n{current_scene}场景中，冒险继续进行...\n\n"
         narrative += "你们看到了什么？你们将如何行动？"
