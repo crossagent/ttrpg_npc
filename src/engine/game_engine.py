@@ -18,6 +18,7 @@ from src.engine.agent_manager import AgentManager
 from src.engine.game_state_manager import GameStateManager
 from src.engine.scenario_manager import ScenarioManager
 from src.engine.round_manager import RoundManager
+from src.models.message_models import Message, MessageType
 
 from src.config.color_utils import (
     format_dm_message, format_player_message, format_observation,
@@ -27,6 +28,19 @@ from src.config.color_utils import (
 
 # 默认配置
 DEFAULT_MAX_ROUNDS = 5
+
+def message_display_handler(message: Message) -> None:
+    """处理消息显示的函数"""
+    source = message.source
+    content = message.content
+    
+    # 根据消息来源确定显示格式
+    if source.lower() == "dm":
+        print(format_dm_message(source, content))
+    elif source.lower() == "human_player" or source.lower() == "human":
+        print(gray_text(f'{source}: {content}'))
+    else:
+        print(format_player_message(source, content))
 
 class GameEngine:
     """
@@ -88,6 +102,8 @@ class GameEngine:
             game_state=game_state,
             agent_manager=agent_manager
         )
+
+        message_dispatcher.register_message_handler(message_display_handler, list(MessageType))
 
         # 创建回合管理器
         round_manager = RoundManager(

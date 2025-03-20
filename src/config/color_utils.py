@@ -84,7 +84,7 @@ def format_player_message(name: str, content: str) -> str:
     Returns:
         str: 格式化后的消息
     """
-    return green_text(f"{name}: {content}")
+    return gray_text(f"{name}: {content}")
 
 def format_observation(text: str) -> str:
     """

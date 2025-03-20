@@ -98,13 +98,17 @@ class PlayerAgent(BaseAgent):
             }
             system_message = self._generate_system_message(character_profile)
         
+        formatted = []
+        for msg in unread_messages:
+            formatted.append(f"{msg.source}: {msg.content}")
+
         # 处理未读消息，生成行动
         # 这里是简化的实现，实际应该调用LLM生成行动
         player_action = PlayerAction(
             player_id=self.agent_id,
             character_id=self.character_id,
             action_type="对话",
-            content=f"我是{self.name}，我正在思考下一步行动...",
+            content=f"我是{self.name},我看到了{formatted}\n,基于此我正在思考下一步行动...\n",
             target="all",
             timestamp=datetime.now().isoformat()
         )

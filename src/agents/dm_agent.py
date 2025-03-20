@@ -89,7 +89,12 @@ class DMAgent(BaseAgent):
                 current_loc_key = location_keys[min(round_number, len(location_keys) - 1)]
                 current_scene = scenario.locations[current_loc_key].description
         
-        narrative = f"【第{round_number}回合】\n\n{current_scene}场景中，冒险继续进行...\n\n"
+
+        formatted = []
+        for msg in unread_messages:
+            formatted.append(f"{msg.source}: {msg.content}")
+
+        narrative = f"【第{round_number}回合】\n\n我读取了{formatted}\n\n{current_scene}场景中，冒险继续进行...\n\n"
         narrative += "你们看到了什么？你们将如何行动？"
         
         return narrative

@@ -329,18 +329,6 @@ class GameStateManager:
             pass
         
         return updated_state
-    
-    def get_player_ids(self) -> List[str]:
-        """
-        获取所有玩家ID
-        
-        Returns:
-            List[str]: 玩家ID列表
-        """
-        if not self.game_state:
-            return []
-        
-        return list(self.game_state.characters.keys())
 
     def get_current_phase_events(self) -> List[str]:
         """获取当前阶段的关键事件ID列表"""
