@@ -63,9 +63,9 @@ class RoundManager:
         self.current_round_id = round_id
         self.round_start_time = datetime.now()
         
-        # 初始化回合状态
-        self.current_state = self.game_state_manager.get_state()
-        self.current_state.round_number = round_id
+        # 初始化回合状态 - 使用管理器获取并修改状态
+        game_state = self.game_state_manager.get_state()
+        game_state.round_number = round_id
         
         # 重置回合变量
         self.dm_narrative = None
@@ -322,40 +322,43 @@ class RoundManager:
         Returns:
             GameState: 更新后的游戏状态
         """
+        # 获取当前状态
+        game_state = self.game_state_manager.get_state()
+        
         # 检查是否有新的事件触发
-        triggered_events = self.scenario_manager.check_event_triggers(self.current_state)
+        triggered_events = self.scenario_manager.check_event_triggers(game_state)
         
         # 处理触发的事件
         for event in triggered_events:
-            if not any(e.event_id == event.event_id for e in self.current_state.active_events):
-                self.current_state.active_events.append(event)
+            if not any(e.event_id == event.event_id for e in game_state.active_events):
+                game_state.active_events.append(event)
                 self.logger.info(f"触发新事件: {event.name}")
         
-        # 检查是否有完成的事件
+        # 处理完成的事件
         completed_events = []
-        for event in self.current_state.active_events:
+        for event in game_state.active_events:
             if event.is_completed:
                 completed_events.append(event)
                 self.scenario_manager.complete_event(event.event_id)
         
         # 将完成的事件从活跃事件中移除，添加到已完成事件中
         for event in completed_events:
-            self.current_state.active_events.remove(event)
-            self.current_state.completed_events.append(event)
+            game_state.active_events.remove(event)
+            game_state.completed_events.append(event)
         
         # 保存当前游戏状态
         self.game_state_manager.save_state()
         
         # 检查游戏是否结束
-        if self.should_terminate(self.current_state):
-            self.current_state.is_finished = True
+        if self.should_terminate(game_state):
+            game_state.is_finished = True
             self.logger.info("游戏满足结束条件，已标记为结束状态")
         
         # 记录回合结束
         round_duration = datetime.now() - self.round_start_time
         self.logger.info(f"回合 {self.current_round_id} 结束，持续时间: {round_duration}")
         
-        return self.current_state
+        return game_state
 
     async def execute_round(self, state: GameState) -> GameState:
         """
