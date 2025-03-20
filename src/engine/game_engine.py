@@ -1,6 +1,5 @@
 from autogen_agentchat.agents import AssistantAgent, BaseChatAgent
 from autogen_ext.models.openai import OpenAIChatCompletionClient
-from autogen_core import CancellationToken
 from autogen_agentchat.messages import TextMessage, ChatMessage
 from typing import Dict, List, Any, Callable, Optional
 import asyncio
@@ -73,8 +72,6 @@ class GameEngine:
                 'family': ModelFamily.UNKNOWN
             }
         )
-        
-        self.cancellation_token = CancellationToken() 
 
     async def run_game(self) -> None:
         """

@@ -4,7 +4,7 @@ from pydantic import BaseModel
 from autogen_agentchat.agents import AssistantAgent
 from src.models.message_models import Message, MessageStatus, MessageReadMemory, MessageVisibility
 from src.models.game_state_models import GameState
-
+from autogen_core import CancellationToken
 
 class BaseAgent (AssistantAgent):
     """
@@ -33,6 +33,8 @@ class BaseAgent (AssistantAgent):
             "characters": [],
             "items": []
         }
+
+        self.cancellation_token = CancellationToken()
 
     
     def update_context(self, message: Message) -> None:
