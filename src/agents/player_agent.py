@@ -8,23 +8,33 @@ from src.models.scenario_models import Scenario
 from src.models.game_state_models import GameState
 from src.models.action_models import PlayerAction
 from src.models.message_models import MessageReadMemory
+from src.agents.base_agent import BaseAgent
 
-class PlayerAgent(AssistantAgent):
+class PlayerAgent(BaseAgent, AssistantAgent):
     """
     玩家Agent类，负责生成玩家的观察、状态、思考和行动
     """
     
-    def __init__(self, name: str, character_profile: Dict[str, Any], model_client, **kwargs):
+    def __init__(self, agent_id: str, name: str, character_id: str, character_profile: Dict[str, Any], model_client=None, **kwargs):
         """
         初始化玩家Agent
         
         Args:
+            agent_id: Agent唯一标识符
             name: Agent名称
+            character_id: 角色ID
             character_profile: 角色资料
             model_client: 模型客户端
         """
-        system_message = self._generate_system_message(character_profile)
-        super().__init__(name=name, model_client=model_client, system_message=system_message, **kwargs)
+        # 初始化BaseAgent
+        BaseAgent.__init__(self, agent_id=agent_id, name=name)
+        
+        # 如果提供了model_client，初始化AssistantAgent
+        if model_client:
+            system_message = self._generate_system_message(character_profile)
+            AssistantAgent.__init__(self, name=name, model_client=model_client, system_message=system_message, **kwargs)
+            
+        self.character_id = character_id
         self.character_profile = character_profile
 
     def _generate_system_message(self, character_profile: Dict[str, Any]) -> str:
@@ -70,17 +80,29 @@ class PlayerAgent(AssistantAgent):
 注意：只有"action"部分会被其他人看到，其他部分只有你自己知道。
 根据当前情境和角色性格来调整你的目标、计划、心情和行动。
 """
-async def player_decide_action(player_id: str, memory: MessageReadMemory) -> PlayerAction:
-    """
-    玩家决策行动
-    
-    Args:
-        player_id: 玩家ID
-        memory: 玩家上下文
+
+    async def player_decide_action(self, game_state: GameState) -> PlayerAction:
+        """
+        玩家决策行动
         
-    Returns:
-        PlayerAction: 玩家行动
-    """
-    pass
-
-
+        Args:
+            game_state: 游戏状态，包含消息历史
+            
+        Returns:
+            PlayerAction: 玩家行动
+        """
+        # 获取未读消息
+        unread_messages = self.get_unread_messages(game_state)
+        
+        # 处理未读消息，生成行动
+        # 这里是简化的实现，实际应该调用LLM生成行动
+        player_action = PlayerAction(
+            player_id=self.agent_id,
+            character_id=self.character_id,
+            action_type="对话",
+            content=f"我是{self.name}，我正在思考下一步行动...",
+            target="all",
+            timestamp=datetime.now().isoformat()
+        )
+        
+        return player_action

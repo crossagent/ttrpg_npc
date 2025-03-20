@@ -14,7 +14,6 @@ from src.models.game_state_models import GameState
 from src.agents.player_agent import PlayerAgent
 from src.config.config_loader import load_llm_settings, load_config
 from src.communication.message_dispatcher import MessageDispatcher
-from src.communication.perspective_info_manager import PerspectiveInfoManager
 from src.engine.agent_manager import AgentManager
 from src.engine.game_state_manager import GameStateManager
 from src.engine.scenario_manager import ScenarioManager
@@ -78,24 +77,21 @@ class GameEngine:
         game_state_manager = GameStateManager()
         game_state = game_state_manager.initialize_game_state(scenario)
 
-        # 初始化通信组件
-        perspective_info_manager = PerspectiveInfoManager()
-        message_dispatcher = MessageDispatcher(
-            game_state=game_state,
-            perspective_info_manager=perspective_info_manager
-        )
-
         # 创建代理管理器
         agent_manager = AgentManager(
-            perspective_manager=perspective_info_manager,
             game_state=game_state
+        )
+        
+        # 初始化通信组件
+        message_dispatcher = MessageDispatcher(
+            game_state=game_state,
+            agent_manager=agent_manager
         )
 
         # 创建回合管理器
         round_manager = RoundManager(
             game_state_manager = game_state_manager,
             message_dispatcher = message_dispatcher,
-            perspective_info_manager = perspective_info_manager,
             agent_manager = agent_manager,
             scenario_manager = scenario_manager)
         
@@ -143,11 +139,11 @@ class GameEngine:
         Args:
             player_id: 玩家ID
         """
-        if not self.perspective_info_manager:
-            print("视角管理器未初始化")
+        if not self.round_manager or not self.round_manager.message_dispatcher:
+            print("消息分发器未初始化")
             return
             
-        messages = self.perspective_info_manager.get_visible_messages(player_id)
+        messages = self.round_manager.message_dispatcher.get_message_history(player_id)
         
         if not messages:
             print(f"玩家 {player_id} 没有可见的消息")

@@ -9,7 +9,6 @@ from src.models.message_models import Message, MessageType, MessageVisibility
 from src.models.action_models import PlayerAction, ActionResult, ItemQuery, DiceResult
 from src.models.context_models import StateUpdateRequest
 from src.engine.game_state_manager import GameStateManager
-from src.communication.perspective_info_manager import PerspectiveInfoManager
 from src.communication.message_dispatcher import MessageDispatcher
 from src.engine.agent_manager import AgentManager
 from src.engine.scenario_manager import ScenarioManager
@@ -22,7 +21,6 @@ class RoundManager:
     
     def __init__(self, game_state_manager: GameStateManager = None, 
                  message_dispatcher: MessageDispatcher = None, 
-                 perspective_info_manager: PerspectiveInfoManager = None, 
                  agent_manager: AgentManager = None, 
                  scenario_manager: ScenarioManager = None):
         """
@@ -31,13 +29,11 @@ class RoundManager:
         Args:
             game_state_manager: 游戏状态管理器
             message_dispatcher: 消息分发器
-            perspective_info_manager: 个人视角信息管理器
             agent_manager: Agent系统
             scenario_manager: 剧本管理器
         """
         self.game_state_manager = game_state_manager
         self.message_dispatcher = message_dispatcher
-        self.perspective_info_manager = perspective_info_manager
         self.agent_manager = agent_manager
         self.scenario_manager = scenario_manager
         
@@ -136,12 +132,13 @@ class RoundManager:
         player_id_to_index = {}
         
         for i, player_id in enumerate(player_ids):
-            # 获取玩家上下文
-            player_memory = self.perspective_info_manager.get_player_memory(player_id)
-            
-            # 玩家决策行动（异步）
+            # 获取玩家代理
             player_agent = self.agent_manager.get_player_agent(player_id)
-            task = player_agent.player_decide_action(player_id, player_memory)
+            if not player_agent:
+                continue
+                
+            # 玩家决策行动（异步）
+            task = player_agent.player_decide_action(self.current_state)
             player_tasks.append(task)
             player_id_to_index[player_id] = i
         
@@ -153,7 +150,7 @@ class RoundManager:
             player_messages = []
             
             # 处理每个玩家的行动结果
-            for i, player_id in enumerate(player_ids):
+            for i, player_id in enumerate(list(player_id_to_index.keys())):
                 player_action = action_results[i]
                 player_actions.append(player_action)
                 
@@ -176,12 +173,6 @@ class RoundManager:
             # 统一广播所有玩家消息
             for message in player_messages:
                 self.message_dispatcher.broadcast_message(message)
-            
-            # 统一更新所有玩家上下文
-            for player_id in player_ids:
-                for message in player_messages:
-                    if message.sender != player_id:  # 不更新自己发的消息
-                        self.perspective_info_manager.update_player_context(player_id, message)
             
             self.logger.info(f"所有玩家行动已完成并广播，共 {len(player_actions)} 个")
             

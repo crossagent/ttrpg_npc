@@ -10,16 +10,16 @@ class MessageDispatcher:
     消息分发器类，负责处理游戏中的所有消息分发，确保消息按照可见性正确传递。
     """
     
-    def __init__(self, game_state=None, perspective_info_manager=None):
+    def __init__(self, game_state=None, agent_manager=None):
         """
         初始化消息分发器
         
         Args:
             game_state: 游戏状态，用于存储全局消息历史
-            personal_context_manager: 个人视角信息管理器
+            agent_manager: Agent管理器，用于获取Agent实例
         """
         self.game_state = game_state
-        self.perspective_info_manager = perspective_info_manager
+        self.agent_manager = agent_manager
         self.message_handlers = {}  # 消息处理器字典，键为消息类型
     
     def broadcast_message(self, message: Message) -> List[str]:
@@ -42,20 +42,24 @@ class MessageDispatcher:
             
         successful_recipients = []
         
-        # 如果没有指定接收者且存在个人视角管理器，获取所有玩家ID
-        if not message.recipients and self.perspective_info_manager:
-            message.recipients = self.perspective_info_manager.get_all_player_ids()
+        # 如果没有指定接收者且存在Agent管理器，获取所有Agent ID
+        if not message.recipients and self.agent_manager:
+            message.recipients = self.agent_manager.get_all_agent_ids()
             
         # 对每个接收者处理消息
-        if self.perspective_info_manager and message.recipients:
-            for player_id in message.recipients:
-                # 根据玩家视角过滤消息
-                filtered_message = self.perspective_info_manager.filter_message(message, player_id)
+        if self.agent_manager and message.recipients:
+            for agent_id in message.recipients:
+                agent = self.agent_manager.get_agent(agent_id)
+                if not agent:
+                    continue
+                    
+                # 根据Agent视角过滤消息
+                filtered_message = agent.filter_message(message)
                 
                 if filtered_message:
-                    # 更新玩家消息记录
-                    self.perspective_info_manager.update_player_context(player_id, filtered_message)
-                    successful_recipients.append(player_id)
+                    # 更新Agent消息记录
+                    agent.update_context(filtered_message)
+                    successful_recipients.append(agent_id)
         
         # 调用相应的消息处理器
         if message.type in self.message_handlers:
@@ -94,24 +98,35 @@ class MessageDispatcher:
         """
         return str(uuid.uuid4())
     
-    def get_message_history(self, player_id: Optional[str] = None, limit: int = 50) -> List[Message]:
+    def get_message_history(self, agent_id: Optional[str] = None, limit: int = 50) -> List[Message]:
         """
         获取消息历史
         
         Args:
-            player_id: 玩家ID，如果为None则获取所有消息
+            agent_id: Agent ID，如果为None则获取所有消息
             limit: 消息数量限制
             
         Returns:
             List[Message]: 消息历史列表
         """
-        if player_id and self.perspective_info_manager:
-            return self.perspective_info_manager.get_visible_messages(player_id, limit)
-        elif self.game_state and self.game_state.chat_history:
-            # 返回全局消息历史
-            history = self.game_state.chat_history
-            return history[-limit:] if limit < len(history) else history[:]
-        return []
+        if not self.game_state or not self.game_state.chat_history:
+            return []
+            
+        # 获取全局消息历史
+        history = self.game_state.chat_history
+        
+        # 如果指定了Agent ID，过滤出该Agent可见的消息
+        if agent_id and self.agent_manager:
+            agent = self.agent_manager.get_agent(agent_id)
+            if agent:
+                visible_messages = []
+                for message in history:
+                    if agent.filter_message(message):
+                        visible_messages.append(message)
+                history = visible_messages
+        
+        # 返回最近的limit条消息
+        return history[-limit:] if limit < len(history) else history[:]
     
     def register_message_handler(self, handler_function, message_types: List[str] = None) -> None:
         """

@@ -138,3 +138,12 @@ class ScenarioManager:
             return None
         
         return self.scenario.game_stages.get(stage_name)
+    
+    def get_current_scenario(self) -> Optional[Scenario]:
+        """
+        获取当前加载的完整剧本
+        
+        Returns:
+            Optional[Scenario]: 当前加载的剧本对象，如果未加载任何剧本则返回None
+        """
+        return self.scenario
