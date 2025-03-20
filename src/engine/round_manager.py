@@ -88,7 +88,7 @@ class RoundManager:
             content=dm_narrative,
             timestamp=timestamp,
             visibility=MessageVisibility.PUBLIC,
-            recipients=self.agent_manager.get_player_ids(),
+            recipients=self.agent_manager.get_all_player_ids(),
             round_id=self.current_round_id
         )
         
@@ -116,7 +116,7 @@ class RoundManager:
         Returns:
             List[PlayerAction]: 玩家行动列表
         """
-        player_ids = self.agent_manager.get_player_ids()
+        player_ids = self.agent_manager.get_all_player_ids()
         
         # 准备所有玩家的行动任务
         player_tasks = []
@@ -219,7 +219,7 @@ class RoundManager:
                         content=action_result.narrative,
                         timestamp=timestamp,
                         visibility=MessageVisibility.PUBLIC,
-                        recipients=self.agent_manager.get_player_ids(),
+                        recipients=self.agent_manager.get_all_player_ids(),
                         round_id=self.current_round_id
                     )
                     
@@ -248,7 +248,7 @@ class RoundManager:
                     content=f"掷骰结果: {dice_result.raw_value} + 修正值 {5} = {dice_result.modified_value}",
                     timestamp=timestamp,
                     visibility=MessageVisibility.PUBLIC,
-                    recipients=self.agent_manager.get_player_ids(),
+                    recipients=self.agent_manager.get_all_player_ids(),
                     round_id=self.current_round_id
                 )
                 
@@ -271,7 +271,7 @@ class RoundManager:
                 content=action_result.narrative,
                 timestamp=timestamp,
                 visibility=MessageVisibility.PUBLIC,
-                recipients=self.agent_manager.get_player_ids(),
+                recipients=self.agent_manager.get_all_player_ids(),
                 round_id=self.current_round_id
             )
             
