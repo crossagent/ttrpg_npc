@@ -40,10 +40,6 @@ class RoundManager:
         # 回合状态相关变量
         self.current_round_id: int = 0
         self.round_start_time: datetime = None
-        self.current_state: GameState = None
-        self.dm_narrative: str = None
-        self.player_actions: List[PlayerAction] = []
-        self.action_results: List[ActionResult] = []
         
         # 日志配置
         self.logger = logging.getLogger("RoundManager")
@@ -63,11 +59,6 @@ class RoundManager:
         game_state = self.game_state_manager.get_state()
         game_state.round_number = round_id
         
-        # 重置回合变量
-        self.dm_narrative = None
-        self.player_actions = []
-        self.action_results = []
-        
         # 记录日志
         self.logger.info(f"回合 {round_id} 开始于 {self.round_start_time}")
     
@@ -79,13 +70,12 @@ class RoundManager:
             Message: DM的叙述消息
         """
         # 获取当前游戏状态和剧本
-        game_state = self.current_state
+        game_state = self.game_state_manager.get_state()
         scenario = self.scenario_manager.get_current_scenario()
         
         # 通过DM代理生成叙述
         dm_agent = self.agent_manager.get_dm_agent()
         dm_narrative = asyncio.run(dm_agent.dm_generate_narrative(game_state, scenario))
-        self.dm_narrative = dm_narrative
         
         # 创建DM消息
         message_id = str(uuid.uuid4())
@@ -113,7 +103,8 @@ class RoundManager:
                 "round": self.current_round_id
             }
         )
-        self.current_state = self.game_state_manager.update_state(update_request)
+        
+        self.game_state_manager.update_state(update_request)
         
         return dm_message
     
@@ -138,7 +129,7 @@ class RoundManager:
                 continue
                 
             # 玩家决策行动（异步）
-            task = player_agent.player_decide_action(self.current_state)
+            task = player_agent.player_decide_action(self.game_state_manager.get_state())
             player_tasks.append(task)
             player_id_to_index[player_id] = i
         
@@ -269,7 +260,7 @@ class RoundManager:
             
             # DM解析行动结果
             dm_agent = self.agent_manager.get_dm_agent()
-            action_result = asyncio.run(dm_agent.dm_resolve_action(action, self.current_state))
+            action_result = asyncio.run(dm_agent.dm_resolve_action(action, self.game_state_manager.get_state()))
             action_results.append(action_result)
             
             # 创建结果消息
@@ -299,7 +290,8 @@ class RoundManager:
                     "success": action_result.success
                 }
             )
-            self.current_state = self.game_state_manager.update_state(update_request)
+
+            self.game_state_manager.update_state(update_request)
         
         # 保存行动结果
         self.action_results = action_results
@@ -359,9 +351,6 @@ class RoundManager:
             GameState: 更新后的游戏状态
         """
         try:
-            # 设置当前状态
-            self.current_state = state
-            
             # 1. 开始回合
             round_id = state.round_number + 1
             self.start_round(round_id)
