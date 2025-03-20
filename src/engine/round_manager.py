@@ -12,7 +12,7 @@ from src.engine.game_state_manager import GameStateManager
 from src.communication.message_dispatcher import MessageDispatcher
 from src.engine.agent_manager import AgentManager
 from src.engine.scenario_manager import ScenarioManager
-
+from src.models.action_models import ActionType
 
 class RoundManager:
     """
@@ -151,7 +151,7 @@ class RoundManager:
                 
                 player_message = Message(
                     message_id=message_id,
-                    type=MessageType.PLAYER if player_action.action_type == "对话" else MessageType.ACTION,
+                    type=MessageType.PLAYER if player_action.action_type == ActionType.DIALOGUE else MessageType.ACTION,
                     source=player_id,
                     content=player_action.content,
                     timestamp=timestamp,
