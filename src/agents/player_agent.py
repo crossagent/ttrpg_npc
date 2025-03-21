@@ -99,7 +99,7 @@ class PlayerAgent(BaseAgent):
             
             # 设置assistant的系统消息
             if self.assistant:
-                self.assistant.config.system_message = system_message
+                self.assistant.system_message = system_message
         
         formatted = []
         for msg in unread_messages:
