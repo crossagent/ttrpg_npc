@@ -2,7 +2,11 @@ from typing import List, Dict, Any, Optional
 from datetime import datetime
 import uuid
 
-from src.models.game_state_models import GameState, GamePhase, CharacterInstance, CharacterStatus, EnvironmentStatus, EventInstance
+from src.models.game_state_models import (
+    GameState, GamePhase, CharacterInstance, CharacterStatus, 
+    EnvironmentStatus, EventInstance, ProgressStatus,
+    LocationStatus, ItemStatus
+)
 from src.models.scenario_models import Scenario
 from src.models.context_models import StateChanges, Inconsistency, StateUpdateRequest
 from src.models.action_models import ItemQuery, ItemResult
@@ -49,14 +53,44 @@ class GameStateManager:
         environment = EnvironmentStatus(
             current_location_id=initial_location_id,
             time=datetime.now(),
-            weather="晴朗"
+            weather="晴朗",
+            atmosphere="平静",
+            lighting="明亮"
+        )
+        
+        # 创建进度状态 - 使用第一章节、小节、阶段作为初始值
+        # 如果剧本中有故事结构，则使用其中的第一个章节、小节、阶段
+        current_chapter_id = "chapter_1"
+        current_section_id = "section_1"
+        current_stage_id = "stage_1"
+        
+        if (hasattr(scenario, 'story_structure') and 
+            scenario.story_structure and 
+            scenario.story_structure.chapters):
+            
+            first_chapter = scenario.story_structure.chapters[0]
+            current_chapter_id = first_chapter.id
+            
+            if first_chapter.sections:
+                first_section = first_chapter.sections[0]
+                current_section_id = first_section.id
+                
+                if first_section.stages:
+                    current_stage_id = first_section.stages[0].id
+        
+        progress = ProgressStatus(
+            current_chapter_id=current_chapter_id,
+            current_section_id=current_section_id,
+            current_stage_id=current_stage_id
         )
         
         # 创建游戏状态
         game_state = GameState(
             game_id=game_id,
+            scenario_id=getattr(scenario, 'id', str(uuid.uuid4())),
             scenario=scenario,
-            environment=environment
+            environment=environment,
+            progress=progress
         )
         
         # 存储游戏状态
@@ -88,6 +122,7 @@ class GameStateManager:
         """
         # 清空现有角色信息
         game_state.characters = {}
+        game_state.character_states = {}
         
         # 从剧本中加载角色
         if hasattr(scenario, 'characters') and scenario.characters:
@@ -107,7 +142,10 @@ class GameStateManager:
                     health=100,  # 默认值
                     items=[],  # 初始无物品
                     conditions=[],
-                    relationships={}
+                    relationships={},
+                    known_information=[],
+                    goal="",
+                    plans=""
                 )
 
                 # 创建角色引用，直接嵌套状态
@@ -121,6 +159,7 @@ class GameStateManager:
                 
                 # 将角色添加到游戏状态
                 game_state.characters[character_id] = character_ref
+                game_state.character_states[character_id] = character_status
     
     def _initialize_locations_from_scenario(self, game_state: GameState, scenario: Scenario):
         """
@@ -138,7 +177,21 @@ class GameStateManager:
             # 如果没有locations属性，直接报错
             raise ValueError("剧本结构异常：缺少必要的locations信息。请确保剧本包含至少一个地点。")
         
-
+        # 初始化位置状态
+        game_state.location_states = {}
+        
+        # 从剧本中加载位置
+        for loc_id, location_info in scenario.locations.items():
+            # 创建位置状态
+            location_status = LocationStatus(
+                location_id=loc_id,
+                search_status="未搜索",
+                available_items=getattr(location_info, 'available_items', []),
+                present_characters=[]
+            )
+            
+            # 将位置添加到游戏状态
+            game_state.location_states[loc_id] = location_status
     def _initialize_events_from_scenario(self, game_state: GameState, scenario: Scenario):
         """
         从剧本中初始化事件到游戏状态
@@ -147,28 +200,24 @@ class GameStateManager:
             game_state: 游戏状态对象
             scenario: 剧本对象
         """
-        # # 初始化事件字典
-        # active_events = {}
-        # pending_events = {}
+        # 初始化事件字典
+        game_state.event_instances = {}
         
-        # # 如果有events属性，加载事件信息
-        # if hasattr(scenario, 'events') and scenario.events:
-        #     for event in scenario.events:
-        #         # 创建事件实例
-        #         event_instance = EventInstance(
-        #             instance_id=str(uuid.uuid4()),
-        #             scenario_event_id=getattr(event, 'event_id', str(uuid.uuid4())),
-        #             is_active=False,
-        #             is_completed=False,
-        #             related_character_ids=[],
-        #             revealed_to=[]
-        #         )
+        # 如果有events属性，加载事件信息
+        if hasattr(scenario, 'events') and scenario.events:
+            for event in scenario.events:
+                # 创建事件实例
+                event_instance = EventInstance(
+                    instance_id=str(uuid.uuid4()),
+                    event_id=getattr(event, 'event_id', str(uuid.uuid4())),
+                    is_active=False,
+                    is_completed=False,
+                    related_character_ids=[],
+                    revealed_to=[]
+                )
                 
-        #         # 添加到待触发事件字典
-        #         pending_events[event_instance.instance_id] = event_instance
-        
-        # # 存储事件实例
-        # game_state.pending_events = pending_events
+                # 添加到事件实例字典
+                game_state.event_instances[event_instance.instance_id] = event_instance
 
     def get_state(self) -> GameState:
         """
@@ -271,5 +320,5 @@ class GameStateManager:
 
     def get_characters_at_location(self, location_id: str) -> List[str]:
         """获取在指定位置的角色ID列表"""
-        return [char_id for char_id, char_instance in self.game_state.characters.items() 
-                if char_instance.status.location == location_id]
+        return [char_id for char_id, char_status in self.game_state.character_states.items() 
+                if char_status.location == location_id]
