@@ -2,7 +2,7 @@ from pydantic import BaseModel, Field
 from typing import Dict, List, Any, Optional, Union, Literal
 from enum import Enum
 from datetime import datetime
-from src.models.scenario_models import ScenarioEvent
+from src.models.scenario_models import ScenarioEvent, Scenario
 from src.models.message_models import Message, MessageStatus
 
 class GamePhase(str, Enum):
@@ -59,7 +59,6 @@ class EnvironmentStatus(BaseModel):
     weather: str = Field("晴朗", description="天气状况")
     lighting: str = Field("明亮", description="光照条件")
     atmosphere: str = Field("平静", description="氛围")
-    locations: Dict[str, LocationStatus] = Field(default_factory=dict, description="所有地点的当前状态")
 
 
 class EventInstance(BaseModel):
@@ -87,7 +86,7 @@ class CharacterInstance(BaseModel):
 class GameState(BaseModel):
     """完整游戏状态模型，表示游戏的当前状态"""
     game_id: str = Field(..., description="游戏实例ID")
-    scenario_id: str = Field(..., description="使用的剧本ID")
+    scenario: Optional[Scenario] = Field(None, description="使用的剧本实例")
     round_number: int = Field(0, description="当前回合数")
     max_rounds: int = Field(10, description="最大回合数")
     is_finished: bool = Field(False, description="游戏是否结束")
@@ -104,5 +103,7 @@ class GameState(BaseModel):
     chat_history: List[Message] = Field(default_factory=list, description="完整消息历史记录列表")
     revealed_secrets: List[str] = Field(default_factory=list, description="已揭示的秘密")
     game_variables: Dict[str, Any] = Field(default_factory=dict, description="游戏变量，用于条件判断")
+    
+
     context: Dict[str, Any] = Field(default_factory=dict, description="游戏上下文")
     metadata: Dict[str, Any] = Field(default_factory=dict, description="额外元数据")

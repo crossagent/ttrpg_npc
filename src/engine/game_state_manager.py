@@ -2,7 +2,7 @@ from typing import List, Dict, Any, Optional
 from datetime import datetime
 import uuid
 
-from src.models.game_state_models import GameState, GamePhase, CharacterInstance, CharacterStatus, EnvironmentStatus
+from src.models.game_state_models import GameState, GamePhase, CharacterInstance, CharacterStatus, EnvironmentStatus, EventInstance
 from src.models.scenario_models import Scenario
 from src.models.context_models import StateChanges, Inconsistency, StateUpdateRequest
 from src.models.action_models import ItemQuery, ItemResult
@@ -34,7 +34,6 @@ class GameStateManager:
         """
         # 创建基本游戏状态
         game_id = str(uuid.uuid4())
-        scenario_id = getattr(scenario, 'scenario_id', "default")
         
         # 确定初始地点
         initial_location_id = None
@@ -56,7 +55,7 @@ class GameStateManager:
         # 创建游戏状态
         game_state = GameState(
             game_id=game_id,
-            scenario_id=scenario_id,
+            scenario=scenario,
             environment=environment
         )
         
@@ -75,23 +74,7 @@ class GameStateManager:
         # 设置游戏阶段
         game_state.current_phase = GamePhase.EXPLORATION
         
-        # 存储场景信息到上下文 - 修复后的代码
-        game_state.context["scenario"] = {
-            "background": getattr(scenario.story_info, "background", "") if hasattr(scenario, "story_info") else "",
-            "secret": getattr(scenario.story_info, "secrets", {}).get("main_secret", "") if hasattr(scenario, "story_info") else ""
-        }
-        
-        # 存储游戏阶段信息
-        if hasattr(scenario, 'game_stages'):
-            game_phases = {}
-            for phase_id, phase_info in scenario.game_stages.items():
-                game_phases[phase_id] = {
-                    "name": getattr(phase_info, "name", phase_id),
-                    "description": getattr(phase_info, "description", ""),
-                    "objective": getattr(phase_info, "objectives", ""),
-                    "key_events": getattr(phase_info, "key_events", [])
-                }
-            game_state.context["game_phases"] = game_phases
+        # 不再需要将剧本信息复制到context中，因为现在可以直接通过game_state.scenario访问
         
         return game_state
     
@@ -153,25 +136,13 @@ class GameStateManager:
         Raises:
             ValueError: 如果剧本中缺少locations信息
         """
-        # 初始化位置信息到游戏上下文
-        locations = {}
-        
-        # 如果有locations属性，使用它
-        if hasattr(scenario, 'locations') and scenario.locations:
-            for loc_id, location_info in scenario.locations.items():
-                locations[loc_id] = {
-                    "name": getattr(location_info, 'name', loc_id),
-                    "description": getattr(location_info, 'description', ''),
-                    "connected_to": getattr(location_info, 'connected_locations', []),
-                    "available_items": getattr(location_info, 'available_items', []),
-                }
-        else:
+        # 检查剧本是否包含位置信息
+        if not hasattr(scenario, 'locations') or not scenario.locations:
             # 如果没有locations属性，直接报错
             raise ValueError("剧本结构异常：缺少必要的locations信息。请确保剧本包含至少一个地点。")
         
-        # 存储位置信息到游戏状态
-        game_state.context["locations"] = locations
-        game_state.metadata["location_count"] = len(locations)    
+        # 记录位置数量到元数据
+        game_state.metadata["location_count"] = len(scenario.locations)
 
     def _initialize_events_from_scenario(self, game_state: GameState, scenario: Scenario):
         """
@@ -188,42 +159,26 @@ class GameStateManager:
         # 如果有events属性，加载事件信息
         if hasattr(scenario, 'events') and scenario.events:
             for event in scenario.events:
-                event_data = {
-                    "id": getattr(event, 'event_id', str(uuid.uuid4())),
-                    "description": getattr(event, 'description', ''),
-                    "trigger_condition": getattr(event, 'trigger_condition', ''),
-                    "perceptible_players": getattr(event, 'aware_players', ["all"]),
-                    "content": getattr(event, 'content', ''),
-                    "possible_outcomes": getattr(event, 'possible_outcomes', []),
-                    "consequences": getattr(event, 'outcome_effects', {}),
-                    "status": "pending"
-                }
+                # 创建事件实例
+                event_instance = EventInstance(
+                    instance_id=str(uuid.uuid4()),
+                    scenario_event_id=getattr(event, 'event_id', str(uuid.uuid4())),
+                    is_active=False,
+                    is_completed=False,
+                    related_character_ids=[],
+                    revealed_to=[]
+                )
                 
                 # 添加到待触发事件字典
-                event_id = event_data["id"]
-                pending_events[event_id] = event_data
+                pending_events[event_instance.instance_id] = event_instance
         
-        # 存储事件信息
-        game_state.context["event_definitions"] = pending_events
+        # 存储事件实例
+        game_state.pending_events = pending_events
         game_state.metadata["total_events"] = len(pending_events)
         
-        # 加载关键物品
-        key_items = {}
-        if hasattr(scenario, 'items') and scenario.items:
-            for item_id, item_info in scenario.items.items():
-                key_items[item_id] = {
-                    "name": getattr(item_info, 'name', item_id),
-                    "description": getattr(item_info, 'description', ''),
-                    "location": getattr(item_info, 'location', ''),
-                    "related_characters": getattr(item_info, 'related_characters', []),
-                    "acquisition_difficulty": getattr(item_info, 'difficulty', 'medium'),
-                    "discovered": False,
-                    "possessed_by": None
-                }
-        
-        # 存储关键物品
-        game_state.context["key_items"] = key_items
-        game_state.metadata["item_count"] = len(key_items)
+        # 记录物品数量
+        if hasattr(scenario, 'items'):
+            game_state.metadata["item_count"] = len(scenario.items)
 
     def get_state(self) -> GameState:
         """
@@ -310,7 +265,12 @@ class GameStateManager:
     def get_current_phase_events(self) -> List[str]:
         """获取当前阶段的关键事件ID列表"""
         phase_name = self.game_state.current_phase.value
-        return self.game_state.context.get("game_stages", {}).get(phase_name, {}).get("key_events", [])
+        if (self.game_state.scenario and 
+            hasattr(self.game_state.scenario, 'game_stages') and 
+            self.game_state.scenario.game_stages and 
+            phase_name in self.game_state.scenario.game_stages):
+            return self.game_state.scenario.game_stages[phase_name].key_events
+        return []
 
     def advance_phase(self) -> None:
         """推进游戏阶段"""
@@ -329,5 +289,5 @@ class GameStateManager:
 
     def get_characters_at_location(self, location_id: str) -> List[str]:
         """获取在指定位置的角色ID列表"""
-        return [char_id for char_id, status in self.game_state.character_status.items() 
-                if status.location == location_id]
+        return [char_id for char_id, char_instance in self.game_state.characters.items() 
+                if char_instance.status.location == location_id]
