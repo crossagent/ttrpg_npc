@@ -7,6 +7,7 @@ from src.models.scenario_models import Scenario
 from src.models.game_state_models import GameState
 from src.models.action_models import PlayerAction
 from src.agents.base_agent import BaseAgent
+from src.models.action_models import ActionType
 import uuid
 
 class PlayerAgent(BaseAgent):
@@ -156,8 +157,14 @@ class PlayerAgent(BaseAgent):
                     action_content = response_data.get("action", "未能决定行动")
                     
                     # 获取action_type，如果返回中有明确指定则使用，否则使用默认值"对话"
-                    action_type = response_data.get("action_type", "对话")
-    
+                    action_type_str = response_data.get("action_type", "对话")
+
+                    try:
+                        action_type = ActionType(action_type_str)
+                    except ValueError:
+                        # 如果输入的值不在枚举中，使用默认值 DIALOGUE
+                        action_type = ActionType.DIALOGUE
+
                     # 获取target，如果未指定则默认为"all"
                     target = response_data.get("target", "all")
                     
