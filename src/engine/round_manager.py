@@ -392,9 +392,7 @@ class RoundManager:
             # 直接访问嵌套的状态
             char_status = character_ref.status
             
-            # 检查是否完成目标 - 从additional_info中获取
-            if not character_ref.additional_info.get('goal_completed', False):
-                all_players_completed = False
+            # 检查是否完成目标 - 处理方式待定
             
             # 检查是否阵亡 - 直接从嵌套的状态获取健康值
             if char_status.health > 0:

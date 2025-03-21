@@ -57,12 +57,11 @@ class StoryInfo(BaseModel):
     locations_description: Optional[Dict[str, str]] = Field(None, description="地点简要描述")
     
 class Scenario(BaseModel):
-    """完整游戏剧本模型"""
+    """游戏剧本 - 所有静态数据的容器"""
+    scenario_id: str = Field(..., description="剧本唯一标识符")
     story_info: StoryInfo = Field(..., description="故事背景信息")
     characters: Dict[str, ScenarioCharacterInfo] = Field(..., description="角色信息字典，键为角色ID")
     events: List[ScenarioEvent] = Field(..., description="剧本事件列表")
-    
-    # 扩展字段
     game_stages: Optional[Dict[str, GameStageInfo]] = Field(None, description="游戏阶段信息")
     locations: Optional[Dict[str, LocationInfo]] = Field(None, description="游戏地点详情")
     items: Optional[Dict[str, ItemInfo]] = Field(None, description="游戏物品详情")

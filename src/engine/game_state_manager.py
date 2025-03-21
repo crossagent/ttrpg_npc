@@ -2,7 +2,7 @@ from typing import List, Dict, Any, Optional
 from datetime import datetime
 import uuid
 
-from src.models.game_state_models import GameState, GamePhase, CharacterReference, CharacterStatus, EnvironmentStatus
+from src.models.game_state_models import GameState, GamePhase, CharacterInstance, CharacterStatus, EnvironmentStatus
 from src.models.scenario_models import Scenario
 from src.models.context_models import StateChanges, Inconsistency, StateUpdateRequest
 from src.models.action_models import ItemQuery, ItemResult
@@ -132,18 +132,12 @@ class GameStateManager:
                 )
 
                 # 创建角色引用，直接嵌套状态
-                character_ref = CharacterReference(
+                character_ref = CharacterInstance(
                     character_id=character_id,
                     public_identity=public_identity,
                     name=char_id,
                     player_controlled=False,  # 默认为NPC
                     status=character_status,  # 直接嵌套状态
-                    additional_info={
-                        "secret_goal": getattr(character_info, 'secret_goal', ''),
-                        "background": getattr(character_info, 'background_story', ''),
-                        "special_ability": getattr(character_info, 'special_ability', ''),
-                        "weakness": getattr(character_info, 'weakness', '')
-                    }
                 )
                 
                 # 将角色添加到游戏状态

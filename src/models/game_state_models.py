@@ -80,14 +80,13 @@ class EventInstance(BaseModel):
     revealed_to: List[str] = Field(default_factory=list, description="事件对哪些角色可见")
 
 
-class CharacterReference(BaseModel):
+class CharacterInstance(BaseModel):
     """角色引用模型，表示游戏中的一个角色实例"""
     character_id: str = Field(..., description="角色ID")
     public_identity: str = Field(..., description="对应剧本角色ID")
     name: str = Field(..., description="角色名称")
     player_controlled: bool = Field(False, description="是否由玩家控制")
     status: CharacterStatus = Field(..., description="角色状态")
-    additional_info: Dict[str, Any] = Field(default_factory=dict, description="运行时附加信息")
 
 
 class GameState(BaseModel):
@@ -100,10 +99,7 @@ class GameState(BaseModel):
     current_phase: GamePhase = Field(GamePhase.EXPLORATION, description="当前游戏阶段")
     
     # 使用ID索引的核心数据
-    characters: Dict[str, CharacterReference] = Field(default_factory=dict, description="角色引用字典，键为角色ID")
-    # 移除单独的角色状态字典
-    # character_status: Dict[str, CharacterStatus] = Field(default_factory=dict, description="角色状态字典，键为状态ID")
-    
+    characters: Dict[str, CharacterInstance] = Field(default_factory=dict, description="角色引用字典，键为角色ID")
     environment: EnvironmentStatus = Field(..., description="环境状态")
     active_events: Dict[str, EventInstance] = Field(default_factory=dict, description="活跃事件，键为实例ID")
     completed_events: Dict[str, EventInstance] = Field(default_factory=dict, description="已完成事件，键为实例ID")

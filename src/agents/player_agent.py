@@ -40,39 +40,48 @@ class PlayerAgent(BaseAgent):
             str: 系统提示
         """
         return f"""你是一个名为{character_profile.get('name', '未知')}的角色。
-你的性格特点：{character_profile.get('personality', '无特定性格')}
-你的背景故事：{character_profile.get('background', '无背景故事')}
-
-在每个回合中，你需要生成以下内容：
-1. 观察(observation)：你观察到的环境和其他角色的信息
-2. 角色状态(character_state)：包含以下内容：
-   - 目标(goal)：你当前的主要目标
-   - 计划(plan)：你实现目标的计划
-   - 心情(mood)：你当前的心情
-   - 血量(health)：你当前的血量(0-100)
-3. 思考(thinking)：你的内心想法和决策过程
-4. 行动(action)：你实际采取的行动，这部分将被发送到群聊中
-
-你的响应必须是一个JSON格式，包含以上字段。例如：
-
-```json
-{{
-  "observation": "我看到DM描述了一个森林场景，其他玩家正在讨论如何前进。",
-  "character_state": {{
-    "goal": "找到森林中的古老神殿",
-    "plan": "先侦查周围环境，然后找出安全路径",
-    "mood": "警惕",
-    "health": 95
-  }},
-  "thinking": "考虑到我的角色擅长侦查，我应该提出先侦察周围环境。地图上显示北边可能有古迹，但听说那里很危险。",
-  "action": "我举起手说：'等一下，让我先侦查一下周围有没有危险，我的侦查技能很强。'"
-}}
-```
-
-注意：只有"action"部分会被其他人看到，其他部分只有你自己知道。
-根据当前情境和角色性格来调整你的目标、计划、心情和行动。
-"""
-
+    你的性格特点：{character_profile.get('personality', '无特定性格')}
+    你的背景故事：{character_profile.get('background', '无背景故事')}
+    
+    在每个回合中，你需要生成以下内容：
+    1. 观察(observation)：你观察到的环境和其他角色的信息
+    2. 角色状态(character_state)：包含以下内容：
+       - 目标(goal)：你当前的主要目标
+       - 计划(plan)：你实现目标的计划
+       - 心情(mood)：你当前的心情
+       - 血量(health)：你当前的血量(0-100)
+    3. 思考(thinking)：你的内心想法和决策过程
+    4. 行动(action)：你实际采取的行动，这部分将被发送到群聊中
+    5. 目标(target)：你行动的目标对象，可以是特定角色ID或"all"表示对所有人
+    
+    行动类型(action_type)可以是以下几种：
+    - "对话"：与其他角色交谈
+    - "战斗"：攻击或防御行动
+    - "移动"：在场景中移动
+    - "使用物品"：使用道具或施法
+    
+    你的响应必须是一个JSON格式，包含以上字段。例如：
+    
+    ```json
+    {{
+      "observation": "我看到DM描述了一个森林场景，其他玩家正在讨论如何前进。",
+      "character_state": {{
+        "goal": "找到森林中的古老神殿",
+        "plan": "先侦查周围环境，然后找出安全路径",
+        "mood": "警惕",
+        "health": 95
+      }},
+      "thinking": "考虑到我的角色擅长侦查，我应该提出先侦察周围环境。地图上显示北边可能有古迹，但听说那里很危险。",
+      "action": "我举起手说：'等一下，让我先侦查一下周围有没有危险，我的侦查技能很强。'",
+      "action_type": "对话",
+      "target": "all"
+    }}
+    ```
+    
+    注意：只有"action"部分会被其他人看到，其他部分只有你自己知道。
+    根据当前情境和角色性格来调整你的目标、计划、心情和行动。
+    """
+    
     async def player_decide_action(self, game_state: GameState) -> PlayerAction:
         """
         玩家决策行动
@@ -87,13 +96,14 @@ class PlayerAgent(BaseAgent):
         unread_messages = self.get_unread_messages(game_state)
         
         # 从game_state中获取角色信息
+        character_profile = {"name": "未知角色", "personality": "无特定性格", "background": "无背景故事"}
         if self.character_id in game_state.characters:
             character_ref = game_state.characters[self.character_id]
             # 创建包含角色信息的字典
             character_profile = {
                 "name": character_ref.name,
-                "personality": character_ref.additional_info.get("personality", "无特定性格"),
-                "background": character_ref.additional_info.get("background", "无背景故事")
+                "personality": "无特定性格",
+                "background": "无背景故事"
             }
             system_message = self._generate_system_message(character_profile)
             
@@ -101,19 +111,67 @@ class PlayerAgent(BaseAgent):
             if self.assistant:
                 self.assistant.system_message = system_message
         
-        formatted = []
-        for msg in unread_messages:
-            formatted.append(f"{msg.source}: {msg.content}")
-
-        # 处理未读消息，生成行动
-        # 这里是简化的实现，实际应该调用LLM生成行动
-        player_action = PlayerAction(
-            player_id=self.agent_id,
-            character_id=self.character_id,
-            action_type="对话",
-            content=f"我是{self.name},我看到了{formatted}\n,基于此我正在思考下一步行动...\n",
-            target="all",
-            timestamp=datetime.now().isoformat()
+        # 格式化未读消息
+        formatted_messages = "\n".join([f"{msg.source}: {msg.content}" for msg in unread_messages]) or "没有新消息"
+        
+        # 如果没有初始化assistant，直接返回错误
+        if not self.assistant:
+            raise ValueError("Assistant未初始化，无法生成玩家行动")
+        
+        # 构建用户消息
+        user_message = TextMessage(
+            content=f"""
+    【第{game_state.round_number}回合】
+    
+    最近的信息:
+    {formatted_messages}
+    
+    请以{character_profile['name']}的身份，根据角色性格和当前情境，生成一个合理的响应。
+    """,
+            source="system"
         )
         
-        return player_action
+        try:
+            # 使用assistant的on_messages方法
+            response = await self.assistant.on_messages([user_message], CancellationToken())
+            if response and response.chat_message:
+                response_content = response.chat_message.content
+                
+                # 尝试解析JSON响应
+                try:
+                    # 查找JSON内容
+                    import re
+                    json_match = re.search(r'```json\s*([\s\S]*?)\s*```', response_content)
+                    if json_match:
+                        json_str = json_match.group(1)
+                    else:
+                        json_str = response_content
+                    
+                    # 修改JSON解析部分的代码
+                    response_data = json.loads(json_str)
+                    
+                    # 从JSON中提取行动内容
+                    action_content = response_data.get("action", "未能决定行动")
+                    
+                    # 获取action_type，如果返回中有明确指定则使用，否则进行推断
+                    if "action_type" in response_data:
+                        action_type = response_data["action_type"]
+                    action_type = "对话"
+
+                    # 获取target，如果未指定则默认为"all"
+                    target = response_data.get("target", "all")
+                    
+                    # 创建行动对象
+                    return PlayerAction(
+                         player_id=self.agent_id,
+                        character_id=self.character_id,
+                        action_type=action_type,
+                        content=action_content,
+                        target=target,
+                        timestamp=datetime.now().isoformat()
+                    )
+                except json.JSONDecodeError as e:
+                    raise ValueError(f"JSON解析错误: {str(e)}, 原始响应: {response_content}")
+                    
+        except Exception as e:
+            raise Exception(f"Assistant生成行动失败: {str(e)}")
