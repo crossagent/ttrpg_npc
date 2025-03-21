@@ -184,3 +184,4 @@ class Scenario(BaseModel):
             scenario.locations = locations
             
         return scenario
+        

@@ -302,25 +302,25 @@ class RoundManager:
         # 获取当前状态
         game_state = self.game_state_manager.get_state()
         
-        # 检查是否有新的事件触发
-        triggered_events = []
+        # # 检查是否有新的事件触发
+        # triggered_events = []
         
-        # 处理触发的事件
-        for event in triggered_events:
-            if not any(e.event_id == event.event_id for e in game_state.active_events):
-                game_state.active_events.append(event)
-                self.logger.info(f"触发新事件: {event.name}")
+        # # 处理触发的事件
+        # for event in triggered_events:
+        #     if not any(e.event_id == event.event_id for e in game_state.active_events):
+        #         game_state.active_events.append(event)
+        #         self.logger.info(f"触发新事件: {event.name}")
         
-        # 处理完成的事件
-        completed_events = []
-        for event in game_state.active_events:
-            if event.is_completed:
-                completed_events.append(event)
+        # # 处理完成的事件
+        # completed_events = []
+        # for event in game_state.active_events:
+        #     if event.is_completed:
+        #         completed_events.append(event)
         
-        # 将完成的事件从活跃事件中移除，添加到已完成事件中
-        for event in completed_events:
-            game_state.active_events.remove(event)
-            game_state.completed_events.append(event)
+        # # 将完成的事件从活跃事件中移除，添加到已完成事件中
+        # for event in completed_events:
+        #     game_state.active_events.remove(event)
+        #     game_state.completed_events.append(event)
         
         # 记录回合结束
         round_duration = datetime.now() - self.round_start_time

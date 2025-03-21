@@ -1,79 +1,91 @@
 {
     "story_info": {
+      "id": "story_001",
+      "title": "星光幻境的阴谋",
       "background": "大都市夜生活区的一家高端脱衣舞俱乐部'星光幻境'成为各种势力角逐的舞台。表面上是奢华娱乐场所，背后却隐藏着警方卧底行动、黑帮利益纷争和政治丑闻。最近，一位俱乐部舞者意外获取了足以摧毁多方势力的关键证据，各方势力开始暗中行动。",
       "secret": "俱乐部实际是一个庞大洗钱网络的前线，资金来自政治献金和违法交易。隐藏在VIP包厢的录音设备收集了无数权贵的秘密对话，成为最有价值的讨价还价筹码。"
     },
     "locations": [
       {
-        "id": "main_stage",
+        "id": "loc_001",
         "name": "主舞台区",
         "description": "装饰豪华的中央表演区，配备高端灯光和音响系统，围绕着主舞台是客人座位和小型酒吧。"
       },
       {
-        "id": "vip_room",
+        "id": "loc_002",
         "name": "VIP包厢",
         "description": "提供私密服务的豪华包间，每个房间都有特色装修主题，配备高档家具和专属服务员。"
       },
       {
-        "id": "backstage",
+        "id": "loc_003",
         "name": "后台区域",
         "description": "演员更衣室、化妆间和休息区，只有工作人员可以进入，安全系统严密。"
       },
       {
-        "id": "manager_office",
+        "id": "loc_004",
         "name": "经理办公室",
         "description": "俱乐部管理中心，保险柜中存放重要文件和录像，窗户可俯瞰整个主舞台。"
       },
       {
-        "id": "basement",
+        "id": "loc_005",
         "name": "地下储藏室",
         "description": "存放酒水和设备的区域，同时是秘密会面的场所，连接着一条紧急逃生通道。"
       }
     ],
-    "characters": {
-      "monica": {
+    "characters": [
+      {
+        "id": "char_001",
+        "name": "莫妮卡",
         "public_identity": "资深舞者",
         "secret_goal": "收集足够证据交给警方以换取新身份",
         "background": "原本是名校学生，因经济困难进入行业。在俱乐部工作三年后，偶然发现老板参与的犯罪活动。她开始秘密收集证据，但现在发现自己可能已被怀疑。",
         "special_ability": "极强的社交技巧和洞察力，能轻易获得客人信任",
         "weakness": "对前男友仍有感情，容易因此判断失误"
       },
-      "jackson": {
+      {
+        "id": "char_002",
+        "name": "杰克逊",
         "public_identity": "俱乐部保安主管",
         "secret_goal": "找出内部警方线人并铲除",
         "background": "前特种兵，因某些不为人知的原因被迫离开军队。现为黑帮成员，负责俱乐部安全和非法交易的护送。对老板绝对忠诚，但有自己的职业操守。",
         "special_ability": "战斗技能出众，熟悉各种监控和安保系统",
         "weakness": "严重创伤后应激障碍，在特定触发下可能失控"
       },
-      "victor": {
+      {
+        "id": "char_003",
+        "name": "维克多",
         "public_identity": "俱乐部老板",
         "secret_goal": "出售敏感信息然后金盆洗手",
         "background": "表面上是成功商人，实际上与多个犯罪组织有联系。经营俱乐部十年，积累了大量政商界人士的秘密。现计划出售信息后远走高飞，但不知内部已有人背叛。",
         "special_ability": "人脉广泛，善于操控和谈判",
         "weakness": "过度自信，低估了身边的威胁"
       },
-      "rachel": {
+      {
+        "id": "char_004",
+        "name": "瑞秋",
         "public_identity": "调酒师",
         "secret_goal": "完成卧底任务并安全脱身",
         "background": "实际是警方卧底，潜伏在俱乐部调查洗钱网络。已收集大量证据，但行动即将曝光。她必须在撤离前确保证据安全，同时保护已认识的无辜者。",
         "special_ability": "出色的记忆力和临场反应",
         "weakness": "对部分俱乐部员工产生真实感情，影响判断"
       },
-      "carter": {
+      {
+        "id": "char_005",
+        "name": "卡特",
         "public_identity": "常客",
         "secret_goal": "获取录音消除政治丑闻",
         "background": "著名政治家的顾问，其雇主在俱乐部的不当言行被秘密录音。他受命找到并销毁这些证据，不惜任何代价保护雇主声誉。",
         "special_ability": "精通心理操控和政治手腕",
         "weakness": "对自身安全过度担忧，容易被威胁吓倒"
       }
-    },
+    ],
     "events": [
       {
-        "event_id": "evt_001",
-        "description": "可疑交易目击",
-        "trigger_condition": "exploration_phase && any_character_enters:vip_room",
+        "id": "evt_001",
+        "name": "可疑交易目击",
+        "description": "目击维克多与神秘人物进行秘密交谈，交换了密封文件，对话中提到'最后的交易'和'48小时后行动'。",
+        "trigger_condition": "exploration_phase && any_character_enters:loc_002",
         "perceptible_players": ["present_players"],
-        "content": "目击维克多与神秘人物进行秘密交谈，交换了密封文件，对话中提到'最后的交易'和'48小时后行动'。",
         "possible_outcomes": ["secretly_record_conversation", "caught_eavesdropping", "leave_with_incomplete_info"],
         "consequences": {
           "secretly_record_conversation": "获得关键情报，但引起维克多警惕",
@@ -82,11 +94,11 @@
         }
       },
       {
-        "event_id": "evt_002",
-        "description": "莫妮卡的求助",
+        "id": "evt_002",
+        "name": "莫妮卡的求助",
+        "description": "莫妮卡秘密接触玩家寻求帮助，表示自己掌握了重要证据但感到生命威胁，提议合作交换信息。",
         "trigger_condition": "negotiation_phase_start",
         "perceptible_players": ["all"],
-        "content": "莫妮卡秘密接触玩家寻求帮助，表示自己掌握了重要证据但感到生命威胁，提议合作交换信息。",
         "possible_outcomes": ["agree_to_cooperate", "refuse_and_inform_jackson", "pretend_and_extract_info"],
         "consequences": {
           "agree_to_cooperate": "获得内部帮手但增加暴露风险",
@@ -95,11 +107,11 @@
         }
       },
       {
-        "event_id": "evt_003",
-        "description": "突袭警报",
+        "id": "evt_003",
+        "name": "突袭警报",
+        "description": "警方突袭情报泄露，俱乐部开始紧急销毁证据并准备撤离。各方人员行动变得紧张和危险。",
         "trigger_condition": "conflict_phase || evidence_discovered",
         "perceptible_players": ["all"],
-        "content": "警方突袭情报泄露，俱乐部开始紧急销毁证据并准备撤离。各方人员行动变得紧张和危险。",
         "possible_outcomes": ["help_evacuate", "seize_evidence_in_chaos", "contact_external_support"],
         "consequences": {
           "help_evacuate": "获得维克多或杰克逊的信任",
@@ -108,11 +120,11 @@
         }
       },
       {
-        "event_id": "evt_004",
-        "description": "身份危机",
-        "trigger_condition": "any_player_converses_with:rachel",
+        "id": "evt_004",
+        "name": "身份危机",
+        "description": "瑞秋在压力下暗示自己并非表面身份，需要帮助完成某项隐秘任务。",
+        "trigger_condition": "any_player_converses_with:char_004",
         "perceptible_players": ["conversing_players"],
-        "content": "瑞秋在压力下暗示自己并非表面身份，需要帮助完成某项隐秘任务。",
         "possible_outcomes": ["offer_help", "probe_for_truth", "report_to_victor"],
         "consequences": {
           "offer_help": "获得警方内应，但增加卷入执法行动风险",
@@ -121,11 +133,11 @@
         }
       },
       {
-        "event_id": "evt_005",
-        "description": "录音带争夺",
-        "trigger_condition": "any_character_enters:manager_office",
+        "id": "evt_005",
+        "name": "录音带争夺",
+        "description": "发现包含敏感内容的录音存储设备，多方人员都在寻找这一关键证据。",
+        "trigger_condition": "any_character_enters:loc_004",
         "perceptible_players": ["present_players"],
-        "content": "发现包含敏感内容的录音存储设备，多方人员都在寻找这一关键证据。",
         "possible_outcomes": ["successfully_acquire", "conflict_with_others", "set_trap_and_leave"],
         "consequences": {
           "successfully_acquire": "掌握重要筹码但成为众矢之的",
@@ -134,11 +146,11 @@
         }
       },
       {
-        "event_id": "evt_006",
-        "description": "杰克逊的审问",
+        "id": "evt_006",
+        "name": "杰克逊的审问",
+        "description": "杰克逊单独约谈角色，以友好方式进行问话，但明显在试探是否为内鬼。",
         "trigger_condition": "negotiation_phase && any_character_suspicious",
         "perceptible_players": ["suspected_players"],
-        "content": "杰克逊单独约谈角色，以友好方式进行问话，但明显在试探是否为内鬼。",
         "possible_outcomes": ["successful_concealment", "partial_truth_for_trust", "nervous_slip"],
         "consequences": {
           "successful_concealment": "暂时排除嫌疑，获得活动自由",
@@ -147,11 +159,11 @@
         }
       },
       {
-        "event_id": "evt_007",
-        "description": "卡特的提议",
+        "id": "evt_007",
+        "name": "卡特的提议",
+        "description": "卡特秘密接触持有或知晓证据下落的角色，提出丰厚条件换取合作。",
         "trigger_condition": "any_character_has_evidence",
         "perceptible_players": ["evidence_holder"],
-        "content": "卡特秘密接触持有或知晓证据下落的角色，提出丰厚条件换取合作。",
         "possible_outcomes": ["accept_deal", "refuse_and_threaten", "pretend_to_accept"],
         "consequences": {
           "accept_deal": "获得资金和人脉但可能背叛其他目标",
@@ -160,11 +172,11 @@
         }
       },
       {
-        "event_id": "evt_008",
-        "description": "地下室密会",
-        "trigger_condition": "conflict_phase && character_enters:basement",
+        "id": "evt_008",
+        "name": "地下室密会",
+        "description": "意外撞见维克多与神秘人物进行紧张谈判，内容涉及'最终交易'和'彻底清洗'。",
+        "trigger_condition": "conflict_phase && character_enters:loc_005",
         "perceptible_players": ["present_players"],
-        "content": "意外撞见维克多与神秘人物进行紧张谈判，内容涉及'最终交易'和'彻底清洗'。",
         "possible_outcomes": ["eavesdrop", "intervene", "quietly_report"],
         "consequences": {
           "eavesdrop": "获得关键情报但可能被发现",
@@ -173,11 +185,11 @@
         }
       },
       {
-        "event_id": "evt_009",
-        "description": "意外火灾",
+        "id": "evt_009",
+        "name": "意外火灾",
+        "description": "俱乐部突发火灾，可能是意外也可能是蓄意破坏，所有人必须快速决定如何行动。",
         "trigger_condition": "conflict_phase_late",
         "perceptible_players": ["all"],
-        "content": "俱乐部突发火灾，可能是意外也可能是蓄意破坏，所有人必须快速决定如何行动。",
         "possible_outcomes": ["help_evacuate", "complete_objectives", "protect_key_character"],
         "consequences": {
           "help_evacuate": "获得多人信任和感激，建立广泛人脉",
@@ -186,11 +198,11 @@
         }
       },
       {
-        "event_id": "evt_010",
-        "description": "最终抉择",
+        "id": "evt_010",
+        "name": "最终抉择",
+        "description": "所有核心证据和关键人物集中，玩家必须决定最终立场和行动方向。",
         "trigger_condition": "revelation_phase_start",
         "perceptible_players": ["all"],
-        "content": "所有核心证据和关键人物集中，玩家必须决定最终立场和行动方向。",
         "possible_outcomes": ["assist_law_enforcement", "cooperate_with_criminal", "act_independently", "protect_innocent"],
         "consequences": {
           "assist_law_enforcement": "道德选择，但可能失去某些利益和人脉",
@@ -200,78 +212,156 @@
         }
       }
     ],
-    "game_phases": {
-      "exploration": {
-        "name": "探索阶段",
-        "description": "玩家熟悉俱乐部环境，了解人物关系，收集初步信息",
-        "objective": "建立初步人脉，发现关键线索，确定个人立场",
-        "key_events": ["evt_001", "evt_004"]
-      },
-      "negotiation": {
-        "name": "博弈阶段",
-        "description": "各方势力明确目标，开始相互试探和较量",
-        "objective": "确立盟友和对手，深入了解俱乐部秘密",
-        "key_events": ["evt_002", "evt_006", "evt_007"]
-      },
-      "conflict": {
-        "name": "冲突阶段",
-        "description": "公开对抗，各方为达成目标不择手段",
-        "objective": "获取关键证据，处理人际危机，为最终决断做准备",
-        "key_events": ["evt_003", "evt_005", "evt_008", "evt_009"]
-      },
-      "revelation": {
-        "name": "真相阶段",
-        "description": "所有隐藏身份和议程揭露，玩家作出最终选择",
-        "objective": "根据之前行动和关系确定结局",
-        "key_events": ["evt_010"],
-        "ending_variables": ["law_enforcement_outcome", "evidence_possession", "character_fates", "club_future"]
-      }
-    },
     "key_items": [
       {
-        "id": "audio_storage",
+        "id": "item_001",
         "name": "录音存储器",
         "description": "包含政商名流隐秘对话的加密存储设备",
-        "location": "manager_office_safe",
-        "related_characters": ["victor", "carter"],
+        "location": "loc_004",
+        "location_detail": "保险柜内",
+        "related_characters": ["char_003", "char_005"],
         "acquisition_difficulty": "high",
         "difficulty_details": "需破解保险柜"
       },
       {
-        "id": "account_records",
+        "id": "item_002",
         "name": "账目记录",
         "description": "详细记录洗钱交易的账簿，编码隐藏但足够证明犯罪",
-        "location": "basement_hidden_compartment",
-        "related_characters": ["victor", "rachel"],
+        "location": "loc_005",
+        "location_detail": "隐藏夹层内",
+        "related_characters": ["char_003", "char_004"],
         "acquisition_difficulty": "medium",
         "difficulty_details": "需找到隐藏夹层"
       },
       {
-        "id": "security_keycard",
+        "id": "item_003",
         "name": "安保密钥卡",
         "description": "可访问俱乐部所有区域的高级权限卡",
-        "location": "carried_by_jackson",
-        "related_characters": ["jackson"],
+        "location": "char_002",
+        "location_detail": "随身携带",
+        "related_characters": ["char_002"],
         "acquisition_difficulty": "high",
         "difficulty_details": "需取得信任或趁其不备"
       },
       {
-        "id": "monica_usb",
+        "id": "item_004",
         "name": "莫妮卡的U盘",
         "description": "包含她秘密收集的证据和个人逃离计划",
-        "location": "backstage_locker",
-        "related_characters": ["monica"],
+        "location": "loc_003",
+        "location_detail": "储物柜内隐藏",
+        "related_characters": ["char_001"],
         "acquisition_difficulty": "medium",
         "difficulty_details": "需找到隐藏方式"
       },
       {
-        "id": "escape_map",
+        "id": "item_005",
         "name": "紧急逃生图",
         "description": "详细标注了所有秘密出口和安全屋位置的地图",
-        "location": "scattered_throughout_club",
+        "location": "multiple",
+        "location_detail": "俱乐部各处零散分布",
         "related_characters": ["all"],
         "acquisition_difficulty": "medium",
         "difficulty_details": "需收集并拼凑完整信息"
       }
-    ]
+    ],
+    "story_structure": {
+      "chapters": [
+        {
+          "id": "chapter_01",
+          "name": "初探风云",
+          "description": "玩家初次接触俱乐部环境，了解基本情况",
+          "sections": [
+            {
+              "id": "section_01_01",
+              "name": "星光幻境",
+              "description": "进入俱乐部，认识主要人物",
+              "stages": [
+                {
+                  "id": "stage_01_01_01",
+                  "name": "探索阶段",
+                  "description": "玩家熟悉俱乐部环境，了解人物关系，收集初步信息",
+                  "objective": "建立初步人脉，发现关键线索，确定个人立场",
+                  "locations": ["loc_001", "loc_002"],
+                  "characters": ["char_001", "char_002", "char_003"],
+                  "events": ["evt_001", "evt_004"],
+                  "available_items": ["item_005"]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "chapter_02",
+          "name": "暗流涌动",
+          "description": "各方势力开始活动，玩家逐渐卷入其中",
+          "sections": [
+            {
+              "id": "section_02_01",
+              "name": "利益交锋",
+              "description": "各方开始明确立场并相互试探",
+              "stages": [
+                {
+                  "id": "stage_02_01_01",
+                  "name": "博弈阶段",
+                  "description": "各方势力明确目标，开始相互试探和较量",
+                  "objective": "确立盟友和对手，深入了解俱乐部秘密",
+                  "locations": ["loc_002", "loc_003", "loc_004"],
+                  "characters": ["char_001", "char_002", "char_004", "char_005"],
+                  "events": ["evt_002", "evt_006", "evt_007"],
+                  "available_items": ["item_003", "item_004"]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "chapter_03",
+          "name": "危机爆发",
+          "description": "矛盾升级，冲突无法避免",
+          "sections": [
+            {
+              "id": "section_03_01",
+              "name": "摊牌时刻",
+              "description": "各方开始公开行动争夺关键证据",
+              "stages": [
+                {
+                  "id": "stage_03_01_01",
+                  "name": "冲突阶段",
+                  "description": "公开对抗，各方为达成目标不择手段",
+                  "objective": "获取关键证据，处理人际危机，为最终决断做准备",
+                  "locations": ["loc_001", "loc_004", "loc_005"],
+                  "characters": ["char_001", "char_002", "char_003", "char_004", "char_005"],
+                  "events": ["evt_003", "evt_005", "evt_008", "evt_009"],
+                  "available_items": ["item_001", "item_002"]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "chapter_04",
+          "name": "真相大白",
+          "description": "最终抉择，确定结局",
+          "sections": [
+            {
+              "id": "section_04_01",
+              "name": "命运决断",
+              "description": "所有线索汇聚，每个角色面临最终选择",
+              "stages": [
+                {
+                  "id": "stage_04_01_01",
+                  "name": "真相阶段",
+                  "description": "所有隐藏身份和议程揭露，玩家作出最终选择",
+                  "objective": "根据之前行动和关系确定结局",
+                  "locations": ["loc_001", "loc_002", "loc_003", "loc_004", "loc_005"],
+                  "characters": ["char_001", "char_002", "char_003", "char_004", "char_005"],
+                  "events": ["evt_010"],
+                  "ending_variables": ["law_enforcement_outcome", "evidence_possession", "character_fates", "club_future"]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
 }

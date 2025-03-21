@@ -147,28 +147,28 @@ class GameStateManager:
             game_state: 游戏状态对象
             scenario: 剧本对象
         """
-        # 初始化事件字典
-        active_events = {}
-        pending_events = {}
+        # # 初始化事件字典
+        # active_events = {}
+        # pending_events = {}
         
-        # 如果有events属性，加载事件信息
-        if hasattr(scenario, 'events') and scenario.events:
-            for event in scenario.events:
-                # 创建事件实例
-                event_instance = EventInstance(
-                    instance_id=str(uuid.uuid4()),
-                    scenario_event_id=getattr(event, 'event_id', str(uuid.uuid4())),
-                    is_active=False,
-                    is_completed=False,
-                    related_character_ids=[],
-                    revealed_to=[]
-                )
+        # # 如果有events属性，加载事件信息
+        # if hasattr(scenario, 'events') and scenario.events:
+        #     for event in scenario.events:
+        #         # 创建事件实例
+        #         event_instance = EventInstance(
+        #             instance_id=str(uuid.uuid4()),
+        #             scenario_event_id=getattr(event, 'event_id', str(uuid.uuid4())),
+        #             is_active=False,
+        #             is_completed=False,
+        #             related_character_ids=[],
+        #             revealed_to=[]
+        #         )
                 
-                # 添加到待触发事件字典
-                pending_events[event_instance.instance_id] = event_instance
+        #         # 添加到待触发事件字典
+        #         pending_events[event_instance.instance_id] = event_instance
         
-        # 存储事件实例
-        game_state.pending_events = pending_events
+        # # 存储事件实例
+        # game_state.pending_events = pending_events
 
     def get_state(self) -> GameState:
         """
