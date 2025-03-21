@@ -24,10 +24,10 @@ class BaseAgent:
             model_client: 模型客户端
         """
         # 使用组合而非继承
-        self.assistant: AssistantAgent = AssistantAgent(name=agent_name, model_client=model_client)
+        self.model_client = model_client
                 
         self.agent_id: str = agent_id
-        self.name: str = agent_name  # 保存agent_name以便访问
+        self.agent_name: str = agent_name  # 保存agent_name以便访问
         self.is_player_controlled = False  # 默认为非玩家控制
         self.message_memory: MessageReadMemory = MessageReadMemory(
             player_id=agent_id,

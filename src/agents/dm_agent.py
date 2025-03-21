@@ -69,42 +69,45 @@ class DMAgent(BaseAgent):
         # 格式化未读消息
         formatted_messages = "\n".join([f"{msg.source}: {msg.content}" for msg in unread_messages]) or "没有新消息"
         
-        # 如果有模型客户端，使用AutoGen的方式生成叙述
-        if not self.assistant:
-            return "Assistant未初始化"
-        
-        # 设置系统消息
+        # 生成系统消息
         system_message = self._generate_system_message(scenario)
-        self.assistant.system_message = system_message
+        
+        # 直接创建新的AssistantAgent实例，而不是调用create_assistant
+        from autogen_agentchat.agents import AssistantAgent
+        assistant = AssistantAgent(
+            name=f"{self.agent_name}_narrative_helper",
+            model_client=self.model_client,  # 假设model_client已作为属性存在
+            system_message=system_message
+        )
         
         # 构建用户消息
         user_message = TextMessage(
+            # ...其余代码保持不变...
             content=f"""
-【第{game_state.round_number}回合】
-
-最近的玩家消息:
-{formatted_messages}
-
-当前场景:
-{current_scene}
-
-请基于以上信息，生成一段生动的场景描述。描述应该:
-1. 提及重要的场景元素和NPC
-2. 反映玩家之前行动的影响
-3. 暗示可能的行动方向
-4. 以一个引导性问题结束，如"你们看到了什么？你们将如何行动？"
-""",
+    【第{game_state.round_number}回合】
+    
+    最近的玩家消息:
+    {formatted_messages}
+    
+    当前场景:
+    {current_scene}
+    
+    请基于以上信息，生成一段生动的场景描述。描述应该:
+    1. 提及重要的场景元素和NPC
+    2. 反映玩家之前行动的影响
+    3. 暗示可能的行动方向
+    4. 以一个引导性问题结束，如"你们看到了什么？你们将如何行动？"
+    """,
             source="system"
         )
         
         try:
-            # 使用assistant的on_messages方法
-            response = await self.assistant.on_messages([user_message], CancellationToken())
+            # 使用新创建的assistant的on_messages方法
+            response = await assistant.on_messages([user_message], CancellationToken())
             if response and response.chat_message:
                 return response.chat_message.content
         except Exception as e:
-            print(f"Assistant生成叙述失败，回退到模板方法: {str(e)}")
-        
+            print(f"Assistant生成叙述失败，回退到模板方法: {str(e)}")     
 
     async def dm_resolve_action(self, action: PlayerAction, game_state: GameState) -> ActionResult:
         """

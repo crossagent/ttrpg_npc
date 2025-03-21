@@ -105,18 +105,20 @@ class PlayerAgent(BaseAgent):
                 "personality": "无特定性格",
                 "background": "无背景故事"
             }
-            system_message = self._generate_system_message(character_profile)
-            
-            # 设置assistant的系统消息
-            if self.assistant:
-                self.assistant.system_message = system_message
+        
+        # 生成系统消息
+        system_message = self._generate_system_message(character_profile)
         
         # 格式化未读消息
         formatted_messages = "\n".join([f"{msg.source}: {msg.content}" for msg in unread_messages]) or "没有新消息"
         
-        # 如果没有初始化assistant，直接返回错误
-        if not self.assistant:
-            raise ValueError("Assistant未初始化，无法生成玩家行动")
+        # 直接创建新的AssistantAgent实例
+        from autogen_agentchat.agents import AssistantAgent
+        assistant = AssistantAgent(
+            name=f"{self.agent_name}_action_helper",
+            model_client=self.model_client,  # 假设model_client已作为属性存在
+            system_message=system_message
+        )
         
         # 构建用户消息
         user_message = TextMessage(
@@ -132,8 +134,8 @@ class PlayerAgent(BaseAgent):
         )
         
         try:
-            # 使用assistant的on_messages方法
-            response = await self.assistant.on_messages([user_message], CancellationToken())
+            # 使用新创建的assistant的on_messages方法
+            response = await assistant.on_messages([user_message], CancellationToken())
             if response and response.chat_message:
                 response_content = response.chat_message.content
                 
@@ -153,17 +155,15 @@ class PlayerAgent(BaseAgent):
                     # 从JSON中提取行动内容
                     action_content = response_data.get("action", "未能决定行动")
                     
-                    # 获取action_type，如果返回中有明确指定则使用，否则进行推断
-                    if "action_type" in response_data:
-                        action_type = response_data["action_type"]
-                    action_type = "对话"
-
+                    # 获取action_type，如果返回中有明确指定则使用，否则使用默认值"对话"
+                    action_type = response_data.get("action_type", "对话")
+    
                     # 获取target，如果未指定则默认为"all"
                     target = response_data.get("target", "all")
                     
                     # 创建行动对象
                     return PlayerAction(
-                         player_id=self.agent_id,
+                        player_id=self.agent_id,
                         character_id=self.character_id,
                         action_type=action_type,
                         content=action_content,

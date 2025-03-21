@@ -378,15 +378,15 @@ class RoundManager:
             self.logger.info(f"已达到最大回合数 {state.max_rounds}，游戏将结束")
             return True
         
-        # 检查是否有特殊事件触发游戏结束
-        for event_id, event in state.active_events.items():
-            if "终止游戏" in event.get("consequences", {}):
-                self.logger.info(f"事件 '{event.get('description', event_id)}' 触发了游戏结束")
-                return True
+        # # 检查是否有特殊事件触发游戏结束
+        # for event_id, event in state.active_events.items():
+        #     if "终止游戏" in event.get("consequences", {}):
+        #         self.logger.info(f"事件 '{event.get('description', event_id)}' 触发了游戏结束")
+        #         return True
         
         # 检查玩家状态，例如是否所有玩家都已达成目标或全部阵亡
-        all_players_completed = True
-        all_players_dead = True
+        all_players_completed = False
+        all_players_dead = False
         
         for char_id, character_ref in state.characters.items():
             # 直接访问嵌套的状态

@@ -37,10 +37,10 @@ class CharacterStatus(BaseModel):
     character_id: str = Field(..., description="角色ID")
     location: str = Field(..., description="当前位置")
     health: int = Field(100, description="健康值")
-    items: List[str] = Field(default_factory=list, description="拥有的物品")
+    items: Optional[List[str]] = Field(default_factory=list, description="拥有的物品，None表示未确定")
     conditions: List[str] = Field(default_factory=list, description="当前状态效果")
     relationships: Dict[str, int] = Field(default_factory=dict, description="与其他角色的关系值(使用角色ID作为键)")
-    known_information: List[str] = Field(default_factory=list, description="已知信息")
+    known_information: Optional[List[str]] = Field(default_factory=list, description="已知信息，None表示未确定")
     goal: str = Field("", description="角色当前的主要目标")
     plans: str = Field("", description="角色达成目标的计划")
     inner_thoughts: List[InnerThought] = Field(default_factory=list, description="角色的心理活动记录（观察、思考、决策）")
@@ -49,7 +49,7 @@ class LocationStatus(BaseModel):
     """位置状态模型，跟踪地点当前状态"""
     location_id: str = Field(..., description="地点ID")
     search_status: str = Field("未搜索", description="搜索状态(未搜索/部分搜索/被搜索过)")
-    available_items: List[str] = Field(default_factory=list, description="当前可获取的物品")
+    available_items: Optional[List[str]] = Field(default_factory=list, description="当前可获取的物品，None表示未确定")
     present_characters: List[str] = Field(default_factory=list, description="当前在此位置的角色")
     description_state: str = Field("", description="当前位置状态描述(例如,是否有破坏,特殊情况等)")
 
@@ -59,7 +59,7 @@ class ItemStatus(BaseModel):
     current_location: str = Field(..., description="当前位置(可以是地点ID或角色ID)")
     is_hidden: bool = Field(True, description="是否隐藏")
     condition: str = Field("完好", description="物品状态")
-    discovered_by: List[str] = Field(default_factory=list, description="已被哪些角色发现")
+    discovered_by: Optional[List[str]] = Field(default_factory=list, description="已被哪些角色发现，None表示未确定")
 
 class EventInstance(BaseModel):
     """事件实例模型，表示游戏中的运行时事件实例"""
