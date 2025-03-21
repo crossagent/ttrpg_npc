@@ -84,7 +84,7 @@
         "id": "evt_001",
         "name": "可疑交易目击",
         "description": "目击维克多与神秘人物进行秘密交谈，交换了密封文件，对话中提到'最后的交易'和'48小时后行动'。",
-        "trigger_condition": "exploration_phase && any_character_enters:loc_002",
+        "trigger_condition": "current_stage:stage_01_01_01 && any_character_enters:loc_002",
         "perceptible_players": ["present_players"],
         "possible_outcomes": ["secretly_record_conversation", "caught_eavesdropping", "leave_with_incomplete_info"],
         "consequences": {
@@ -97,7 +97,7 @@
         "id": "evt_002",
         "name": "莫妮卡的求助",
         "description": "莫妮卡秘密接触玩家寻求帮助，表示自己掌握了重要证据但感到生命威胁，提议合作交换信息。",
-        "trigger_condition": "negotiation_phase_start",
+        "trigger_condition": "current_stage:stage_02_01_01",
         "perceptible_players": ["all"],
         "possible_outcomes": ["agree_to_cooperate", "refuse_and_inform_jackson", "pretend_and_extract_info"],
         "consequences": {
@@ -110,7 +110,7 @@
         "id": "evt_003",
         "name": "突袭警报",
         "description": "警方突袭情报泄露，俱乐部开始紧急销毁证据并准备撤离。各方人员行动变得紧张和危险。",
-        "trigger_condition": "conflict_phase || evidence_discovered",
+        "trigger_condition": "current_stage:stage_03_01_01 || evidence_discovered",
         "perceptible_players": ["all"],
         "possible_outcomes": ["help_evacuate", "seize_evidence_in_chaos", "contact_external_support"],
         "consequences": {
@@ -149,7 +149,7 @@
         "id": "evt_006",
         "name": "杰克逊的审问",
         "description": "杰克逊单独约谈角色，以友好方式进行问话，但明显在试探是否为内鬼。",
-        "trigger_condition": "negotiation_phase && any_character_suspicious",
+        "trigger_condition": "current_stage:stage_02_01_01 && any_character_suspicious",
         "perceptible_players": ["suspected_players"],
         "possible_outcomes": ["successful_concealment", "partial_truth_for_trust", "nervous_slip"],
         "consequences": {
@@ -175,7 +175,7 @@
         "id": "evt_008",
         "name": "地下室密会",
         "description": "意外撞见维克多与神秘人物进行紧张谈判，内容涉及'最终交易'和'彻底清洗'。",
-        "trigger_condition": "conflict_phase && character_enters:loc_005",
+        "trigger_condition": "current_stage:stage_03_01_01 && character_enters:loc_005",
         "perceptible_players": ["present_players"],
         "possible_outcomes": ["eavesdrop", "intervene", "quietly_report"],
         "consequences": {
@@ -188,7 +188,7 @@
         "id": "evt_009",
         "name": "意外火灾",
         "description": "俱乐部突发火灾，可能是意外也可能是蓄意破坏，所有人必须快速决定如何行动。",
-        "trigger_condition": "conflict_phase_late",
+        "trigger_condition": "current_stage:stage_03_01_01 && round_number > 3",
         "perceptible_players": ["all"],
         "possible_outcomes": ["help_evacuate", "complete_objectives", "protect_key_character"],
         "consequences": {
@@ -201,7 +201,7 @@
         "id": "evt_010",
         "name": "最终抉择",
         "description": "所有核心证据和关键人物集中，玩家必须决定最终立场和行动方向。",
-        "trigger_condition": "revelation_phase_start",
+        "trigger_condition": "current_stage:stage_04_01_01",
         "perceptible_players": ["all"],
         "possible_outcomes": ["assist_law_enforcement", "cooperate_with_criminal", "act_independently", "protect_innocent"],
         "consequences": {

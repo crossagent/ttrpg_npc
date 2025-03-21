@@ -3,7 +3,7 @@ from datetime import datetime
 import uuid
 
 from src.models.game_state_models import (
-    GameState, GamePhase, CharacterInstance, CharacterStatus, 
+    GameState, CharacterInstance, CharacterStatus, 
     EnvironmentStatus, EventInstance, ProgressStatus,
     LocationStatus, ItemStatus
 )
@@ -87,7 +87,7 @@ class GameStateManager:
         # 创建游戏状态
         game_state = GameState(
             game_id=game_id,
-            scenario_id=getattr(scenario, 'id', str(uuid.uuid4())),
+            scenario_id=scenario.story_info.id,
             scenario=scenario,
             environment=environment,
             progress=progress
@@ -104,9 +104,6 @@ class GameStateManager:
         
         # 初始化事件
         self._initialize_events_from_scenario(game_state, scenario)
-        
-        # 设置游戏阶段
-        game_state.current_phase = GamePhase.EXPLORATION
         
         # 不再需要将剧本信息复制到context中，因为现在可以直接通过game_state.scenario访问
         
@@ -300,23 +297,6 @@ class GameStateManager:
             pass
         
         return updated_state
-
-    def get_current_phase_events(self) -> List[str]:
-        """获取当前阶段的关键事件ID列表"""
-        phase_name = self.game_state.current_phase.value
-        if (self.game_state.scenario and 
-            hasattr(self.game_state.scenario, 'game_stages') and 
-            self.game_state.scenario.game_stages and 
-            phase_name in self.game_state.scenario.game_stages):
-            return self.game_state.scenario.game_stages[phase_name].key_events
-        return []
-
-    def advance_phase(self) -> None:
-        """推进游戏阶段"""
-        phases = list(GamePhase)
-        current_index = phases.index(self.game_state.current_phase)
-        if current_index < len(phases) - 1:
-            self.game_state.current_phase = phases[current_index + 1]
 
     def get_characters_at_location(self, location_id: str) -> List[str]:
         """获取在指定位置的角色ID列表"""

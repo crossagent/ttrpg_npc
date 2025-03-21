@@ -170,17 +170,6 @@ class Scenario(BaseModel):
             characters=characters,
             events=events
         )
-        
-        # 添加可选的游戏阶段
-        if "game_phases" in json_data:
-            game_stages = {}
-            for phase_id, phase_info in json_data["game_phases"].items():
-                game_stages[phase_id] = GameStageInfo(
-                    description=phase_info.get("description", ""),
-                    objectives=phase_info.get("objective", ""),
-                    key_events=phase_info.get("key_events", [])
-                )
-            scenario.game_stages = game_stages
             
         # 添加关键物品 - 处理数组格式
         if "key_items" in json_data:

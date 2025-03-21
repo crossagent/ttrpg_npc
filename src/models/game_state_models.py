@@ -116,7 +116,6 @@ class GameState(BaseModel):
     is_finished: bool = Field(False, description="游戏是否结束")
     started_at: datetime = Field(default_factory=datetime.now, description="游戏开始时间")
     last_updated: datetime = Field(default_factory=datetime.now, description="最后更新时间")
-    current_phase: GamePhase = Field(GamePhase.EXPLORATION, description="当前游戏阶段")
     
     # 游戏进度
     progress: ProgressStatus = Field(..., description="游戏进度状态")
