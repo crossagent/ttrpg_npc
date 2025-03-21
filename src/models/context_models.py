@@ -14,9 +14,6 @@ class PlayerContextText(BaseModel):
     recent_events_description: str = Field(..., description="最近事件描述")
     relationships_description: str = Field(..., description="关系描述文本")
     items_description: str = Field("", description="物品描述文本")
-    
-    # 元数据字段，不作为上下文的一部分，但用于追踪
-    last_updated: datetime = Field(default_factory=datetime.now, description="上次更新时间")
 
 
 class DMContextText(BaseModel):
@@ -27,9 +24,6 @@ class DMContextText(BaseModel):
     active_events_description: str = Field(..., description="活跃事件描述")
     secrets_description: str = Field(..., description="未揭示的秘密描述")
     narrative_guidance: str = Field(..., description="叙事指导建议")
-    
-    # 元数据字段，不作为上下文的一部分，但用于追踪
-    last_updated: datetime = Field(default_factory=datetime.now, description="上次更新时间")
 
 class StateChanges(BaseModel):
     """状态变化模型，表示从DM叙述中提取的状态变化"""
