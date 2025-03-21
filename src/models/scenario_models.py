@@ -46,14 +46,48 @@ class ItemInfo(BaseModel):
     """物品信息模型"""
     description: str = Field(..., description="物品描述")
     location: Optional[str] = Field(None, description="物品位置")
+    location_detail: Optional[str] = Field(None, description="物品位置详情")
     related_characters: Optional[List[str]] = Field(None, description="相关角色")
     difficulty: Optional[str] = Field(None, description="获取难度")
+    difficulty_details: Optional[str] = Field(None, description="难度详情")
     effects: Optional[Dict[str, Any]] = Field(None, description="物品效果")
 
 class StoryInfo(BaseModel):
     """故事背景信息模型"""
+    id: Optional[str] = Field(None, description="故事ID")
+    title: Optional[str] = Field(None, description="故事标题")
     background: str = Field(..., description="故事背景")
     secrets: Dict[str, str] = Field(..., description="故事重要秘密")
+
+class StoryStage(BaseModel):
+    """游戏故事阶段模型"""
+    id: str = Field(..., description="阶段唯一标识符")
+    name: str = Field(..., description="阶段名称")
+    description: str = Field(..., description="阶段描述")
+    objective: str = Field(..., description="阶段目标")
+    locations: List[str] = Field(..., description="相关地点ID列表")
+    characters: List[str] = Field(..., description="相关角色ID列表")
+    events: List[str] = Field(..., description="相关事件ID列表")
+    available_items: Optional[List[str]] = Field(None, description="可获取物品ID列表")
+    ending_variables: Optional[List[str]] = Field(None, description="结局相关变量")
+
+class StorySection(BaseModel):
+    """游戏故事小节模型"""
+    id: str = Field(..., description="小节唯一标识符")
+    name: str = Field(..., description="小节名称")
+    description: str = Field(..., description="小节描述")
+    stages: List[StoryStage] = Field(..., description="阶段列表")
+
+class StoryChapter(BaseModel):
+    """游戏故事章节模型"""
+    id: str = Field(..., description="章节唯一标识符")
+    name: str = Field(..., description="章节名称")
+    description: str = Field(..., description="章节描述")
+    sections: List[StorySection] = Field(..., description="小节列表")
+
+class StoryStructure(BaseModel):
+    """游戏故事结构模型"""
+    chapters: List[StoryChapter] = Field(..., description="章节列表")
     
 class Scenario(BaseModel):
     """游戏剧本 - 所有静态数据的容器"""
@@ -63,6 +97,7 @@ class Scenario(BaseModel):
     game_stages: Optional[Dict[str, GameStageInfo]] = Field(None, description="游戏阶段信息")
     locations: Optional[Dict[str, LocationInfo]] = Field(None, description="游戏地点详情")
     items: Optional[Dict[str, ItemInfo]] = Field(None, description="游戏物品详情")
+    story_structure: Optional[StoryStructure] = Field(None, description="故事结构")
     
     class Config:
         """模型配置"""
@@ -83,42 +118,51 @@ class Scenario(BaseModel):
             secrets={"main_secret": story_info_data.get("secret", "")}
         )
         
+        # 添加可选字段
+        if "id" in story_info_data:
+            story_info.id = story_info_data["id"]
+        if "title" in story_info_data:
+            story_info.title = story_info_data["title"]
+        
         # 处理characters
         characters = {}
-        for char_id, info in json_data.get("characters", {}).items():
-            character = ScenarioCharacterInfo(
-                public_identity=info.get("public_identity", ""),
-                secret_goal=info.get("secret_goal", "")
-            )
-            
-            # 添加可选字段
-            if "background" in info:
-                character.background_story = info["background"]
-            if "special_ability" in info:
-                character.special_ability = info["special_ability"]
-            if "weakness" in info:
-                character.weakness = info["weakness"]
+        for char_data in json_data.get("characters", []):
+            if "id" in char_data and "public_identity" in char_data and "secret_goal" in char_data:
+                char_id = char_data["id"]
+                character = ScenarioCharacterInfo(
+                    public_identity=char_data.get("public_identity", ""),
+                    secret_goal=char_data.get("secret_goal", "")
+                )
                 
-            characters[char_id] = character
+                # 添加可选字段
+                if "background" in char_data:
+                    character.background_story = char_data["background"]
+                if "special_ability" in char_data:
+                    character.special_ability = char_data["special_ability"]
+                if "weakness" in char_data:
+                    character.weakness = char_data["weakness"]
+                    
+                characters[char_id] = character
         
         # 处理events
         events = []
         for event_data in json_data.get("events", []):
-            event = ScenarioEvent(
-                event_id=event_data.get("event_id", ""),
-                description=event_data.get("description", ""),
-                trigger_condition=event_data.get("trigger_condition", ""),
-                aware_players=event_data.get("perceptible_players", ["all"]),
-                possible_outcomes=event_data.get("possible_outcomes", [])
-            )
-            
-            # 添加可选字段
-            if "content" in event_data:
-                event.content = event_data["content"]
-            if "consequences" in event_data:
-                event.outcome_effects = event_data["consequences"]
-            
-            events.append(event)
+            if "id" in event_data and "description" in event_data:
+                event = ScenarioEvent(
+                    event_id=event_data.get("id", ""),
+                    description=event_data.get("description", ""),
+                    trigger_condition=event_data.get("trigger_condition", ""),
+                    aware_players=event_data.get("perceptible_players", ["all"]),
+                    possible_outcomes=event_data.get("possible_outcomes", [])
+                )
+                
+                # 添加可选字段
+                if "name" in event_data:
+                    event.content = event_data["name"]
+                if "consequences" in event_data:
+                    event.outcome_effects = event_data["consequences"]
+                
+                events.append(event)
         
         # 创建基本剧本
         scenario = cls(
@@ -147,15 +191,11 @@ class Scenario(BaseModel):
                     items[item_id] = ItemInfo(
                         description=item_data["description"],
                         location=item_data.get("location"),
+                        location_detail=item_data.get("location_detail"),
                         related_characters=item_data.get("related_characters", []),
-                        difficulty=item_data.get("acquisition_difficulty")
+                        difficulty=item_data.get("acquisition_difficulty"),
+                        difficulty_details=item_data.get("difficulty_details")
                     )
-                    
-                    # 添加额外效果信息
-                    if "difficulty_details" in item_data:
-                        if not items[item_id].effects:
-                            items[item_id].effects = {}
-                        items[item_id].effects["difficulty_details"] = item_data["difficulty_details"]
                         
             scenario.items = items
         
@@ -182,6 +222,48 @@ class Scenario(BaseModel):
                     locations[loc_id] = location_info
                     
             scenario.locations = locations
+        
+        # 处理故事结构
+        if "story_structure" in json_data:
+            story_structure_data = json_data["story_structure"]
+            chapters = []
+            
+            for chapter_data in story_structure_data.get("chapters", []):
+                sections = []
+                
+                for section_data in chapter_data.get("sections", []):
+                    stages = []
+                    
+                    for stage_data in section_data.get("stages", []):
+                        stage = StoryStage(
+                            id=stage_data.get("id", ""),
+                            name=stage_data.get("name", ""),
+                            description=stage_data.get("description", ""),
+                            objective=stage_data.get("objective", ""),
+                            locations=stage_data.get("locations", []),
+                            characters=stage_data.get("characters", []),
+                            events=stage_data.get("events", []),
+                            available_items=stage_data.get("available_items", None),
+                            ending_variables=stage_data.get("ending_variables", None)
+                        )
+                        stages.append(stage)
+                    
+                    section = StorySection(
+                        id=section_data.get("id", ""),
+                        name=section_data.get("name", ""),
+                        description=section_data.get("description", ""),
+                        stages=stages
+                    )
+                    sections.append(section)
+                
+                chapter = StoryChapter(
+                    id=chapter_data.get("id", ""),
+                    name=chapter_data.get("name", ""),
+                    description=chapter_data.get("description", ""),
+                    sections=sections
+                )
+                chapters.append(chapter)
+            
+            scenario.story_structure = StoryStructure(chapters=chapters)
             
         return scenario
-        
