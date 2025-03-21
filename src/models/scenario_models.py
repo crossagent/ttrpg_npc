@@ -54,11 +54,9 @@ class StoryInfo(BaseModel):
     """故事背景信息模型"""
     background: str = Field(..., description="故事背景")
     secrets: Dict[str, str] = Field(..., description="故事重要秘密")
-    locations_description: Optional[Dict[str, str]] = Field(None, description="地点简要描述")
     
 class Scenario(BaseModel):
     """游戏剧本 - 所有静态数据的容器"""
-    scenario_id: str = Field(..., description="剧本唯一标识符")
     story_info: StoryInfo = Field(..., description="故事背景信息")
     characters: Dict[str, ScenarioCharacterInfo] = Field(..., description="角色信息字典，键为角色ID")
     events: List[ScenarioEvent] = Field(..., description="剧本事件列表")
@@ -84,14 +82,6 @@ class Scenario(BaseModel):
             background=story_info_data.get("background", ""),
             secrets={"main_secret": story_info_data.get("secret", "")}
         )
-        
-        # 处理地点描述 - 将数组转换为字典
-        locations_description = {}
-        for location in story_info_data.get("locations", []):
-            if "id" in location and "description" in location:
-                locations_description[location["id"]] = location["description"]
-        
-        story_info.locations_description = locations_description
         
         # 处理characters
         characters = {}
@@ -170,9 +160,9 @@ class Scenario(BaseModel):
             scenario.items = items
         
         # 处理地点详情
-        if "locations" in json_data.get("story_info", {}):
+        if "locations" in json_data:
             locations = {}
-            for loc_data in json_data["story_info"]["locations"]:
+            for loc_data in json_data["locations"]:
                 if "id" in loc_data and "description" in loc_data:
                     loc_id = loc_data["id"]
                     
@@ -192,86 +182,5 @@ class Scenario(BaseModel):
                     locations[loc_id] = location_info
                     
             scenario.locations = locations
-            
-        return scenario
-        """从JSON数据创建剧本模型实例
-        
-        处理中英文字段名称映射和数据结构转换
-        """
-        # 处理story_info
-        story_info = StoryInfo(
-            background=json_data["story_info"]["背景"],
-            secrets={"货轮秘密": json_data["story_info"]["货轮秘密"]}
-        )
-        
-        if "地点描述" in json_data["story_info"]:
-            story_info.locations_description = json_data["story_info"]["地点描述"]
-        
-        # 处理characters
-        characters = {}
-        for name, info in json_data["角色信息"].items():
-            character = ScenarioCharacterInfo(
-                public_identity=info["公开身份"],
-                secret_goal=info["秘密目标"]
-            )
-            
-            # 添加可选字段
-            if "背景故事" in info:
-                character.background_story = info["背景故事"]
-            if "特殊能力" in info:
-                character.special_ability = info["特殊能力"]
-            if "弱点" in info:
-                character.weakness = info["弱点"]
-                
-            characters[name] = character
-        
-        # 处理events
-        events = []
-        for event_data in json_data["剧本事件"]:
-            event = ScenarioEvent(
-                event_id=event_data["事件ID"],
-                description=event_data["描述"],
-                trigger_condition=event_data["触发条件"],
-                aware_players=event_data.get("可感知玩家", ["全部"]),
-                possible_outcomes=event_data["可能结局"]
-            )
-            
-            # 添加可选字段
-            if "内容" in event_data:
-                event.content = event_data["内容"]
-            if "后续影响" in event_data:
-                event.outcome_effects = event_data["后续影响"]
-            
-            events.append(event)
-        
-        # 创建基本剧本
-        scenario = cls(
-            story_info=story_info,
-            characters=characters,
-            events=events
-        )
-        
-        # 添加可选的游戏阶段
-        if "游戏阶段" in json_data:
-            game_stages = {}
-            for stage_name, stage_info in json_data["游戏阶段"].items():
-                game_stages[stage_name] = GameStageInfo(
-                    description=stage_info["描述"],
-                    objectives=stage_info["目标"],
-                    key_events=stage_info.get("关键事件", [])
-                )
-            scenario.game_stages = game_stages
-            
-        # 添加关键物品
-        if "关键物品" in json_data:
-            items = {}
-            for item_name, item_info in json_data["关键物品"].items():
-                items[item_name] = ItemInfo(
-                    description=item_info["描述"],
-                    location=item_info.get("位置"),
-                    related_characters=item_info.get("相关角色", []),
-                    difficulty=item_info.get("获取难度")
-                )
-            scenario.items = items
             
         return scenario

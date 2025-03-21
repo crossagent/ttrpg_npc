@@ -36,7 +36,6 @@ class CharacterStatus(BaseModel):
     conditions: List[str] = Field(default_factory=list, description="当前状态效果")
     relationships: Dict[str, int] = Field(default_factory=dict, description="与其他角色的关系值(使用角色ID作为键)")
     known_information: List[str] = Field(default_factory=list, description="已知信息")
-    radiation_level: Optional[str] = Field(None, description="辐射水平（特定场景使用）")
     # 修改为单个字符串
     goal: str = Field("", description="角色当前的主要目标")
     plans: str = Field("", description="角色达成目标的计划")
@@ -51,8 +50,6 @@ class LocationStatus(BaseModel):
     search_status: str = Field("未搜索", description="搜索状态(未搜索/部分搜索/被搜索过)")
     available_items: List[str] = Field(default_factory=list, description="当前可获取的物品")
     present_characters: List[str] = Field(default_factory=list, description="当前在此位置的角色")
-    radiation_level: Optional[str] = Field(None, description="当前辐射水平")
-    properties: Dict[str, Any] = Field(default_factory=dict, description="其他位置属性")
 
 
 class EnvironmentStatus(BaseModel):
@@ -62,9 +59,7 @@ class EnvironmentStatus(BaseModel):
     weather: str = Field("晴朗", description="天气状况")
     lighting: str = Field("明亮", description="光照条件")
     atmosphere: str = Field("平静", description="氛围")
-    hazards: List[str] = Field(default_factory=list, description="环境危害")
     locations: Dict[str, LocationStatus] = Field(default_factory=dict, description="所有地点的当前状态")
-    properties: Dict[str, Any] = Field(default_factory=dict, description="其他环境属性")
 
 
 class EventInstance(BaseModel):
@@ -98,7 +93,7 @@ class GameState(BaseModel):
     is_finished: bool = Field(False, description="游戏是否结束")
     current_phase: GamePhase = Field(GamePhase.EXPLORATION, description="当前游戏阶段")
     
-    # 使用ID索引的核心数据
+    # 游戏中的角色、事件、环境状态-模板来自于剧本
     characters: Dict[str, CharacterInstance] = Field(default_factory=dict, description="角色引用字典，键为角色ID")
     environment: EnvironmentStatus = Field(..., description="环境状态")
     active_events: Dict[str, EventInstance] = Field(default_factory=dict, description="活跃事件，键为实例ID")

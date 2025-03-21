@@ -41,10 +41,6 @@ class GameStateManager:
         if hasattr(scenario, 'locations') and scenario.locations:
             # 使用第一个地点作为初始位置
             initial_location_id = next(iter(scenario.locations.keys()))
-        elif hasattr(scenario, 'story_info') and hasattr(scenario.story_info, 'locations_description'):
-            # 兼容：从locations_description获取第一个地点
-            if scenario.story_info.locations_description:
-                initial_location_id = next(iter(scenario.story_info.locations_description.keys()))
         
         # 如果没有找到任何地点，使用默认位置
         if not initial_location_id:
@@ -153,11 +149,14 @@ class GameStateManager:
         Args:
             game_state: 游戏状态对象
             scenario: 剧本对象
+            
+        Raises:
+            ValueError: 如果剧本中缺少locations信息
         """
         # 初始化位置信息到游戏上下文
         locations = {}
         
-        # 如果有locations属性，优先使用
+        # 如果有locations属性，使用它
         if hasattr(scenario, 'locations') and scenario.locations:
             for loc_id, location_info in scenario.locations.items():
                 locations[loc_id] = {
@@ -165,31 +164,15 @@ class GameStateManager:
                     "description": getattr(location_info, 'description', ''),
                     "connected_to": getattr(location_info, 'connected_locations', []),
                     "available_items": getattr(location_info, 'available_items', []),
-                    "properties": {
-                        "danger_level": getattr(location_info, 'danger_level', 'low'),
-                        "explored": False
-                    }
                 }
-        # 如果没有locations属性，但有story_info.locations_description
-        elif (hasattr(scenario, 'story_info') and 
-              hasattr(scenario.story_info, 'locations_description') and 
-              scenario.story_info.locations_description):
-            for loc_id, description in scenario.story_info.locations_description.items():
-                locations[loc_id] = {
-                    "name": loc_id,
-                    "description": description,
-                    "connected_to": [],
-                    "available_items": [],
-                    "properties": {
-                        "danger_level": "unknown",
-                        "explored": False
-                    }
-                }
+        else:
+            # 如果没有locations属性，直接报错
+            raise ValueError("剧本结构异常：缺少必要的locations信息。请确保剧本包含至少一个地点。")
         
         # 存储位置信息到游戏状态
         game_state.context["locations"] = locations
-        game_state.metadata["location_count"] = len(locations)
-    
+        game_state.metadata["location_count"] = len(locations)    
+
     def _initialize_events_from_scenario(self, game_state: GameState, scenario: Scenario):
         """
         从剧本中初始化事件到游戏状态
