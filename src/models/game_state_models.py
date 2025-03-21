@@ -103,7 +103,3 @@ class GameState(BaseModel):
     chat_history: List[Message] = Field(default_factory=list, description="完整消息历史记录列表")
     revealed_secrets: List[str] = Field(default_factory=list, description="已揭示的秘密")
     game_variables: Dict[str, Any] = Field(default_factory=dict, description="游戏变量，用于条件判断")
-    
-
-    context: Dict[str, Any] = Field(default_factory=dict, description="游戏上下文")
-    metadata: Dict[str, Any] = Field(default_factory=dict, description="额外元数据")

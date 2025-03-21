@@ -121,9 +121,6 @@ class GameStateManager:
                 
                 # 将角色添加到游戏状态
                 game_state.characters[character_id] = character_ref
-        
-        # 记录角色初始化信息
-        game_state.metadata["character_count"] = len(game_state.characters)
     
     def _initialize_locations_from_scenario(self, game_state: GameState, scenario: Scenario):
         """
@@ -141,8 +138,6 @@ class GameStateManager:
             # 如果没有locations属性，直接报错
             raise ValueError("剧本结构异常：缺少必要的locations信息。请确保剧本包含至少一个地点。")
         
-        # 记录位置数量到元数据
-        game_state.metadata["location_count"] = len(scenario.locations)
 
     def _initialize_events_from_scenario(self, game_state: GameState, scenario: Scenario):
         """
@@ -174,11 +169,6 @@ class GameStateManager:
         
         # 存储事件实例
         game_state.pending_events = pending_events
-        game_state.metadata["total_events"] = len(pending_events)
-        
-        # 记录物品数量
-        if hasattr(scenario, 'items'):
-            game_state.metadata["item_count"] = len(scenario.items)
 
     def get_state(self) -> GameState:
         """
@@ -278,14 +268,6 @@ class GameStateManager:
         current_index = phases.index(self.game_state.current_phase)
         if current_index < len(phases) - 1:
             self.game_state.current_phase = phases[current_index + 1]
-            # 记录阶段变更
-            self.game_state.metadata["phase_changes"] = self.game_state.metadata.get("phase_changes", [])
-            self.game_state.metadata["phase_changes"].append({
-                "from": phases[current_index].value,
-                "to": self.game_state.current_phase.value,
-                "round": self.game_state.round_number,
-                "timestamp": datetime.now().isoformat()
-            })
 
     def get_characters_at_location(self, location_id: str) -> List[str]:
         """获取在指定位置的角色ID列表"""

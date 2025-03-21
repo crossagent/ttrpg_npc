@@ -80,9 +80,8 @@ async def main() -> None:
     
     try:
         # 启动游戏
-        final_state = await engine.run_game()
+        await engine.run_game()
         print("\n=== 游戏结束 ===")
-        print(f"共进行了{final_state.round_number}回合")
     except KeyboardInterrupt:
         print("\n游戏被用户中断")
     except Exception as e:
