@@ -1,6 +1,6 @@
 from autogen_agentchat.messages import TextMessage, ChatMessage
 from autogen_core import CancellationToken
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any, Optional, Union
 import json
 from datetime import datetime
 from src.models.scenario_models import Scenario
@@ -8,6 +8,8 @@ from src.models.game_state_models import GameState
 from src.models.action_models import PlayerAction
 from src.agents.base_agent import BaseAgent
 from src.models.action_models import ActionType
+from src.models.llm_validation import create_validator_for, LLMOutputError
+from src.models.context_models import PlayerActionLLMOutput
 from src.context.player_context_builder import (
     build_decision_system_prompt,
     build_decision_user_prompt,
@@ -85,45 +87,42 @@ class PlayerAgent(BaseAgent):
             if response and response.chat_message:
                 response_content = response.chat_message.content
                 
-                # 尝试解析JSON响应
+                # 使用验证器验证LLM输出
                 try:
-                    # 查找JSON内容
-                    import re
-                    json_match = re.search(r'```json\s*([\s\S]*?)\s*```', response_content)
-                    if json_match:
-                        json_str = json_match.group(1)
-                    else:
-                        json_str = response_content
+                    # 创建验证器
+                    validator = create_validator_for(PlayerActionLLMOutput)
                     
-                    # 修改JSON解析部分的代码
-                    response_data = json.loads(json_str)
+                    # 验证响应
+                    validated_data = validator.validate_response(response_content)
                     
-                    # 从JSON中提取行动内容
-                    action_content = response_data.get("action", "未能决定行动")
-                    
-                    # 获取action_type，如果返回中有明确指定则使用，否则使用默认值"对话"
-                    action_type_str = response_data.get("action_type", "对话")
-
-                    try:
-                        action_type = ActionType(action_type_str)
-                    except ValueError:
-                        # 如果输入的值不在枚举中，使用默认值 DIALOGUE
-                        action_type = ActionType.DIALOGUE
-
-                    # 获取target，如果未指定则默认为"all"
-                    target = response_data.get("target", "all")
                     
                     # 创建行动对象
                     return PlayerAction(
                         player_id=self.agent_id,
                         character_id=self.character_id,
-                        action_type=action_type,
-                        content=action_content,
-                        target=target,
+                        action_type=validated_data.action_type,
+                        content=validated_data.action,
+                        target=validated_data.target,
                         timestamp=datetime.now().isoformat()
                     )
-                except json.JSONDecodeError as e:
-                    raise ValueError(f"JSON解析错误: {str(e)}, 原始响应: {response_content}")
+                except LLMOutputError as e:
+                    # 处理验证错误，使用默认值
+                    print(f"LLM输出验证错误: {e.message}")
+                    # 尝试从原始响应中提取有用信息
+                    import re
+                    # 尝试提取action
+                    action_match = re.search(r'"action"\s*:\s*"([^"]+)"', e.raw_output)
+                    action_content = action_match.group(1) if action_match else "未能决定行动"
+                    
+                    # 创建默认行动对象
+                    return PlayerAction(
+                        player_id=self.agent_id,
+                        character_id=self.character_id,
+                        action_type=ActionType.DIALOGUE,
+                        content=action_content,
+                        target="all",
+                        timestamp=datetime.now().isoformat()
+                    )
                     
         except Exception as e:
             raise Exception(f"Assistant生成行动失败: {str(e)}")

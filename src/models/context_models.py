@@ -1,6 +1,25 @@
 from pydantic import BaseModel, Field
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any, Optional, Union
 from datetime import datetime
+from src.models.action_models import ActionType
+
+
+class ActionDecisionLogic(BaseModel):
+    """行动决策逻辑模型，表示角色的决策过程"""
+    goal: str = Field(..., description="当前的主要目标")
+    plan: str = Field(..., description="实现目标的计划")
+    mood: str = Field(..., description="当前的心情")
+    health: int = Field(..., description="当前的血量(0-100)")
+
+
+class PlayerActionLLMOutput(BaseModel):
+    """LLM输出的玩家行动模型"""
+    observation: str = Field(..., description="观察到的环境和其他角色的信息")
+    action_thought: ActionDecisionLogic = Field(..., description="行动决策逻辑")
+    thinking: str = Field(..., description="内心想法和决策过程")
+    action: str = Field(..., description="实际采取的行动")
+    action_type: str = Field(default="对话", description="行动类型")
+    target: Union[str, List[str]] = Field(default="all", description="行动目标")
 
 
 class PlayerContextText(BaseModel):
@@ -45,3 +64,10 @@ class StateUpdateRequest(BaseModel):
     """状态更新请求模型，用于请求更新游戏状态"""
     dm_narrative: str = Field(..., description="DM叙述")
     action_context: Dict[str, Any] = Field(default_factory=dict, description="行动上下文")
+
+
+class ActionResolutionLLMOutput(BaseModel):
+    """LLM输出的行动解析结果模型"""
+    success: bool = Field(..., description="行动是否成功")
+    narrative: str = Field(..., description="行动结果的详细描述")
+    state_changes: Dict[str, Any] = Field(default_factory=dict, description="行动导致的游戏状态变化")
