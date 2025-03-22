@@ -18,7 +18,7 @@ class PlayerActionLLMOutput(BaseModel):
     action_thought: ActionDecisionLogic = Field(..., description="行动决策逻辑")
     thinking: str = Field(..., description="内心想法和决策过程")
     action: str = Field(..., description="实际采取的行动")
-    action_type: str = Field(default="对话", description="行动类型")
+    action_type: ActionType = Field(default=ActionType.DIALOGUE, description="行动类型：对话、行动或无视")
     target: Union[str, List[str]] = Field(default="all", description="行动目标")
 
 

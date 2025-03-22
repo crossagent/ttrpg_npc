@@ -174,7 +174,7 @@ class RoundManager:
             # 发生错误时返回空列表
             return []
 
-    def resolve_actions(self, actions: List[PlayerAction]) -> List[ActionResult]:
+    async def resolve_actions(self, actions: List[PlayerAction]) -> List[ActionResult]:
         """
         解析处理玩家行动的判定
         
@@ -257,8 +257,8 @@ class RoundManager:
             
             # DM解析行动结果
             dm_agent = self.agent_manager.get_dm_agent()
-            action_result = asyncio.run(dm_agent.dm_resolve_action(action, self.game_state_manager.get_state()))
-            action_results.append(action_result)
+            action_result = await dm_agent.dm_resolve_action(action, self.game_state_manager.get_state()))
+            action_results.append(action_result)25
             
             # 创建结果消息
             message_id = str(uuid.uuid4())
@@ -351,7 +351,7 @@ class RoundManager:
             player_actions = await self.process_player_turns()
             
             # 4. 确认行为影响的后果和是否触发了新的事件
-            action_results = self.resolve_actions(player_actions)
+            action_results = await self.resolve_actions(player_actions)
             
             # 5. 结束回合
             updated_state = self.end_round()
