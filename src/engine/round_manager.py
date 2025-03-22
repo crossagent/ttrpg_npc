@@ -257,8 +257,8 @@ class RoundManager:
             
             # DM解析行动结果
             dm_agent = self.agent_manager.get_dm_agent()
-            action_result = await dm_agent.dm_resolve_action(action, self.game_state_manager.get_state()))
-            action_results.append(action_result)25
+            action_result = await dm_agent.dm_resolve_action(action, self.game_state_manager.get_state())
+            action_results.append(action_result)
             
             # 创建结果消息
             message_id = str(uuid.uuid4())
