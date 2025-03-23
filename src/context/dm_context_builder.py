@@ -9,36 +9,31 @@ from src.models.action_models import PlayerAction
 from src.context.context_utils import format_messages, format_character_list, format_location_list
 
 def build_narrative_system_prompt(scenario: Optional[Scenario]) -> str:
-    """
-    构建DM叙述生成的系统提示
-    
-    Args:
-        scenario: 游戏剧本
-        
-    Returns:
-        str: 系统提示文本
-    """
+    """构建DM叙述生成的系统提示"""
     if not scenario:
-        return "你是一个桌面角色扮演游戏的主持人(DM)，负责描述场景、推动故事情节发展，并处理玩家的行动。"
+        return "你是一个桌面角色扮演游戏的主持人(DM)，负责生成生动的场景描述，推动故事发展。"
         
-    # 提取NPC列表（角色名称）
+    # 提取基础信息
     npc_list = list(scenario.characters.keys())
-    
-    # 提取地点列表
     location_list = list(scenario.locations.keys()) if scenario.locations else []
     
-    return f"""你是一个桌面角色扮演游戏的主持人(DM)，负责描述场景、推动故事情节发展，并处理玩家的行动。
+    return f"""你是一个桌面角色扮演游戏的主持人(DM)，专注于场景描述和故事叙述。
 当前游戏的背景设定是：{scenario.story_info.background}
-主要场景包括：{', '.join(location_list) if location_list else '未指定'}
-主要NPC包括：{', '.join(npc_list) if npc_list else '未指定'}
 
-你的任务是：
-1. 生成生动的场景描述
-2. 根据玩家行动给出合理的结果
-3. 推动故事情节发展
-4. 确保游戏体验有趣且具有挑战性
+你的核心任务是：
+1. 创造沉浸式的场景体验，运用感官描述增强游戏世界的真实感
+2. 清晰呈现场景中的关键元素，包括环境、NPC和可交互物品
+3. 基于玩家行动反馈世界的变化，确保叙事的连贯性
+4. 通过细节和氛围塑造适合当前情境的情绪基调
+5. 引导而非限制玩家行动，提供探索的方向但保留选择的自由
 
-请记住，你是一个公正的裁判，不要偏袒任何玩家，也不要过于严苛或宽松。
+叙事风格指导：
+- 使用具体而生动的描述，避免空泛和模糊
+- 平衡细节与节奏，不要过度冗长也不要过于简略
+- 适应当前情境的情绪基调(紧张、神秘、轻松等)
+- 通过环境细节暗示而非直接陈述可能的危险或机会
+
+请专注于"呈现什么发生了"而非"计算什么应该发生"。
 """
 
 def build_narrative_user_prompt(
@@ -46,34 +41,46 @@ def build_narrative_user_prompt(
     unread_messages: List[Message], 
     current_scene: str
 ) -> str:
-    """
-    构建DM叙述生成的用户提示
-    
-    Args:
-        game_state: 游戏状态
-        unread_messages: 未读消息列表
-        current_scene: 当前场景描述
-        
-    Returns:
-        str: 用户提示文本
-    """
+    """构建DM叙述生成的用户提示"""
     # 格式化未读消息
     formatted_messages = format_messages(unread_messages)
     
+    # 获取当前故事阶段(如果有)
+    current_stage = "未知阶段"
+    if hasattr(game_state, "progress") and hasattr(game_state.progress, "current_stage"):
+        if game_state.progress.current_stage:
+            current_stage = game_state.progress.current_stage.name
+    
+    # 获取游戏内时间(如果有)
+    game_time = "未指定时间"
+    if hasattr(game_state, "environment") and hasattr(game_state.environment, "current_time"):
+        game_time = game_state.environment.current_time
+    
+    # 获取重要场景变化
+    scene_changes = ""
+    if hasattr(game_state, "environment") and hasattr(game_state.environment, "recent_changes"):
+        scene_changes = "\n".join(game_state.environment.recent_changes)
+    
     return f"""
-【第{game_state.round_number}回合】
+【第{game_state.round_number}回合 | {game_time} | {current_stage}】
 
-最近的玩家消息:
+最近的玩家活动:
 {formatted_messages}
 
 当前场景:
 {current_scene}
 
-请基于以上信息，生成一段生动的场景描述。描述应该:
-1. 提及重要的场景元素和NPC
-2. 反映玩家之前行动的影响
-3. 暗示可能的行动方向
-4. 以一个引导性问题结束，如"你们看到了什么？你们将如何行动？"
+场景变化:
+{scene_changes if scene_changes else "无明显变化"}
+
+请基于以上信息，生成一段生动的场景描述(300字左右)。描述应该:
+1. 创造当前场景的氛围和感官体验
+2. 突出场景中的关键元素和存在的角色
+3. 反映玩家行动对环境和NPC的影响
+4. 暗示可能的探索方向和隐藏的机会
+5. 以引导性问题结束，激发玩家思考下一步行动
+
+请确保叙述连贯且与之前的情节保持一致。
 """
 
 def build_action_resolve_system_prompt(scenario: Optional[Scenario]) -> str:

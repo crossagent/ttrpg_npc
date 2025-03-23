@@ -2,7 +2,7 @@ from pydantic import BaseModel, Field
 from typing import List, Dict, Any, Optional, Union
 from datetime import datetime
 from src.models.action_models import ActionType
-
+from src.models.message_models import Message
 
 class ActionDecisionLogic(BaseModel):
     """行动决策逻辑模型，表示角色的决策过程"""
@@ -43,6 +43,20 @@ class DMContextText(BaseModel):
     active_events_description: str = Field(..., description="活跃事件描述")
     secrets_description: str = Field(..., description="未揭示的秘密描述")
     narrative_guidance: str = Field(..., description="叙事指导建议")
+
+class DMNarrativeSystemContext(BaseModel):
+    """DM叙述系统上下文模型，表示DM叙述系统的上下文信息"""
+    story_background: str = Field(..., description="故事背景")
+    narrative_style: str = Field(..., description="叙事风格")
+
+
+class DMNarrativeUserContext(BaseModel):
+    """DM叙述用户上下文模型，表示DM叙述用户的上下文信息"""
+    recent_messages: List[Message] = Field(default_factory=list, description="最近的消息")
+    stage_decribertion: str = Field(..., description="当前阶段描述")
+    characters_description: str = Field(..., description="角色描述")
+    environment_description: str = Field(..., description="环境描述")
+    location_description: str = Field(..., description="位置描述")
 
 class StateChanges(BaseModel):
     """状态变化模型，表示从DM叙述中提取的状态变化"""
