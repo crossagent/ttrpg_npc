@@ -52,7 +52,7 @@ class DMNarrativeSystemContext(BaseModel):
 
 class DMNarrativeUserContext(BaseModel):
     """DM叙述用户上下文模型，表示DM叙述用户的上下文信息"""
-    recent_messages: List[Message] = Field(default_factory=list, description="最近的消息")
+    recent_messages: str = Field(default_factory=list, description="最近的消息")
     stage_decribertion: str = Field(..., description="当前阶段描述")
     characters_description: str = Field(..., description="角色描述")
     environment_description: str = Field(..., description="环境描述")

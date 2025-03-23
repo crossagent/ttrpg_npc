@@ -6,23 +6,21 @@ from src.models.scenario_models import Scenario
 from src.models.game_state_models import GameState
 from src.models.message_models import Message
 from src.models.action_models import PlayerAction
-from src.context.context_utils import format_messages, format_character_list, format_location_list
+from src.context.context_utils import (format_messages, format_character_list, format_location_list, 
+                                       format_environment_info, format_current_stage_summary, 
+                                       format_current_stage_characters, format_current_stage_locations)
 from src.models.context_models import DMNarrativeSystemContext, DMNarrativeUserContext
 
 def build_narrative_system_prompt(scenario: Optional[Scenario]) -> str:
     """构建DM叙述生成的系统提示"""
     
-    narrative_system_prompt = DMNarrativeSystemContext()
+    narrative_system_prompt = DMNarrativeSystemContext(
+        story_background=scenario.story_info.background if scenario else "未知背景",
+        narrative_style=scenario.story_info.narrative_style if scenario else "未知风格"
+    )
 
-    narrative_system_prompt.story_background = scenario.story_info.background if scenario else "未知背景"
-    narrative_system_prompt.narrative_style = scenario.story_info.narrative_style if scenario else "未知风格"
-
-    # 提取基础信息
-    npc_list = list(scenario.characters.keys())
-    location_list = list(scenario.locations.keys()) if scenario.locations else []
-    
     return f"""你是一个桌面角色扮演游戏的主持人(DM)，专注于场景描述和故事叙述。
-当前游戏的背景设定是：{scenario.story_info.background},故事的风格是：{scenario.story_info.narrative_style}。
+当前游戏的背景设定是：{narrative_system_prompt.story_background},故事的风格是：{narrative_system_prompt.narrative_style}。
 
 你的核心任务是：
 1. 创造沉浸式的场景体验，运用感官描述增强游戏世界的真实感
@@ -43,12 +41,20 @@ def build_narrative_system_prompt(scenario: Optional[Scenario]) -> str:
 def build_narrative_user_prompt(
     game_state: GameState, 
     unread_messages: List[Message], 
-    current_scene: str
+    scenario: Scenario
 ) -> str:
     """构建DM叙述生成的用户提示"""
+    narrative_user_prompt = DMNarrativeUserContext(
+        recent_messages=format_messages(unread_messages),
+        stage_decribertion=format_current_stage_summary(game_state),
+        characters_description=format_current_stage_characters(game_state),
+        environment_description=format_environment_info(game_state),
+        location_description=format_current_stage_locations(game_state)
+    )
+    
     # 格式化未读消息
     formatted_messages = format_messages(unread_messages)
-    
+
     # 获取当前故事阶段(如果有)
     current_stage = "未知阶段"
     if hasattr(game_state, "progress") and hasattr(game_state.progress, "current_stage"):
@@ -71,8 +77,17 @@ def build_narrative_user_prompt(
 最近的玩家活动:
 {formatted_messages}
 
-当前场景:
-{current_scene}
+玩家角色信息：
+{narrative_user_prompt.characters_description}
+
+当前地点描述：
+{narrative_user_prompt.location_description}
+
+当前环境：
+{narrative_user_prompt.environment_description}
+
+当前主要剧情描述:
+{narrative_user_prompt.stage_decribertion}
 
 场景变化:
 {scene_changes if scene_changes else "无明显变化"}
@@ -158,24 +173,3 @@ def build_action_resolve_user_prompt(
 }}
 ```
 """
-
-def get_current_scene(scenario: Scenario, round_number: int) -> str:
-    """
-    获取当前场景描述
-    
-    Args:
-        scenario: 游戏剧本
-        round_number: 当前回合数
-        
-    Returns:
-        str: 当前场景描述
-    """
-    if not scenario.locations:
-        return "未指定场景"
-        
-    location_keys = list(scenario.locations.keys())
-    if not location_keys:
-        return "未指定场景"
-        
-    current_loc_key = location_keys[min(round_number, len(location_keys) - 1)]
-    return scenario.locations[current_loc_key].description

@@ -12,14 +12,6 @@ class GamePhase(str, Enum):
     CONFLICT = "冲突阶段"
     REVELATION = "真相阶段"
 
-class InnerThought(BaseModel):
-    """角色内部思考记录"""
-    timestamp: datetime = Field(default_factory=datetime.now, description="思考发生的时间")
-    round_id: int = Field(..., description="所属回合ID")
-    observe: str = Field(..., description="观察的内容")
-    thought: str = Field(..., description="思考的内容")
-    decision: str = Field(..., description="决策的内容")
-
 class MessageReadStatus(Enum):
     """消息读取状态枚举"""
     UNREAD = "未读"
@@ -30,7 +22,49 @@ class MessageReadMemory(BaseModel):
     """消息已读记录模型"""
     player_id: str = Field(..., description="玩家ID")
     history_messages: Dict[str, MessageReadStatus] = Field(default_factory=dict, description="可见的消息状态，键为消息ID")
-    inner_thoughts: List[InnerThought] = Field(default_factory=list, description="角色的心理活动记录（观察、思考、决策）")
+
+# Add this new model before InternalThoughts class
+class AttitudeType(str, Enum):
+    """态度类型枚举"""
+    FRIENDLY = "友好"
+    NEUTRAL = "中立"
+    HOSTILE = "敌对"
+    UNKNOWN = "未知"
+
+class TrustLevel(str, Enum):
+    """信任程度枚举"""
+    HIGH = "高度信任"
+    MODERATE = "一般信任" 
+    LOW = "低度信任"
+    DISTRUSTFUL = "不信任"
+    UNKNOWN = "未知"
+
+class PlayerAssessment(BaseModel):
+    """角色对其他玩家的评估模型"""
+    intention: str = Field("", description="对其行为意图的评估")
+    attitude_toward_self: AttitudeType = Field(AttitudeType.UNKNOWN, description="对自己的态度")
+    trust_level: TrustLevel = Field(TrustLevel.UNKNOWN, description="信任程度")
+    power_assessment: str = Field("", description="实力与资源评估")
+    last_interaction: Optional[datetime] = Field(None, description="最后交互时间")
+
+class InternalThoughts(BaseModel):
+    """角色内心世界模型，表示角色的心理状态、观察和分析"""
+    # 背景与目标
+    short_term_goals: List[str] = Field(default_factory=list, description="短期目标")
+    
+    # 情绪与心理状态
+    primary_emotion: str = Field("平静", description="当前主要情绪")
+    psychological_state: str = Field("正常", description="心理状态描述")
+    
+    # 局势分析
+    narrative_analysis: str = Field("", description="对DM叙事的理解与总结")
+    other_players_assessment: Dict[str, PlayerAssessment] = Field(default_factory=dict, description="对其他玩家的详细评估(使用角色ID作为键)")
+    perceived_risks: List[str] = Field(default_factory=list, description="感知到的风险")
+    perceived_opportunities: List[str] = Field(default_factory=list, description="感知到的机会")
+    
+    # 更新时间
+    last_updated: datetime = Field(default_factory=datetime.now, description="最后更新时间")
+    last_updated_round: int = Field(0, description="最后更新的回合数")
 
 class CharacterStatus(BaseModel):
     """角色状态模型，表示角色的当前状态"""
@@ -38,12 +72,8 @@ class CharacterStatus(BaseModel):
     location: str = Field(..., description="当前位置")
     health: int = Field(100, description="健康值")
     items: Optional[List[str]] = Field(default_factory=list, description="拥有的物品，None表示未确定")
-    conditions: List[str] = Field(default_factory=list, description="当前状态效果")
-    relationships: Dict[str, int] = Field(default_factory=dict, description="与其他角色的关系值(使用角色ID作为键)")
     known_information: Optional[List[str]] = Field(default_factory=list, description="已知信息，None表示未确定")
-    goal: str = Field("", description="角色当前的主要目标")
-    plans: str = Field("", description="角色达成目标的计划")
-    inner_thoughts: List[InnerThought] = Field(default_factory=list, description="角色的心理活动记录（观察、思考、决策）")
+    internal_thoughts: List[InternalThoughts] = Field(default_factory=list, description="角色的心理活动记录（观察、思考、决策）")
 
 class LocationStatus(BaseModel):
     """位置状态模型，跟踪地点当前状态"""

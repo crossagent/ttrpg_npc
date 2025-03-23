@@ -11,8 +11,7 @@ from src.context.dm_context_builder import (
     build_narrative_system_prompt,
     build_narrative_user_prompt,
     build_action_resolve_system_prompt,
-    build_action_resolve_user_prompt,
-    get_current_scene
+    build_action_resolve_user_prompt
 )
 
 class DMAgent(BaseAgent):
@@ -39,7 +38,6 @@ class DMAgent(BaseAgent):
         """
         # 获取未读消息和当前场景
         unread_messages = self.get_unread_messages(game_state)
-        current_scene = get_current_scene(scenario, game_state.round_number)
         
         # 生成系统消息
         system_message = build_narrative_system_prompt(scenario)
@@ -53,7 +51,7 @@ class DMAgent(BaseAgent):
         )
         
         # 构建用户消息
-        user_message_content = build_narrative_user_prompt(game_state, unread_messages, current_scene)
+        user_message_content = build_narrative_user_prompt(game_state, unread_messages, scenario)
         user_message = TextMessage(
             content=user_message_content,
             source="system"
