@@ -7,18 +7,22 @@ from src.models.game_state_models import GameState
 from src.models.message_models import Message
 from src.models.action_models import PlayerAction
 from src.context.context_utils import format_messages, format_character_list, format_location_list
+from src.models.context_models import DMNarrativeSystemContext, DMNarrativeUserContext
 
 def build_narrative_system_prompt(scenario: Optional[Scenario]) -> str:
     """构建DM叙述生成的系统提示"""
-    if not scenario:
-        return "你是一个桌面角色扮演游戏的主持人(DM)，负责生成生动的场景描述，推动故事发展。"
-        
+    
+    narrative_system_prompt = DMNarrativeSystemContext()
+
+    narrative_system_prompt.story_background = scenario.story_info.background if scenario else "未知背景"
+    narrative_system_prompt.narrative_style = scenario.story_info.narrative_style if scenario else "未知风格"
+
     # 提取基础信息
     npc_list = list(scenario.characters.keys())
     location_list = list(scenario.locations.keys()) if scenario.locations else []
     
     return f"""你是一个桌面角色扮演游戏的主持人(DM)，专注于场景描述和故事叙述。
-当前游戏的背景设定是：{scenario.story_info.background}
+当前游戏的背景设定是：{scenario.story_info.background},故事的风格是：{scenario.story_info.narrative_style}。
 
 你的核心任务是：
 1. 创造沉浸式的场景体验，运用感官描述增强游戏世界的真实感

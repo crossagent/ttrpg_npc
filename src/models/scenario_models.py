@@ -57,6 +57,7 @@ class StoryInfo(BaseModel):
     id: Optional[str] = Field(None, description="故事ID")
     title: Optional[str] = Field(None, description="故事标题")
     background: str = Field(..., description="故事背景")
+    narrative_style: str = Field(..., description="叙事风格")
     secrets: Dict[str, str] = Field(..., description="故事重要秘密")
 
 class StoryStage(BaseModel):
@@ -115,14 +116,11 @@ class Scenario(BaseModel):
         # 创建StoryInfo对象
         story_info = StoryInfo(
             background=story_info_data.get("background", ""),
-            secrets={"main_secret": story_info_data.get("secret", "")}
+            secrets={"main_secret": story_info_data.get("secret", "")},
+            id=story_info_data.get("id", ""),
+            title=story_info_data.get("title", ""),
+            narrative_style=story_info_data.get("narrative_style", "")
         )
-        
-        # 添加可选字段
-        if "id" in story_info_data:
-            story_info.id = story_info_data["id"]
-        if "title" in story_info_data:
-            story_info.title = story_info_data["title"]
         
         # 处理characters
         characters = {}
