@@ -103,6 +103,7 @@ class PlayerAgent(BaseAgent):
                     # 创建默认行动对象
                     return PlayerAction(
                         character_id=self.character_id,
+                        internal_thoughts="未能生成内心活动",
                         action_type=ActionType.TALK,
                         content=action_content,
                         target="all",

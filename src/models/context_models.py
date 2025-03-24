@@ -5,19 +5,10 @@ from src.models.action_models import ActionType
 from src.models.message_models import Message
 from src.models.action_models import InternalThoughts
 
-class ActionDecisionLogic(BaseModel):
-    """行动决策逻辑模型，表示角色的决策过程"""
-    goal: str = Field(..., description="当前的主要目标")
-    plan: str = Field(..., description="实现目标的计划")
-    mood: str = Field(..., description="当前的心情")
-    health: int = Field(..., description="当前的血量(0-100)")
-
-
 class PlayerActionLLMOutput(BaseModel):
     """LLM输出的玩家行动模型"""
     observation: str = Field(..., description="观察到的环境和其他角色的信息")
-    action_thought: ActionDecisionLogic = Field(..., description="行动决策逻辑")
-    thinking: str = Field(..., description="内心想法和决策过程")
+    internal_thoughts: InternalThoughts = Field(..., description="内心活动")
     action: str = Field(..., description="实际采取的行动")
     action_type: ActionType = Field(default=ActionType.TALK, description="行动类型：对话、行动或无视")
     target: Union[str, List[str]] = Field(default="all", description="行动目标")
