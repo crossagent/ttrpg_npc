@@ -3,7 +3,7 @@ from autogen_core import CancellationToken
 from typing import List, Dict, Any, Optional, Union
 import json
 from datetime import datetime
-from src.models.scenario_models import Scenario
+from src.models.scenario_models import ScenarioCharacterInfo
 from src.models.game_state_models import GameState
 from src.models.action_models import PlayerAction
 from src.agents.base_agent import BaseAgent
@@ -12,9 +12,7 @@ from src.models.llm_validation import create_validator_for, LLMOutputError
 from src.models.context_models import PlayerActionLLMOutput
 from src.context.player_context_builder import (
     build_decision_system_prompt,
-    build_decision_user_prompt,
-    build_reaction_system_prompt,
-    build_reaction_user_prompt
+    build_decision_user_prompt
 )
 import uuid
 
@@ -39,7 +37,7 @@ class PlayerAgent(BaseAgent):
         self.character_id = character_id
 
     
-    async def player_decide_action(self, game_state: GameState) -> PlayerAction:
+    async def player_decide_action(self, game_state: GameState, charaInfo: ScenarioCharacterInfo) -> PlayerAction:
         """
         玩家决策行动
         
@@ -52,19 +50,8 @@ class PlayerAgent(BaseAgent):
         # 获取未读消息
         unread_messages = self.get_unread_messages(game_state)
         
-        # 从game_state中获取角色信息
-        character_profile = {"name": "未知角色", "personality": "无特定性格", "background": "无背景故事"}
-        if self.character_id in game_state.characters:
-            character_ref = game_state.characters[self.character_id]
-            # 创建包含角色信息的字典
-            character_profile = {
-                "name": character_ref.name,
-                "personality": "无特定性格",
-                "background": "无背景故事"
-            }
-        
         # 生成系统消息
-        system_message = build_decision_system_prompt(character_profile)
+        system_message = build_decision_system_prompt(charaInfo)
         
         # 直接创建新的AssistantAgent实例
         from autogen_agentchat.agents import AssistantAgent

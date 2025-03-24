@@ -24,7 +24,6 @@ class CharacterStatus(BaseModel):
     health: int = Field(100, description="健康值")
     items: Optional[List[str]] = Field(default_factory=list, description="拥有的物品，None表示未确定")
     known_information: Optional[List[str]] = Field(default_factory=list, description="已知信息，None表示未确定")
-    internal_thoughts: List[InternalThoughts] = Field(default_factory=list, description="角色的心理活动记录（观察、思考、决策）")
 
 class LocationStatus(BaseModel):
     """位置状态模型，跟踪地点当前状态"""
@@ -114,4 +113,4 @@ class GameState(BaseModel):
     # 游戏交互历史
     chat_history: List[Message] = Field(default_factory=list, description="完整消息历史记录列表")
     revealed_secrets: List[str] = Field(default_factory=list, description="已揭示的秘密")
-    player_message_status: Dict[str, MessageReadMemory] = Field(default_factory=dict, description="玩家消息状态，键为角色ID")
+    player_internal_thoughts: List[InternalThoughts] = Field(default_factory=list, description="角色的心理活动记录，键为角色ID")

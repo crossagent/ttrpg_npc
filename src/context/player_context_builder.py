@@ -7,8 +7,10 @@ from src.models.message_models import Message
 from src.context.context_utils import format_messages
 from src.models.context_models import PlayerActionLLMOutput
 from src.models.llm_validation import create_validator_for
+from src.models.context_models import PlayerActionSystemContext
+from src.models.scenario_models import ScenarioCharacterInfo
 
-def build_decision_system_prompt(character_profile: Dict[str, Any]) -> str:
+def build_decision_system_prompt(charaInfo: ScenarioCharacterInfo) -> str:
     """
     构建玩家决策的系统提示
     
@@ -21,11 +23,14 @@ def build_decision_system_prompt(character_profile: Dict[str, Any]) -> str:
     # 创建验证器并获取提示指令
     validator = create_validator_for(PlayerActionLLMOutput)
     model_instruction = validator.get_prompt_instruction()
+
+
     
-    return f"""你是一个名为{character_profile.get('name', '未知')}的角色。
-你的性格特点：{character_profile.get('personality', '无特定性格')}
-你的背景故事：{character_profile.get('background', '无背景故事')}
-你的秘密目标：{character_profile.get('secret_goal', '无特定目标')}
+    return f"""你是一个名为{charaInfo.name}的角色。
+你的身份：{charaInfo.public_identity}
+你的背景故事：{charaInfo.background}
+你的秘密目标：{charaInfo.secret_goal}
+你的弱点：{charaInfo.weakness}
 
 在每个回合中，你需要通过以下步骤进行角色思考和决策：
 
@@ -47,7 +52,6 @@ def build_decision_system_prompt(character_profile: Dict[str, Any]) -> str:
 4. 内心独白 (inner_monologue)：
    - 表达你真实的情绪和想法
    - 揭示你的担忧、希望或疑虑
-   - 展现角色的内心矛盾和成长
 
 5. 行动 (action)：
    - 清晰描述你决定采取的行动

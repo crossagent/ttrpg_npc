@@ -3,31 +3,35 @@ from typing import List, Dict, Any, Optional, Union
 
 class ScenarioCharacterInfo(BaseModel):
     """剧本角色信息模型 - 静态数据，游戏过程中不变"""
+    character_id: str = Field(..., description="角色唯一标识符")
+    name: str = Field(..., description="角色名称")
     public_identity: str = Field(..., description="角色的公开身份")
     secret_goal: str = Field(..., description="角色的秘密目标")
-    background_story: Optional[str] = Field(None, description="角色的背景故事")
+    background: Optional[str] = Field(None, description="角色的背景故事")
     special_ability: Optional[str] = Field(None, description="角色的特殊能力")
     weakness: Optional[str] = Field(None, description="角色的弱点")
     
 class EventOutcome(BaseModel):
-    """事件结局影响模型"""
-    outcome_description: str = Field(..., description="结局描述")
-    consequences: str = Field(..., description="结局导致的后果")
+    """事件结局模型"""
+    id: str = Field(..., description="结局唯一标识符")
+    description: str = Field(..., description="结局描述")
+    consequence: str = Field(..., description="结局导致的后果")
 
 class ScenarioEvent(BaseModel):
     """剧本事件模型"""
     event_id: str = Field(..., description="事件唯一标识符")
+    name: str = Field(..., description="事件名称")
     description: str = Field(..., description="事件描述")
-    trigger_condition: str = Field(..., description="事件触发条件")
-    aware_players: List[str] = Field(..., description="可感知该事件的玩家列表")
-    possible_outcomes: List[str] = Field(..., description="事件可能的结局列表")
+    trigger_condition: List[str] = Field(..., description="事件触发条件")
+    perceptible_players: List[str] = Field(..., description="可感知该事件的玩家列表")
+    possible_outcomes: List[EventOutcome] = Field(..., description="事件可能的结局列表")
     
     # 扩展字段
     content: Optional[str] = Field(None, description="事件详细内容")
     location: Optional[str] = Field(None, description="事件发生地点")
     required_items: Optional[List[str]] = Field(None, description="事件所需物品")
     difficulty: Optional[str] = Field(None, description="事件难度等级")
-    outcome_effects: Optional[Dict[str, str]] = Field(None, description="不同结局的后续影响")
+
 
 class LocationInfo(BaseModel):
     """地点信息模型"""
@@ -126,40 +130,49 @@ class Scenario(BaseModel):
         characters = {}
         for char_data in json_data.get("characters", []):
             if "id" in char_data and "public_identity" in char_data and "secret_goal" in char_data:
-                char_id = char_data["id"]
                 character = ScenarioCharacterInfo(
+                    character_id=char_data.get("id", ""),
+                    name=char_data.get("name", ""),
                     public_identity=char_data.get("public_identity", ""),
-                    secret_goal=char_data.get("secret_goal", "")
+                    secret_goal=char_data.get("secret_goal", ""),
+                    background=char_data.get("background", ""),
+                    special_ability=char_data.get("special_ability", ""),
+                    weakness=char_data.get("weakness", "")
                 )
-                
-                # 添加可选字段
-                if "background" in char_data:
-                    character.background_story = char_data["background"]
-                if "special_ability" in char_data:
-                    character.special_ability = char_data["special_ability"]
-                if "weakness" in char_data:
-                    character.weakness = char_data["weakness"]
-                    
-                characters[char_id] = character
         
         # 处理events
         events = []
         for event_data in json_data.get("events", []):
             if "id" in event_data and "description" in event_data:
+                # 处理新的possible_outcomes结构
+                outcomes = []
+                for outcome_data in event_data.get("possible_outcomes", []):
+                    outcome = EventOutcome(
+                        id=outcome_data.get("id", ""),
+                        description=outcome_data.get("description", ""),
+                        consequence=outcome_data.get("consequence", "")
+                    )
+                    outcomes.append(outcome)
+                    
                 event = ScenarioEvent(
                     event_id=event_data.get("id", ""),
+                    name=event_data.get("name", ""),
                     description=event_data.get("description", ""),
-                    trigger_condition=event_data.get("trigger_condition", ""),
-                    aware_players=event_data.get("perceptible_players", ["all"]),
-                    possible_outcomes=event_data.get("possible_outcomes", [])
+                    trigger_condition=event_data.get("trigger_condition", "").split(" && "),
+                    perceptible_players=event_data.get("perceptible_players", ["all"]),
+                    possible_outcomes=outcomes
                 )
                 
                 # 添加可选字段
-                if "name" in event_data:
-                    event.content = event_data["name"]
-                if "consequences" in event_data:
-                    event.outcome_effects = event_data["consequences"]
-                
+                if "content" in event_data:
+                    event.content = event_data["content"]
+                if "location" in event_data:
+                    event.location = event_data["location"]
+                if "required_items" in event_data:
+                    event.required_items = event_data["required_items"]
+                if "difficulty" in event_data:
+                    event.difficulty = event_data["difficulty"]
+                    
                 events.append(event)
         
         # 创建基本剧本

@@ -3,6 +3,7 @@ from typing import List, Dict, Any, Optional, Union
 from datetime import datetime
 from src.models.action_models import ActionType
 from src.models.message_models import Message
+from src.models.action_models import InternalThoughts
 
 class ActionDecisionLogic(BaseModel):
     """行动决策逻辑模型，表示角色的决策过程"""
@@ -21,7 +22,19 @@ class PlayerActionLLMOutput(BaseModel):
     action_type: ActionType = Field(default=ActionType.TALK, description="行动类型：对话、行动或无视")
     target: Union[str, List[str]] = Field(default="all", description="行动目标")
 
+class PlayerActionSystemContext(BaseModel):
+    """玩家行动系统上下文模型，表示玩家行动系统的上下文信息"""
+    character_name: str = Field(..., description="角色名称")
+    character_personality: str = Field(..., description="角色性格")
+    character_background: str = Field(..., description="角色背景故事")
 
+class PlayerActionUserContext(BaseModel):
+    """玩家行动用户上下文模型，表示玩家行动用户的上下文信息"""
+    recent_messages: List[Message] = Field(default_factory=list, description="最近的消息")
+    recent_internal_thoughts: List[InternalThoughts] = Field(default_factory=list, description="最近的内心活动")
+    current_location: str = Field(..., description="当前位置")
+    current_health: int = Field(..., description="当前血量")
+    
 class PlayerContextText(BaseModel):
     """玩家上下文文本模型，表示发送给LLM的玩家信息文本"""
     character_description: str = Field(..., description="角色描述文本")
@@ -32,16 +45,6 @@ class PlayerContextText(BaseModel):
     recent_events_description: str = Field(..., description="最近事件描述")
     relationships_description: str = Field(..., description="关系描述文本")
     items_description: str = Field("", description="物品描述文本")
-
-
-class DMContextText(BaseModel):
-    """DM上下文文本模型，表示发送给LLM的DM信息文本"""
-    game_progress_description: str = Field(..., description="游戏进展描述")
-    character_summaries: str = Field(..., description="所有角色状态摘要")
-    environment_description: str = Field(..., description="环境详细描述")
-    active_events_description: str = Field(..., description="活跃事件描述")
-    secrets_description: str = Field(..., description="未揭示的秘密描述")
-    narrative_guidance: str = Field(..., description="叙事指导建议")
 
 class DMNarrativeSystemContext(BaseModel):
     """DM叙述系统上下文模型，表示DM叙述系统的上下文信息"""

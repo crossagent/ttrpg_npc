@@ -297,7 +297,7 @@ class ScenarioManager:
         
         # 收集相关角色
         for char_id in stage.characters:
-            char = self.get_character_by_id(char_id)
+            char = self.get_character_info(char_id)
             if char:
                 result["characters"].append(char)
         

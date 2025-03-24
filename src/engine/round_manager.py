@@ -127,9 +127,10 @@ class RoundManager:
             player_agent = self.agent_manager.get_player_agent(player_id)
             if not player_agent:
                 continue
-                
+
             # 玩家决策行动（异步）
-            task = player_agent.player_decide_action(self.game_state_manager.get_state())
+            task = player_agent.player_decide_action(self.game_state_manager.get_state(), 
+                                                     self.scenario_manager.get_character_info(player_agent.character_id))
             player_tasks.append(task)
             player_id_to_index[player_id] = i
         
