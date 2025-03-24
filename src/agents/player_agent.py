@@ -62,10 +62,10 @@ class PlayerAgent(BaseAgent):
         )
         
         # 构建用户消息
-        user_message_content = build_decision_user_prompt(game_state, unread_messages)
+        user_message_content = build_decision_user_prompt(game_state, unread_messages, self.character_id)
         user_message = TextMessage(
             content=user_message_content,
-            source="system"
+            source="DM"
         )
         
         try:

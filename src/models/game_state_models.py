@@ -81,6 +81,7 @@ class ProgressStatus(BaseModel):
 class CharacterInstance(BaseModel):
     """角色引用模型，表示游戏中的一个角色实例"""
     character_id: str = Field(..., description="角色ID")
+    instance_id: str = Field(..., description="角色实例ID")
     public_identity: str = Field(..., description="对应剧本角色ID")
     name: str = Field(..., description="角色名称")
     player_controlled: bool = Field(False, description="是否由玩家控制")
@@ -113,4 +114,4 @@ class GameState(BaseModel):
     # 游戏交互历史
     chat_history: List[Message] = Field(default_factory=list, description="完整消息历史记录列表")
     revealed_secrets: List[str] = Field(default_factory=list, description="已揭示的秘密")
-    character_internal_thoughts: List[InternalThoughts] = Field(default_factory=list, description="角色的心理活动记录，键为角色ID")
+    character_internal_thoughts: Dict[str, InternalThoughts] = Field(default_factory=dict, description="角色的心理活动记录，键为角色ID")

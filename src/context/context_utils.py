@@ -195,11 +195,6 @@ def format_current_stage_characters(game_state) -> str:
             
             char_info += f"  当前位置: {location_name}\n"
         
-        # 添加角色可见状态信息
-        if status and status.conditions:
-            visible_conditions = ", ".join(status.conditions)
-            char_info += f"  状态: {visible_conditions}\n"
-        
         character_info_list.append(char_info)
     
     if not character_info_list:

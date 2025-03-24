@@ -24,7 +24,6 @@ class GameStateManager:
             initial_state: 初始游戏状态，如果为None则创建新状态
         """
         self.game_state = initial_state
-        self.state_history = []
     
     def initialize_game_state(self, scenario: Scenario) -> GameState:
         """
@@ -130,7 +129,7 @@ class GameStateManager:
                 # 确定初始位置
                 initial_location = getattr(game_state.environment, 'current_location_id', "main_location")
                 
-                character_id=f"char_{uuid.uuid4().hex[:8]}"
+                character_id=char_id
 
                 # 创建角色状态
                 character_status = CharacterStatus(
@@ -138,18 +137,16 @@ class GameStateManager:
                     location=initial_location,
                     health=100,  # 默认值
                     items=[],  # 初始无物品
-                    conditions=[],
                     relationships={},
                     known_information=[],
-                    goal="",
-                    plans=""
                 )
 
                 # 创建角色引用，直接嵌套状态
                 character_ref = CharacterInstance(
                     character_id=character_id,
+                    instance_id = f"char_str{(uuid.uuid4().hex[:8])}",
                     public_identity=public_identity,
-                    name=char_id,
+                    name=character_info.name,
                     player_controlled=False,  # 默认为NPC
                     status=character_status,  # 直接嵌套状态
                 )
@@ -189,6 +186,7 @@ class GameStateManager:
             
             # 将位置添加到游戏状态
             game_state.location_states[loc_id] = location_status
+            
     def _initialize_events_from_scenario(self, game_state: GameState, scenario: Scenario):
         """
         从剧本中初始化事件到游戏状态

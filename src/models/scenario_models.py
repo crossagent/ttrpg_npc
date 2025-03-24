@@ -139,6 +139,7 @@ class Scenario(BaseModel):
                     special_ability=char_data.get("special_ability", ""),
                     weakness=char_data.get("weakness", "")
                 )
+                characters[character.character_id] = character
         
         # 处理events
         events = []
