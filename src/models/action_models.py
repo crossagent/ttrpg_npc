@@ -1,7 +1,50 @@
 from pydantic import BaseModel, Field
 from typing import List, Optional, Dict, Any, Union
 from enum import Enum
+from datetime import datetime
 
+# Add this new model before InternalThoughts class
+class AttitudeType(str, Enum):
+    """态度类型枚举"""
+    FRIENDLY = "友好"
+    NEUTRAL = "中立"
+    HOSTILE = "敌对"
+    UNKNOWN = "未知"
+
+class TrustLevel(str, Enum):
+    """信任程度枚举"""
+    HIGH = "高度信任"
+    MODERATE = "一般信任" 
+    LOW = "低度信任"
+    DISTRUSTFUL = "不信任"
+    UNKNOWN = "未知"
+
+class PlayerAssessment(BaseModel):
+    """角色对其他玩家的评估模型"""
+    intention: str = Field("", description="对其行为意图的评估")
+    attitude_toward_self: AttitudeType = Field(AttitudeType.UNKNOWN, description="对自己的态度")
+    trust_level: TrustLevel = Field(TrustLevel.UNKNOWN, description="信任程度")
+    power_assessment: str = Field("", description="实力与资源评估")
+    last_interaction: Optional[datetime] = Field(None, description="最后交互时间")
+
+class InternalThoughts(BaseModel):
+    """角色内心世界模型，表示角色的心理状态、观察和分析"""
+    # 背景与目标
+    short_term_goals: List[str] = Field(default_factory=list, description="短期目标")
+    
+    # 情绪与心理状态
+    primary_emotion: str = Field("平静", description="当前主要情绪")
+    psychological_state: str = Field("正常", description="心理状态描述")
+    
+    # 局势分析
+    narrative_analysis: str = Field("", description="对DM叙事的理解与总结")
+    other_players_assessment: Dict[str, PlayerAssessment] = Field(default_factory=dict, description="对其他玩家的详细评估(使用角色ID作为键)")
+    perceived_risks: List[str] = Field(default_factory=list, description="感知到的风险")
+    perceived_opportunities: List[str] = Field(default_factory=list, description="感知到的机会")
+    
+    # 更新时间
+    last_updated: datetime = Field(default_factory=datetime.now, description="最后更新时间")
+    last_updated_round: int = Field(0, description="最后更新的回合数")
 
 class ActionType(str, Enum):
     """玩家行动类型枚举"""

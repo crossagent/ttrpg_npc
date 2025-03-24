@@ -25,18 +25,46 @@ def build_decision_system_prompt(character_profile: Dict[str, Any]) -> str:
     return f"""你是一个名为{character_profile.get('name', '未知')}的角色。
 你的性格特点：{character_profile.get('personality', '无特定性格')}
 你的背景故事：{character_profile.get('background', '无背景故事')}
+你的秘密目标：{character_profile.get('secret_goal', '无特定目标')}
 
-在每个回合中，你需要生成角色的观察、决策逻辑、思考和行动。
+在每个回合中，你需要通过以下步骤进行角色思考和决策：
+
+1. 观察 (observation)：
+   - 分析当前游戏环境和最新信息
+   - 关注与你的目标相关的关键事件和线索
+   - 思考其他角色的行为和可能的动机
+
+2. 分析 (analysis)：
+   - 当前形势对你的优劣势分析
+   - 其他角色对你的态度评估
+   - 可能存在的机会和威胁
+
+3. 决策逻辑 (decision_logic)：
+   - 考虑符合你性格的多种可能行动
+   - 权衡各选项的风险和收益
+   - 选择最符合你目标和性格的行动路线
+
+4. 内心独白 (inner_monologue)：
+   - 表达你真实的情绪和想法
+   - 揭示你的担忧、希望或疑虑
+   - 展现角色的内心矛盾和成长
+
+5. 行动 (action)：
+   - 清晰描述你决定采取的行动
+   - 包括行动目标、方式和预期效果
+   - 确保行动符合你的角色性格和动机
 
 {model_instruction}
 
 注意：只有"action"部分会被其他人看到，其他部分只有你自己知道。
 根据当前情境和角色性格来调整你的目标、计划、心情和行动。
+你的回应必须包含上述五个部分，各部分应有明确的逻辑关联，展现角色的思考过程。
 """
 
 def build_decision_user_prompt(
     game_state: GameState, 
-    unread_messages: List[Message]
+    unread_messages: List[Message],
+    character_id: str
 ) -> str:
     """
     构建玩家决策的用户提示
@@ -44,6 +72,7 @@ def build_decision_user_prompt(
     Args:
         game_state: 游戏状态
         unread_messages: 未读消息列表
+        character_id: 当前角色ID
         
     Returns:
         str: 用户提示文本
@@ -51,13 +80,36 @@ def build_decision_user_prompt(
     # 格式化未读消息
     formatted_messages = format_messages(unread_messages)
     
+    # 获取角色当前状态
+    character_status = game_state.character_states.get(character_id)
+    current_location = game_state.location_states.get(character_status.location) if character_status else None
+    
+    # 获取最近的内部思考记录(如果有)
+    recent_thoughts = ""
+    if character_status and character_status.internal_thoughts:
+        latest_thought = character_status.internal_thoughts[-1]
+        recent_thoughts = f"""
+你的最近思考记录:
+- 主要情绪: {latest_thought.primary_emotion}
+- 短期目标: {', '.join(latest_thought.short_term_goals)}
+- 感知的风险: {', '.join(latest_thought.perceived_risks)}
+- 感知的机会: {', '.join(latest_thought.perceived_opportunities)}
+"""
+    
     return f"""
 【第{game_state.round_number}回合】
+
+你当前位置: {current_location.location_id if current_location else "未知"}
+位置描述: {current_location.description_state if current_location else "无描述"}
+场景中的其他角色: {', '.join(current_location.present_characters) if current_location and current_location.present_characters else "无"}
 
 最近的信息:
 {formatted_messages}
 
-请根据角色性格和当前情境，生成一个合理的响应。
+{recent_thoughts}
+
+根据角色性格、背景故事和当前情境，思考并决定你的下一步行动。
+请确保你的决策过程包含前述的五个部分(观察、分析、决策逻辑、内心独白和行动)。
 """
 
 def build_reaction_system_prompt(character_profile: Dict[str, Any]) -> str:

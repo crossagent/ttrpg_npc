@@ -24,7 +24,6 @@ class PlayerActionLLMOutput(BaseModel):
 
 class PlayerContextText(BaseModel):
     """玩家上下文文本模型，表示发送给LLM的玩家信息文本"""
-    player_id: str = Field(..., description="玩家ID")
     character_description: str = Field(..., description="角色描述文本")
     goal_description: str = Field(..., description="角色目标描述")
     environment_description: str = Field(..., description="环境描述文本")
