@@ -9,6 +9,7 @@ from src.models.context_models import PlayerActionLLMOutput
 from src.models.llm_validation import create_validator_for
 from src.models.context_models import PlayerActionSystemContext
 from src.models.scenario_models import ScenarioCharacterInfo
+from src.models.action_models import InternalThoughts
 
 def build_decision_system_prompt(charaInfo: ScenarioCharacterInfo) -> str:
     """
@@ -89,9 +90,9 @@ def build_decision_user_prompt(
     current_location = game_state.location_states.get(character_status.location) if character_status else None
     
     # 获取最近的内部思考记录(如果有)
-    recent_thoughts = ""
-    if character_status and character_status.internal_thoughts:
-        latest_thought = character_status.internal_thoughts[-1]
+    recent_thoughts = game_state.character_internal_thoughts.get(character_id)
+    if recent_thoughts: 
+        latest_thought:InternalThoughts = recent_thoughts[-1]
         recent_thoughts = f"""
 你的最近思考记录:
 - 主要情绪: {latest_thought.primary_emotion}
@@ -113,7 +114,6 @@ def build_decision_user_prompt(
 {recent_thoughts}
 
 根据角色性格、背景故事和当前情境，思考并决定你的下一步行动。
-请确保你的决策过程包含前述的五个部分(观察、分析、决策逻辑、内心独白和行动)。
 """
 
 def build_reaction_system_prompt(character_profile: Dict[str, Any]) -> str:

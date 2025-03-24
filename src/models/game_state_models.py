@@ -113,4 +113,4 @@ class GameState(BaseModel):
     # 游戏交互历史
     chat_history: List[Message] = Field(default_factory=list, description="完整消息历史记录列表")
     revealed_secrets: List[str] = Field(default_factory=list, description="已揭示的秘密")
-    player_internal_thoughts: List[InternalThoughts] = Field(default_factory=list, description="角色的心理活动记录，键为角色ID")
+    character_internal_thoughts: List[InternalThoughts] = Field(default_factory=list, description="角色的心理活动记录，键为角色ID")
