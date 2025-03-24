@@ -151,7 +151,7 @@ class RoundManager:
                 
                 player_message = Message(
                     message_id=message_id,
-                    type=MessageType.PLAYER if player_action.action_type == ActionType.DIALOGUE else MessageType.ACTION,
+                    type=MessageType.PLAYER if player_action.action_type == ActionType.TALK else MessageType.ACTION,
                     source=player_id,
                     content=player_action.content,
                     timestamp=timestamp,

@@ -48,17 +48,19 @@ class InternalThoughts(BaseModel):
 
 class ActionType(str, Enum):
     """玩家行动类型枚举"""
-    DIALOGUE = "对话"
-    ACTION = "行动"
-    IGNORE = "无视"
+    TALK = "讨论沟通"       # 用于描述玩家之间的讨论和沟通
+    ACTION = "主要行动"     # 表示会对环境或剧情产生实质性影响的主要行动
+    SPECTATE = "继续旁观"    # 表示玩家选择持续旁观而不进行干预
 
 
 class PlayerAction(BaseModel):
     """玩家行动模型，表示玩家在回合中采取的行动"""
-    player_id: str = Field(..., description="玩家ID")
+    character_id: str = Field(..., description="玩家ID")
+    interal_thoughts: Optional[InternalThoughts] = Field(None, description="行动背后的内心活动")
     action_type: ActionType = Field(..., description="行动类型")
     content: str = Field(..., description="行动内容")
     target: Union[str, List[str]] = Field(..., description="行动目标，可以是单个角色ID或多个角色ID列表")
+
 
 
 class DiceResult(BaseModel):

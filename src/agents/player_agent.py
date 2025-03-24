@@ -98,7 +98,6 @@ class PlayerAgent(BaseAgent):
                     
                     # 创建行动对象
                     return PlayerAction(
-                        player_id=self.agent_id,
                         character_id=self.character_id,
                         action_type=validated_data.action_type,
                         content=validated_data.action,
@@ -116,9 +115,8 @@ class PlayerAgent(BaseAgent):
                     
                     # 创建默认行动对象
                     return PlayerAction(
-                        player_id=self.agent_id,
                         character_id=self.character_id,
-                        action_type=ActionType.DIALOGUE,
+                        action_type=ActionType.TALK,
                         content=action_content,
                         target="all",
                         timestamp=datetime.now().isoformat()
