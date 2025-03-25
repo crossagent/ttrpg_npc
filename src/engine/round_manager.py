@@ -188,7 +188,7 @@ class RoundManager:
         action_results = []
         
         # 过滤出需要解析的实质性行动（非对话类）
-        substantive_actions = [action for action in actions if action.action_type == "行动"]
+        substantive_actions = [action for action in actions if action.action_type == ActionType.ACTION]
         
         # 处理每个实质性行动
         for action in substantive_actions:
@@ -303,26 +303,6 @@ class RoundManager:
         # 获取当前状态
         game_state = self.game_state_manager.get_state()
         
-        # # 检查是否有新的事件触发
-        # triggered_events = []
-        
-        # # 处理触发的事件
-        # for event in triggered_events:
-        #     if not any(e.event_id == event.event_id for e in game_state.active_events):
-        #         game_state.active_events.append(event)
-        #         self.logger.info(f"触发新事件: {event.name}")
-        
-        # # 处理完成的事件
-        # completed_events = []
-        # for event in game_state.active_events:
-        #     if event.is_completed:
-        #         completed_events.append(event)
-        
-        # # 将完成的事件从活跃事件中移除，添加到已完成事件中
-        # for event in completed_events:
-        #     game_state.active_events.remove(event)
-        #     game_state.completed_events.append(event)
-        
         # 记录回合结束
         round_duration = datetime.now() - self.round_start_time
         self.logger.info(f"回合 {self.current_round_id} 结束，持续时间: {round_duration}")
@@ -342,11 +322,17 @@ class RoundManager:
         try:
             # 1. 开始回合
             round_id = state.round_number + 1
-
             self.start_round(round_id)
             
-            # 2. 处理DM开始叙事
-            dm_message = await self.process_dm_turn()
+            # 2. 判断上一回合是否有实质性行动
+            should_process_dm_turn = state.last_active_round == state.round_number
+            
+            # 只有在上一回合有实质性行动时，才执行DM叙述
+            if should_process_dm_turn:
+                # 处理DM开始叙事
+                dm_message = await self.process_dm_turn()
+            else:
+                self.logger.info(f"回合 {round_id}: 上一回合无实质性玩家行动，跳过DM叙述")
             
             # 3. 处理玩家回合
             player_actions = await self.process_player_turns()
@@ -354,11 +340,20 @@ class RoundManager:
             # 4. 确认行为影响的后果和是否触发了新的事件
             action_results = await self.resolve_actions(player_actions)
             
-            # 5. 结束回合
+            # 5. 检查是否有实质性行动，并更新last_active_round
+            has_substantive_actions = any(
+                action.action_type == ActionType.ACTION for action in player_actions
+            )
+            
+            if has_substantive_actions:
+                # 更新最后活跃回合
+                state.last_active_round = round_id
+                self.logger.info(f"回合 {round_id}: 有实质性玩家行动，更新last_active_round")
+            
+            # 6. 结束回合
             updated_state = self.end_round()
             
             return updated_state
-            
         except Exception as e:
             self.logger.error(f"回合执行过程中出现错误: {str(e)}")
             # 处理异常情况，记录错误并返回原始状态
@@ -379,12 +374,6 @@ class RoundManager:
             self.logger.info(f"已达到最大回合数 {state.max_rounds}，游戏将结束")
             return True
         
-        # # 检查是否有特殊事件触发游戏结束
-        # for event_id, event in state.active_events.items():
-        #     if "终止游戏" in event.get("consequences", {}):
-        #         self.logger.info(f"事件 '{event.get('description', event_id)}' 触发了游戏结束")
-        #         return True
-        
         # 检查玩家状态，例如是否所有玩家都已达成目标或全部阵亡
         all_players_completed = False
         all_players_dead = False
@@ -399,7 +388,6 @@ class RoundManager:
             if char_status.health > 0:
                 all_players_dead = False
         
-
         if all_players_completed:
             self.logger.info("所有玩家都已完成目标，游戏将结束")
             return True
