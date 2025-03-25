@@ -86,6 +86,7 @@ class PlayerAgent(BaseAgent):
                     # 创建行动对象
                     return PlayerAction(
                         character_id=self.character_id,
+                        interal_thoughts=validated_data.internal_thoughts,
                         action_type=validated_data.action_type,
                         content=validated_data.action,
                         target=validated_data.target,

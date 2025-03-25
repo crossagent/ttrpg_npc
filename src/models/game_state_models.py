@@ -91,7 +91,6 @@ class GameState(BaseModel):
     """完整游戏状态模型，表示游戏的当前状态"""
     game_id: str = Field(..., description="游戏实例ID")
     scenario_id: str = Field(..., description="使用的剧本ID")
-    scenario: Optional[Scenario] = Field(None, description="使用的剧本实例")
     round_number: int = Field(0, description="当前回合数")
     max_rounds: int = Field(10, description="最大回合数")
     is_finished: bool = Field(False, description="游戏是否结束")
@@ -105,6 +104,7 @@ class GameState(BaseModel):
     environment: EnvironmentStatus = Field(..., description="环境状态")
     
     # 游戏实例状态 - 所有元素都是实例状态，而非模板
+    scenario: Optional[Scenario] = Field(None, description="使用的剧本实例")
     characters: Dict[str, CharacterInstance] = Field(default_factory=dict, description="角色引用字典，键为角色ID")
     character_states: Dict[str, CharacterStatus] = Field(default_factory=dict, description="角色状态字典，键为角色ID")
     location_states: Dict[str, LocationStatus] = Field(default_factory=dict, description="位置状态字典，键为位置ID")
