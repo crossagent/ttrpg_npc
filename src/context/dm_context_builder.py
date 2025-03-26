@@ -10,6 +10,7 @@ from src.context.context_utils import (format_messages, format_character_list, f
                                        format_environment_info, format_current_stage_summary, 
                                        format_current_stage_characters, format_current_stage_locations)
 from src.models.context_models import DMNarrativeSystemContext, DMNarrativeUserContext
+from src.models.message_models import Message # Ensure Message is imported for type hint
 
 def build_narrative_system_prompt(scenario: Optional[Scenario]) -> str:
     """构建DM叙述生成的系统提示"""
@@ -40,20 +41,24 @@ def build_narrative_system_prompt(scenario: Optional[Scenario]) -> str:
 
 def build_narrative_user_prompt(
     game_state: GameState, 
-    unread_messages: List[Message], 
+    relevant_messages: List[Message], # Changed parameter name from unread_messages
     scenario: Scenario
 ) -> str:
     """构建DM叙述生成的用户提示"""
+    # Format the relevant historical messages
+    formatted_messages = format_messages(relevant_messages) 
+
+    # Create the context object (consider if DMNarrativeUserContext needs update)
     narrative_user_prompt = DMNarrativeUserContext(
-        recent_messages=format_messages(unread_messages),
+        recent_messages=formatted_messages, # Use formatted relevant messages
         stage_decribertion=format_current_stage_summary(game_state),
         characters_description=format_current_stage_characters(game_state),
         environment_description=format_environment_info(game_state),
         location_description=format_current_stage_locations(game_state)
     )
     
-    # 格式化未读消息
-    formatted_messages = format_messages(unread_messages)
+    # No need to format again, already done above
+    # formatted_messages = format_messages(relevant_messages) 
 
     # 获取当前故事阶段(如果有)
     current_stage = "未知阶段"
@@ -74,8 +79,8 @@ def build_narrative_user_prompt(
     return f"""
 【第{game_state.round_number}回合 | {game_time} | {current_stage}】
 
-最近的玩家活动:
-{formatted_messages}
+自上次重要事件/行动以来的活动记录: 
+{formatted_messages if formatted_messages else "无（或仅有非实质性对话）"}
 
 玩家角色信息：
 {narrative_user_prompt.characters_description}

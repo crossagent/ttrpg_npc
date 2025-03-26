@@ -6,6 +6,7 @@ from datetime import datetime
 from src.models.scenario_models import Scenario
 from src.models.game_state_models import GameState
 from src.models.action_models import PlayerAction, ActionResult
+from src.models.message_models import Message # Added import for Message
 from src.agents.base_agent import BaseAgent
 from src.context.dm_context_builder import (
     build_narrative_system_prompt,
@@ -29,15 +30,20 @@ class DMAgent(BaseAgent):
             model_client: 模型客户端
         """
         # 初始化BaseAgent
-        super().__init__(agent_id=agent_id, agent_name=agent_name, model_client=model_client)
+        super().__init__(agent_id=agent_id, agent_name=agent_name, model_client=model_client) # Corrected indentation
 
-    
-    async def dm_generate_narrative(self, game_state: GameState, scenario: Scenario) -> str:
+
+    async def dm_generate_narrative(self, game_state: GameState, scenario: Scenario, historical_messages: Optional[List[Message]] = None) -> str: # Add historical_messages parameter
         """
         DM生成叙述
+
+        Args:
+            game_state: 当前游戏状态
+            scenario: 当前剧本
+            historical_messages: 自上次活跃回合以来的历史消息 (可选)
         """
-        # 获取未读消息和当前场景
-        unread_messages = self.get_unread_messages(game_state)
+        # 不再需要获取未读消息，使用传入的 historical_messages
+        # unread_messages = self.get_unread_messages(game_state) 
         
         # 生成系统消息
         system_message = build_narrative_system_prompt(scenario)
@@ -50,8 +56,9 @@ class DMAgent(BaseAgent):
             system_message=system_message
         )
         
-        # 构建用户消息
-        user_message_content = build_narrative_user_prompt(game_state, unread_messages, scenario)
+        # 构建用户消息 - 使用 historical_messages 替换 unread_messages
+        # 注意：需要确保 build_narrative_user_prompt 接口已更新
+        user_message_content = build_narrative_user_prompt(game_state, historical_messages or [], scenario) # Pass historical_messages, default to empty list if None
         user_message = TextMessage(
             content=user_message_content,
             source="system"

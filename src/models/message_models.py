@@ -13,6 +13,8 @@ class MessageType(str, Enum):
     RESULT = "result"
     DICE = "dice"
     PRIVATE = "private"
+    SYSTEM_ACTION_RESULT = "system_action_result"  # 新增：系统产生的行动结果
+    SYSTEM_EVENT = "system_event"              # 新增：系统触发的事件
 
 class MessageVisibility(str, Enum):
     """消息可见性枚举"""
@@ -49,4 +51,3 @@ class MessageStatus(BaseModel):
         json_encoders = {
             datetime: lambda v: v.isoformat()
         }
-        
