@@ -3,8 +3,8 @@ from datetime import datetime
 from pydantic import BaseModel
 from autogen_agentchat.agents import AssistantAgent
 from autogen_agentchat.messages import ChatMessage
-from src.models.message_models import Message, MessageStatus, MessageVisibility
-from src.models.game_state_models import GameState, MessageReadMemory
+from src.models.message_models import Message, MessageVisibility
+from src.models.game_state_models import GameState
 from autogen_core import CancellationToken
 from autogen_agentchat.base import Response
 
@@ -29,11 +29,6 @@ class BaseAgent:
         self.agent_id: str = agent_id
         self.agent_name: str = agent_name  # 保存agent_name以便访问
         self.is_player_controlled = False  # 默认为非玩家控制
-        self.message_memory: MessageReadMemory = MessageReadMemory(
-            player_id=agent_id,
-            history_messages={},
-            inner_thoughts=[]
-        )
         self.entity_knowledge: Dict[str, List[str]] = {
             "locations": [],
             "characters": [],
@@ -69,14 +64,8 @@ class BaseAgent:
         Args:
             message: 接收到的消息对象
         """
-        # 创建消息状态
-        message_status = MessageStatus(
-            message_id=message.message_id,
-            read_status=False
-        )
-        
-        # 更新消息记录
-        self.message_memory.history_messages[message.message_id] = message_status
+        # 基类中的空实现，子类可以根据需要重写
+        pass
     
     def filter_message(self, message: Message) -> Optional[Message]:
         """
@@ -96,33 +85,6 @@ class BaseAgent:
         # 例如基于entity_knowledge过滤消息内容
         
         return message
-    
-    def get_unread_messages(self, game_state: GameState) -> List[Message]:
-        """
-        获取所有未读消息
-        
-        Args:
-            game_state: 游戏状态，包含消息历史
-            
-        Returns:
-            List[Message]: 未读消息列表
-        """
-        # 直接从game_state获取消息历史
-        all_messages = game_state.chat_history
-        
-        # 过滤出自己可见且未读的消息
-        unread_messages = []
-        for message in all_messages:
-            if (message.message_id in self.message_memory.history_messages and 
-                not self.message_memory.history_messages[message.message_id].read_status and
-                self.filter_message(message)):  # 确保消息对自己可见
-                unread_messages.append(message)
-                
-        # 标记为已读
-        for message in unread_messages:
-            self.mark_message_as_read(message.message_id)
-            
-        return unread_messages
     
     def get_visible_messages(self, game_state: GameState, limit: int = 50) -> List[Message]:
         """
@@ -144,41 +106,6 @@ class BaseAgent:
         
         # 返回最近的limit条消息
         return visible_messages[-limit:] if limit < len(visible_messages) else visible_messages
-    
-    def mark_message_as_read(self, message_id: str) -> bool:
-        """
-        将消息标记为已读
-        
-        Args:
-            message_id: 消息ID
-            
-        Returns:
-            bool: 是否成功标记
-        """
-        if message_id not in self.message_memory.history_messages:
-            return False
-            
-        # 更新消息状态
-        message_status = self.message_memory.history_messages[message_id]
-        message_status.read_status = True
-        message_status.read_timestamp = datetime.now()
-        
-        return True
-    
-    def get_unread_messages_count(self) -> int:
-        """
-        获取未读消息数量
-        
-        Returns:
-            int: 未读消息数量
-        """
-        # 统计未读消息
-        unread_count = 0
-        for message_status in self.message_memory.history_messages.values():
-            if not message_status.read_status:
-                unread_count += 1
-                
-        return unread_count
     
     def update_known_entities(self, entity_type: str, entities: List[str]) -> None:
         """
@@ -204,10 +131,5 @@ class BaseAgent:
         Args:
             game_state: 游戏状态，包含消息历史
         """
-        # 获取未读消息
-        unread_messages = self.get_unread_messages(game_state)
-        
-        # 基类中只提供基本处理，具体逻辑由子类实现
-        for message in unread_messages:
-            # 可以在这里添加通用的处理逻辑
-            pass
+        # 基类中的空实现，子类可以根据需要重写
+        pass

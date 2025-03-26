@@ -4,12 +4,13 @@ from typing import List, Dict, Any, Optional, Union
 import json
 from datetime import datetime
 from src.models.scenario_models import ScenarioCharacterInfo
-from src.models.game_state_models import GameState
+from src.models.game_state_models import GameState, MessageReadMemory
 from src.models.action_models import PlayerAction
 from src.agents.base_agent import BaseAgent
 from src.models.action_models import ActionType
 from src.models.llm_validation import create_validator_for, LLMOutputError
 from src.models.context_models import PlayerActionLLMOutput
+from src.models.message_models import Message, MessageStatus
 from src.context.player_context_builder import (
     build_decision_system_prompt,
     build_decision_user_prompt
@@ -35,6 +36,90 @@ class PlayerAgent(BaseAgent):
         super().__init__(agent_id=agent_id, agent_name=agent_name, model_client=model_client)
 
         self.character_id = character_id
+        
+        # 初始化消息记忆
+        self.message_memory: MessageReadMemory = MessageReadMemory(
+            player_id=agent_id,
+            history_messages={}
+        )
+    
+    def update_context(self, message: Message) -> None:
+        """
+        更新Agent的上下文，处理新接收的消息
+        
+        Args:
+            message: 接收到的消息对象
+        """
+        # 创建消息状态
+        message_status = MessageStatus(
+            message_id=message.message_id,
+            read_status=False
+        )
+        
+        # 更新消息记录
+        self.message_memory.history_messages[message.message_id] = message_status
+    
+    def get_unread_messages(self, game_state: GameState) -> List[Message]:
+        """
+        获取所有未读消息
+        
+        Args:
+            game_state: 游戏状态，包含消息历史
+            
+        Returns:
+            List[Message]: 未读消息列表
+        """
+        # 直接从game_state获取消息历史
+        all_messages = game_state.chat_history
+        
+        # 过滤出自己可见且未读的消息
+        unread_messages = []
+        for message in all_messages:
+            if (message.message_id in self.message_memory.history_messages and 
+                not self.message_memory.history_messages[message.message_id].read_status and
+                self.filter_message(message)):  # 确保消息对自己可见
+                unread_messages.append(message)
+                
+        # 标记为已读
+        for message in unread_messages:
+            self.mark_message_as_read(message.message_id)
+            
+        return unread_messages
+    
+    def mark_message_as_read(self, message_id: str) -> bool:
+        """
+        将消息标记为已读
+        
+        Args:
+            message_id: 消息ID
+            
+        Returns:
+            bool: 是否成功标记
+        """
+        if message_id not in self.message_memory.history_messages:
+            return False
+            
+        # 更新消息状态
+        message_status = self.message_memory.history_messages[message_id]
+        message_status.read_status = True
+        message_status.read_timestamp = datetime.now()
+        
+        return True
+    
+    def get_unread_messages_count(self) -> int:
+        """
+        获取未读消息数量
+        
+        Returns:
+            int: 未读消息数量
+        """
+        # 统计未读消息
+        unread_count = 0
+        for message_status in self.message_memory.history_messages.values():
+            if not message_status.read_status:
+                unread_count += 1
+                
+        return unread_count
 
     
     async def player_decide_action(self, game_state: GameState, charaInfo: ScenarioCharacterInfo) -> PlayerAction:

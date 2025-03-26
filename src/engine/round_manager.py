@@ -323,19 +323,38 @@ class RoundManager:
                     )
                     self.message_dispatcher.broadcast_message(dice_message)
 
-                # --- 假设 dm_resolve_action 返回 (ActionResult, effect_description, narrative_result) ---
-                # Placeholder - 接口实现保留 PASS
+                # --- 使用消息ID调用 dm_resolve_action ---
                 dm_agent = self.agent_manager.get_dm_agent()
-                # action_result, effect_description, narrative_result = await dm_agent.dm_resolve_action(action, self.game_state_manager.get_state())
-                # --- Placeholder Start ---
-                temp_action_result = await dm_agent.dm_resolve_action(action, self.game_state_manager.get_state()) # 暂时调用现有接口
+                
+                # 从game_state中查找对应的消息ID
+                action_message_id = None
+                current_game_state = self.game_state_manager.get_state()
+                for message in current_game_state.chat_history:
+                    if (message.source == action.player_id and 
+                        message.content == action.content and 
+                        message.round_id == self.current_round_id):
+                        action_message_id = message.message_id
+                        break
+                
+                if not action_message_id:
+                    self.logger.error(f"未找到对应的消息ID: {action.content} 来自 {action.player_id}")
+                    continue # Skip this action if message not found
+                
+                # 调用新的dm_resolve_action接口
+                temp_action_result = await dm_agent.dm_resolve_action(
+                    character_id=action.character_id,
+                    message_id=action_message_id,
+                    game_state=self.game_state_manager.get_state(),
+                    scenario=self.scenario_manager.get_current_scenario()
+                )
+                
                 if temp_action_result is None: # Handle potential None return
-                     self.logger.error(f"DM未能解析行动: {action.content} 来自 {action.player_id}")
-                     continue # Skip this action if resolution failed
+                    self.logger.error(f"DM未能解析行动: {action.content} 来自 {action.player_id}")
+                    continue # Skip this action if resolution failed
+                
                 action_result = temp_action_result
                 effect_description = f"[效果占位符] 玩家 {action.player_id} 执行了 '{action.content}'。 成功: {action_result.success}。" # 效果占位符
                 narrative_result = action_result.narrative # 使用现有叙述作为占位符
-                # --- Placeholder End ---
 
                 processed_action_results.append(action_result)
 

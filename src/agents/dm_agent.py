@@ -71,18 +71,42 @@ class DMAgent(BaseAgent):
         
         return response.chat_message.content
 
-    async def dm_resolve_action(self, action: PlayerAction, game_state: GameState, scenario: Optional[Scenario] = None) -> ActionResult:
+    async def dm_resolve_action(self, character_id: str, message_id: str, game_state: GameState, scenario: Optional[Scenario] = None) -> ActionResult:
         """
         DM解析玩家行动并生成结果
         
         Args:
-            action: 玩家行动
+            character_id: 角色ID
+            message_id: 行动消息ID
             game_state: 游戏状态
             scenario: 游戏剧本（可选）
             
         Returns:
             ActionResult: 行动结果
         """
+        # 从game_state.chat_history中查找对应的行动消息
+        action_message = None
+        for message in game_state.chat_history:
+            if message.message_id == message_id:
+                action_message = message
+                break
+        
+        if not action_message:
+            raise Exception(f"未找到ID为 {message_id} 的行动消息")
+        
+        # 从消息中提取行动信息
+        from src.models.action_models import PlayerAction, ActionType
+        
+        # 创建PlayerAction对象
+        action = PlayerAction(
+            player_id=action_message.source,
+            character_id=character_id,
+            action_type=ActionType.ACTION if action_message.type == "action" else ActionType.TALK,
+            content=action_message.content,
+            target="all",  # 默认值，可能需要从消息中提取
+            timestamp=action_message.timestamp
+        )
+        
         # 生成系统消息
         system_message = build_action_resolve_system_prompt(scenario)
         
