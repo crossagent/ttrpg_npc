@@ -266,7 +266,7 @@ class RoundManager:
                     
                     if not item_result.has_item:
                         action_result = ActionResult(
-                            player_id=action.player_id,
+                            character_id=action.player_id,
                             action=action,
                             success=False,
                             narrative=f"{action.player_id}尝试使用{item_name}，但没有这个物品。",

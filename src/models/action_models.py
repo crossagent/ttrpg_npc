@@ -72,7 +72,7 @@ class DiceResult(BaseModel):
 
 class ActionResult(BaseModel):
     """行动结果模型，表示玩家行动的处理结果"""
-    player_id: str = Field(..., description="玩家ID")
+    character_id: str = Field(..., description="角色ID")
     action: PlayerAction = Field(..., description="原始行动")
     success: bool = Field(..., description="行动是否成功")
     narrative: str = Field(..., description="结果叙述")

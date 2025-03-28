@@ -72,7 +72,7 @@ class RefereeAgent(BaseAgent):
             # 返回一个默认的失败结果或抛出异常，根据业务逻辑决定
             # 这里返回一个默认失败结果示例
             return ActionResult(
-                player_id=action.character_id, # 使用 character_id 作为 player_id
+                character_id=action.character_id, # 使用 character_id 作为 player_id
                 action=action,
                 success=False,
                 narrative="系统错误：无法判断行动结果。",
@@ -100,7 +100,7 @@ class RefereeAgent(BaseAgent):
             print(f"错误: JSON解析失败。错误信息: {e}。原始JSON字符串: '{json_str}'。完整LLM响应: {response_content}")
             # 返回默认失败结果
             return ActionResult(
-                player_id=action.character_id,
+                character_id=action.character_id,
                 action=action,
                 success=False,
                 narrative=f"系统错误：无法解析行动结果格式。原始响应: {response_content}",
@@ -121,7 +121,7 @@ class RefereeAgent(BaseAgent):
         # 创建并返回行动结果
         # 注意：ActionResult 需要 player_id，这里使用 action.character_id
         return ActionResult(
-            player_id=action.character_id,
+            character_id=action.character_id,
             action=action,
             success=bool(response_data.get("success", False)), # 确保是布尔值
             narrative=str(response_data.get("narrative", "行动结果未描述")), # 确保是字符串
