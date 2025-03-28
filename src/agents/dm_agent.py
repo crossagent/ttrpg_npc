@@ -71,87 +71,87 @@ class DMAgent(BaseAgent):
         
         return response.chat_message.content
 
-    async def dm_resolve_action(self, character_id: str, message_id: str, game_state: GameState, scenario: Optional[Scenario] = None) -> ActionResult:
-        """
-        DM解析玩家行动并生成结果
+    # async def dm_resolve_action(self, character_id: str, message_id: str, game_state: GameState, scenario: Optional[Scenario] = None) -> ActionResult:
+    #     """
+    #     DM解析玩家行动并生成结果 (已由 RefereeAgent.judge_action 替代)
         
-        Args:
-            character_id: 角色ID
-            message_id: 行动消息ID
-            game_state: 游戏状态
-            scenario: 游戏剧本（可选）
+    #     Args:
+    #         character_id: 角色ID
+    #         message_id: 行动消息ID
+    #         game_state: 游戏状态
+    #         scenario: 游戏剧本（可选）
             
-        Returns:
-            ActionResult: 行动结果
-        """
-        # 从game_state.chat_history中查找对应的行动消息
-        action_message = None
-        for message in game_state.chat_history:
-            if message.message_id == message_id:
-                action_message = message
-                break
+    #     Returns:
+    #         ActionResult: 行动结果
+    #     """
+    #     # 从game_state.chat_history中查找对应的行动消息
+    #     action_message = None
+    #     for message in game_state.chat_history:
+    #         if message.message_id == message_id:
+    #             action_message = message
+    #             break
         
-        if not action_message:
-            raise Exception(f"未找到ID为 {message_id} 的行动消息")
+    #     if not action_message:
+    #         raise Exception(f"未找到ID为 {message_id} 的行动消息")
         
-        # 从消息中提取行动信息
-        from src.models.action_models import PlayerAction, ActionType
+    #     # 从消息中提取行动信息
+    #     from src.models.action_models import PlayerAction, ActionType
         
-        # 创建PlayerAction对象
-        action = PlayerAction(
-            player_id=action_message.source,
-            character_id=character_id,
-            action_type=ActionType.ACTION if action_message.type == "action" else ActionType.TALK,
-            content=action_message.content,
-            target="all",  # 默认值，可能需要从消息中提取
-            timestamp=action_message.timestamp
-        )
+    #     # 创建PlayerAction对象
+    #     action = PlayerAction(
+    #         player_id=action_message.source,
+    #         character_id=character_id,
+    #         action_type=ActionType.ACTION if action_message.type == "action" else ActionType.TALK,
+    #         content=action_message.content,
+    #         target="all",  # 默认值，可能需要从消息中提取
+    #         timestamp=action_message.timestamp
+    #     )
         
-        # 生成系统消息
-        system_message = build_action_resolve_system_prompt(scenario)
+    #     # 生成系统消息
+    #     system_message = build_action_resolve_system_prompt(scenario)
         
-        # 创建新的AssistantAgent实例
-        from autogen_agentchat.agents import AssistantAgent
-        assistant = AssistantAgent(
-            name=f"{self.agent_name}_action_resolver",
-            model_client=self.model_client,
-            system_message=system_message
-        )
+    #     # 创建新的AssistantAgent实例
+    #     from autogen_agentchat.agents import AssistantAgent
+    #     assistant = AssistantAgent(
+    #         name=f"{self.agent_name}_action_resolver",
+    #         model_client=self.model_client,
+    #         system_message=system_message
+    #     )
         
-        # 构建用户消息
-        user_message_content = build_action_resolve_user_prompt(game_state, action)
-        user_message = TextMessage(
-            content=user_message_content,
-            source="system"
-        )
+    #     # 构建用户消息
+    #     user_message_content = build_action_resolve_user_prompt(game_state, action)
+    #     user_message = TextMessage(
+    #         content=user_message_content,
+    #         source="system"
+    #     )
         
-        # 使用assistant的on_messages方法
-        response = await assistant.on_messages([user_message], CancellationToken())
-        if not response or not response.chat_message:
-            raise Exception("未能获取有效的行动解析响应")
+    #     # 使用assistant的on_messages方法
+    #     response = await assistant.on_messages([user_message], CancellationToken())
+    #     if not response or not response.chat_message:
+    #         raise Exception("未能获取有效的行动解析响应")
             
-        response_content = response.chat_message.content
+    #     response_content = response.chat_message.content
         
-        # 尝试解析JSON响应
-        # 查找JSON内容
-        import re
-        json_match = re.search(r'```json\s*([\s\S]*?)\s*```', response_content)
-        if json_match:
-            json_str = json_match.group(1)
-        else:
-            json_str = response_content
+    #     # 尝试解析JSON响应
+    #     # 查找JSON内容
+    #     import re
+    #     json_match = re.search(r'```json\s*([\s\S]*?)\s*```', response_content)
+    #     if json_match:
+    #         json_str = json_match.group(1)
+    #     else:
+    #         json_str = response_content
         
-        # 解析JSON
-        try:
-            response_data = json.loads(json_str)
-        except json.JSONDecodeError as e:
-            raise Exception(f"JSON解析错误: {str(e)}, 原始响应: {response_content}")
+    #     # 解析JSON
+    #     try:
+    #         response_data = json.loads(json_str)
+    #     except json.JSONDecodeError as e:
+    #         raise Exception(f"JSON解析错误: {str(e)}, 原始响应: {response_content}")
         
-        # 创建行动结果
-        return ActionResult(
-            player_id=action.player_id,
-            action=action,
-            success=response_data.get("success", True),
-            narrative=response_data.get("narrative", "行动结果未描述"),
-            state_changes=response_data.get("state_changes", {})
-        )
+    #     # 创建行动结果
+    #     return ActionResult(
+    #         player_id=action.player_id,
+    #         action=action,
+    #         success=response_data.get("success", True),
+    #         narrative=response_data.get("narrative", "行动结果未描述"),
+    #         state_changes=response_data.get("state_changes", {})
+    #     )

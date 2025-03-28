@@ -14,6 +14,7 @@ from src.models.scenario_models import ScenarioEvent # Ensure ScenarioEvent is i
 from src.engine.agent_manager import AgentManager
 from src.engine.scenario_manager import ScenarioManager
 from src.models.action_models import ActionType
+from src.agents import RefereeAgent # 导入 RefereeAgent
 
 class RoundManager:
     """
@@ -37,7 +38,12 @@ class RoundManager:
         self.message_dispatcher = message_dispatcher
         self.agent_manager = agent_manager
         self.scenario_manager = scenario_manager
-        
+        self.referee_agent: RefereeAgent = self.agent_manager.get_referee_agent() # 获取 RefereeAgent 实例
+        if not self.referee_agent:
+            # 如果 AgentManager 没有提供 RefereeAgent，则需要处理错误或创建默认实例
+            # 这里暂时抛出错误，实际应用中可能需要更健壮的处理
+            raise ValueError("AgentManager未能提供RefereeAgent实例")
+
         # 回合状态相关变量
         self.current_round_id: int = 0
         self.round_start_time: datetime = None
@@ -323,33 +329,17 @@ class RoundManager:
                     )
                     self.message_dispatcher.broadcast_message(dice_message)
 
-                # --- 使用消息ID调用 dm_resolve_action ---
-                dm_agent = self.agent_manager.get_dm_agent()
-                
-                # 从game_state中查找对应的消息ID
-                action_message_id = None
+                # --- 调用 RefereeAgent 判断行动 ---
+                # 不再需要查找 message_id，直接传递 PlayerAction 对象
                 current_game_state = self.game_state_manager.get_state()
-                for message in current_game_state.chat_history:
-                    if (message.source == action.player_id and 
-                        message.content == action.content and 
-                        message.round_id == self.current_round_id):
-                        action_message_id = message.message_id
-                        break
-                
-                if not action_message_id:
-                    self.logger.error(f"未找到对应的消息ID: {action.content} 来自 {action.player_id}")
-                    continue # Skip this action if message not found
-                
-                # 调用新的dm_resolve_action接口
-                temp_action_result = await dm_agent.dm_resolve_action(
-                    character_id=action.character_id,
-                    message_id=action_message_id,
-                    game_state=self.game_state_manager.get_state(),
+                temp_action_result = await self.referee_agent.judge_action(
+                    action=action,
+                    game_state=current_game_state,
                     scenario=self.scenario_manager.get_current_scenario()
                 )
-                
-                if temp_action_result is None: # Handle potential None return
-                    self.logger.error(f"DM未能解析行动: {action.content} 来自 {action.player_id}")
+
+                if temp_action_result is None: # Handle potential None return from judge_action
+                    self.logger.error(f"Referee未能解析行动: {action.content} 来自 {action.player_id}")
                     continue # Skip this action if resolution failed
                 
                 action_result = temp_action_result

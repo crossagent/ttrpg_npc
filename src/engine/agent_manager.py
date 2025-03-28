@@ -8,6 +8,7 @@ from src.models.action_models import PlayerAction, ActionResult
 from src.agents.dm_agent import DMAgent
 from src.agents.player_agent import PlayerAgent
 from src.agents.base_agent import BaseAgent
+from src.agents import RefereeAgent # 导入 RefereeAgent
 from autogen_ext.models.openai import OpenAIChatCompletionClient
 from src.config.config_loader import load_llm_settings, load_config
 from autogen_core.models import ModelFamily
@@ -24,12 +25,13 @@ class AgentManager:
         Args:
             game_state: 游戏状态
         """
-        self.dm_agent = None
-        self.player_agents = {}  # 改为字典，键为玩家ID
+        self.dm_agent: Optional[DMAgent] = None
+        self.player_agents: Dict[str, PlayerAgent] = {}  # 改为字典，键为角色ID
+        self.referee_agent: Optional[RefereeAgent] = None # 添加 referee_agent 属性
         self.game_state = game_state
-        self.all_agents = {}  # 存储所有Agent实例，键为agent_id
-        
-                # 加载LLM配置
+        self.all_agents: Dict[str, BaseAgent] = {}  # 存储所有Agent实例，键为agent_id
+
+        # 加载LLM配置
         llm_settings = load_llm_settings()
         
         # 使用配置初始化模型客户端
@@ -63,8 +65,16 @@ class AgentManager:
             agent_name="DM",
             model_client=self.model_client
         )
-        self.all_agents["char_dm"] = self.dm_agent
-        
+        self.all_agents["dm"] = self.dm_agent # 使用 "dm" 作为 agent_id
+
+        # 初始化 RefereeAgent
+        self.referee_agent = RefereeAgent(
+            agent_id="referee",
+            agent_name="Referee",
+            model_client=self.model_client
+        )
+        self.all_agents["referee"] = self.referee_agent # 添加到 all_agents
+
         # 为所有角色创建代理，无论是否已分配给玩家
         for character_id, character_ref in self.game_state.characters.items():
             # 检查角色是否已分配给玩家
@@ -87,9 +97,9 @@ class AgentManager:
             player_agent.is_player_controlled = is_player_controlled
             
             # 添加到代理列表
-            self.player_agents[character_id] = player_agent
-            self.all_agents[character_id] = player_agent
-            
+            self.player_agents[character_id] = player_agent # 键是角色ID
+            self.all_agents[character_id] = player_agent # 键是 agent_id (player_id 或 npc_id)
+
             # 更新角色的控制状态
             if character_ref:
                 character_ref.player_controlled = is_player_controlled
@@ -126,18 +136,27 @@ class AgentManager:
         """
         return self.dm_agent
 
-    def get_player_agent(self, agent_id: str) -> Optional[PlayerAgent]:
+    def get_referee_agent(self) -> Optional[RefereeAgent]:
+        """
+        获取裁判代理实例
+
+        Returns:
+            Optional[RefereeAgent]: 裁判代理实例
+        """
+        return self.referee_agent
+
+    def get_player_agent(self, character_id: str) -> Optional[PlayerAgent]: # 参数改为 character_id
         """
         获取玩家代理实例
         
         Args:
-            agent_id: 代理ID
-            
+            character_id: 角色ID
+
         Returns:
             Optional[PlayerAgent]: 玩家代理实例，如果不存在则为None
         """
-        return self.player_agents.get(agent_id)
-    
+        return self.player_agents.get(character_id) # 使用 character_id 获取
+
     def get_agent(self, agent_id: str) -> Optional[BaseAgent]:
         """
         获取任意代理实例
