@@ -1,6 +1,7 @@
 from typing import List, Dict, Any, Optional
 from datetime import datetime
 import uuid
+import logging # Add logging import
 
 from src.models.game_state_models import (
     GameState, CharacterInstance, CharacterStatus, 
@@ -24,6 +25,7 @@ class GameStateManager:
             initial_state: 初始游戏状态，如果为None则创建新状态
         """
         self.game_state = initial_state
+        self.logger = logging.getLogger("GameStateManager") # Add logger
     
     def initialize_game_state(self, scenario: Scenario) -> GameState:
         """
@@ -272,29 +274,68 @@ class GameStateManager:
         """
         pass
 
-    def update_state(self, update_request: StateUpdateRequest) -> GameState:
+    def update_state(self, state_changes: Dict[str, Any]) -> GameState:
         """
-        更新游戏状态
+        直接根据裁判代理提供的状态变化字典更新游戏状态。
         
         Args:
-            update_request: 状态更新请求
+            state_changes: 包含状态变更指令的字典。
+                           例如: {"character_location": {"character_id": "player1", "new_location": "大厅"},
+                                  "item_added": {"character_id": "player1", "item_id": "key"}, ...}
             
         Returns:
             GameState: 更新后的游戏状态
         """
-        # 提取状态变化
-        changes = self.extract_state_changes(update_request.dm_narrative)
-        
-        # 应用状态变化
-        updated_state = self._apply_changes(changes)
-        
-        # 检查一致性
-        inconsistencies = self.check_consistency(updated_state)
-        if inconsistencies:
-            # 处理不一致情况
-            pass
-        
-        return updated_state
+        if not self.game_state:
+            self.logger.error("尝试在未初始化的游戏状态上应用更改。")
+            return None # 或者抛出异常
+
+        self.logger.debug(f"开始应用状态变化: {state_changes}")
+
+        # --- Phase 3: 处理角色位置变化 ---
+        if "character_location" in state_changes:
+            change_data = state_changes["character_location"]
+            character_id = change_data.get("character_id")
+            new_location = change_data.get("new_location")
+
+            if character_id and new_location:
+                if character_id in self.game_state.character_states:
+                    # 检查地点是否存在 (可选但推荐)
+                    if new_location in self.game_state.location_states:
+                        old_location = self.game_state.character_states[character_id].location
+                        self.game_state.character_states[character_id].location = new_location
+                        self.logger.info(f"角色 {character_id} 位置已从 {old_location} 更新为 {new_location}")
+                        # 更新地点的 present_characters (可选)
+                        if old_location in self.game_state.location_states:
+                            if character_id in self.game_state.location_states[old_location].present_characters:
+                                self.game_state.location_states[old_location].present_characters.remove(character_id)
+                        if new_location in self.game_state.location_states:
+                             if character_id not in self.game_state.location_states[new_location].present_characters:
+                                self.game_state.location_states[new_location].present_characters.append(character_id)
+                    else:
+                        self.logger.warning(f"尝试将角色 {character_id} 移动到不存在的位置 {new_location}。")
+                else:
+                    self.logger.warning(f"尝试更新不存在的角色 {character_id} 的位置。")
+            else:
+                 self.logger.warning(f"无效的 'character_location' 变更数据: {change_data}")
+
+        # --- 后续 Phase 可以添加更多状态变化的处理逻辑 ---
+        # 例如:
+        # if "item_added" in state_changes:
+        #     # 处理添加物品逻辑
+        #     pass
+        # if "character_attribute" in state_changes:
+        #     # 处理角色属性变化逻辑
+        #     pass
+
+        # 更新最后修改时间
+        self.game_state.last_updated = datetime.now()
+        self.logger.debug("状态变化应用完成。")
+
+        # 注意：移除了原有的 extract_state_changes, _apply_changes, check_consistency 调用
+        # 这些可以在需要时重新实现或以不同方式集成
+
+        return self.game_state
 
     def get_characters_at_location(self, location_id: str) -> List[str]:
         """获取在指定位置的角色ID列表"""

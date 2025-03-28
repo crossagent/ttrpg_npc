@@ -256,72 +256,51 @@ class RoundManager:
         # 过滤出需要解析的实质性行动（非对话类）
         substantive_actions = [action for action in actions if action.action_type == ActionType.ACTION]
 
-        # --- Stage 1: Process each action individually ---
+        # --- Stage 1: Process each action individually using RefereeAgent ---
         for action in substantive_actions:
             try:
-                # 检查前置条件（如物品检查）
-                if "使用" in action.content.lower():
-                    item_name = action.content.split("使用")[1].strip().split()[0]
-                    item_result = self.game_state_manager.check_item(action.player_id, item_name)
-                    
-                    if not item_result.has_item:
-                        action_result = ActionResult(
-                            character_id=action.player_id,
-                            action=action,
-                            success=False,
-                            narrative=f"{action.player_id}尝试使用{item_name}，但没有这个物品。",
-                            state_changes={}
-                        )
-                        processed_action_results.append(action_result) 
+                # --- 调用 RefereeAgent 判断行动 ---
+                current_game_state = self.game_state_manager.get_state()
+                # 调用裁判代理判断行动，期望返回 ActionResult 或类似结构
+                action_result = await self.referee_agent.judge_action(
+                    action=action, # 传递 PlayerAction 对象
+                    game_state=current_game_state, # 传递当前游戏状态
+                    scenario=self.scenario_manager.get_current_scenario() # 传递当前剧本
+                )
 
-                        # 创建并广播失败的系统消息 (客观效果)
-                        message_id = str(uuid.uuid4())
-                        timestamp = datetime.now().isoformat()
-                        system_effect_message = Message(
-                            message_id=message_id,
-                            type=MessageType.SYSTEM_ACTION_RESULT,
-                            source="system", # Corrected to source
-                            content=f"{action.player_id} 尝试使用 {item_name} 失败：没有该物品。",
-                            timestamp=timestamp,
-                            visibility=MessageVisibility.PUBLIC,
-                            recipients=self.agent_manager.get_all_agent_ids(), 
-                            round_id=self.current_round_id
-                        )
-                        self.message_dispatcher.broadcast_message(system_effect_message)
-
-                        # (Optional) Broadcast DM narrative for failure
-                        message_id_narrative = str(uuid.uuid4())
-                        timestamp_narrative = datetime.now().isoformat()
-                        result_message = Message(
-                            message_id=message_id_narrative,
-                            type=MessageType.RESULT,
-                            source="DM", # Corrected to source
-                            content=action_result.narrative, 
-                            timestamp=timestamp_narrative,
-                            visibility=MessageVisibility.PUBLIC,
-                            recipients=self.agent_manager.get_all_agent_ids(),
-                            round_id=self.current_round_id
-                        )
-                        self.message_dispatcher.broadcast_message(result_message)
-                        continue # 跳过后续处理
-
-                # 检查是否需要掷骰子
-                dice_result = None
-                if any(keyword in action.content.lower() for keyword in ["检查", "尝试", "技能", "攻击"]):
-                    raw_value = self.agent_manager.roll_dice("d20")
-                    dice_result = DiceResult(
-                        raw_value=raw_value,
-                        modified_value=raw_value + 5,  # 简单示例
-                        modifiers={"技能": 3, "属性": 2}
+                # 检查裁判代理是否成功返回结果
+                if action_result is None:
+                    self.logger.error(f"Referee未能解析行动: {action.content} 来自 {action.player_id}")
+                    # 可以选择创建一个默认的失败 ActionResult 或直接跳过
+                    # 这里我们创建一个失败结果并继续
+                    action_result = ActionResult(
+                        character_id=action.player_id,
+                        action=action,
+                        success=False,
+                        narrative=f"系统无法理解行动 '{action.content}'。",
+                        state_changes={}
                     )
-                    # 创建并广播骰子消息
+                    # 不再 continue，而是处理这个失败结果
+
+                processed_action_results.append(action_result)
+
+                # --- 根据裁判结果广播消息 ---
+                # 1. 广播骰子结果 (如果裁判代理返回了)
+                if action_result.dice_result:
+                    dice_result = action_result.dice_result
+                    dice_content = f"掷骰结果: {dice_result.raw_value}"
+                    if dice_result.modifiers:
+                        mods_str = " + ".join([f"{k}({v})" for k, v in dice_result.modifiers.items()])
+                        dice_content += f" + {mods_str}"
+                    dice_content += f" = {dice_result.modified_value}"
+                    
                     message_id_dice = str(uuid.uuid4())
                     timestamp_dice = datetime.now().isoformat()
                     dice_message = Message(
                         message_id=message_id_dice,
                         type=MessageType.DICE,
-                        source=action.player_id, # Corrected to source
-                        content=f"掷骰结果: {dice_result.raw_value} + 修正值 {5} = {dice_result.modified_value}", 
+                        source=action.player_id,
+                        content=dice_content,
                         timestamp=timestamp_dice,
                         visibility=MessageVisibility.PUBLIC,
                         recipients=self.agent_manager.get_all_agent_ids(),
@@ -329,33 +308,15 @@ class RoundManager:
                     )
                     self.message_dispatcher.broadcast_message(dice_message)
 
-                # --- 调用 RefereeAgent 判断行动 ---
-                # 不再需要查找 message_id，直接传递 PlayerAction 对象
-                current_game_state = self.game_state_manager.get_state()
-                temp_action_result = await self.referee_agent.judge_action(
-                    action=action,
-                    game_state=current_game_state,
-                    scenario=self.scenario_manager.get_current_scenario()
-                )
-
-                if temp_action_result is None: # Handle potential None return from judge_action
-                    self.logger.error(f"Referee未能解析行动: {action.content} 来自 {action.player_id}")
-                    continue # Skip this action if resolution failed
-                
-                action_result = temp_action_result
-                effect_description = f"[效果占位符] 玩家 {action.player_id} 执行了 '{action.content}'。 成功: {action_result.success}。" # 效果占位符
-                narrative_result = action_result.narrative # 使用现有叙述作为占位符
-
-                processed_action_results.append(action_result)
-
-                # 创建并广播行动效果系统消息
+                # 2. 广播系统效果消息 (客观结果)
+                effect_description = f"玩家 {action.player_id} 执行 '{action.content}'。结果: {'成功' if action_result.success else '失败'}。"
                 message_id_effect = str(uuid.uuid4())
                 timestamp_effect = datetime.now().isoformat()
                 system_effect_message = Message(
                     message_id=message_id_effect,
                     type=MessageType.SYSTEM_ACTION_RESULT,
-                    source="system", # Corrected to source
-                    content=effect_description,
+                    source="system",
+                    content=effect_description, # 使用更简洁的描述
                     timestamp=timestamp_effect,
                     visibility=MessageVisibility.PUBLIC,
                     recipients=self.agent_manager.get_all_agent_ids(),
@@ -363,15 +324,15 @@ class RoundManager:
                 )
                 self.message_dispatcher.broadcast_message(system_effect_message)
 
-                # (Optional) 广播DM叙事结果
-                if narrative_result:
+                # 3. 广播DM叙事结果 (如果裁判代理提供了)
+                if action_result.narrative:
                     message_id_narrative = str(uuid.uuid4())
-                    timestamp_narrative = datetime.now().isoformat() 
+                    timestamp_narrative = datetime.now().isoformat()
                     result_message = Message(
                         message_id=message_id_narrative,
                         type=MessageType.RESULT,
-                        source="DM", # Corrected to source
-                        content=narrative_result,
+                        source="DM", # 叙事通常来自DM视角
+                        content=action_result.narrative, # 使用裁判提供的叙述
                         timestamp=timestamp_narrative,
                         visibility=MessageVisibility.PUBLIC,
                         recipients=self.agent_manager.get_all_agent_ids(),
@@ -381,13 +342,12 @@ class RoundManager:
 
                 # --- 累积行动的状态变化 ---
                 if action_result.state_changes:
-                     # 简单合并，后续可能需要处理冲突
+                    # 简单合并，后续可能需要处理冲突
                     all_state_changes.update(action_result.state_changes)
-            
+
             except Exception as e:
                 self.logger.exception(f"处理行动 '{action.content}' (来自 {action.player_id}) 时发生意外错误: {e}")
                 # Optionally create a system error message or skip the action
-
 
         # --- Stage 2: 检查事件触发 (在所有行动处理后) ---
         # 注意：这里获取的状态可能尚未包含本轮行动的最终变化，取决于 update_state 的时机
@@ -430,17 +390,12 @@ class RoundManager:
         # --- Stage 3: 应用所有累积的状态变化 ---
         if all_state_changes:
             self.logger.info(f"应用累积的状态变化: {all_state_changes}")
-            # 假设 update_state 接受包含 state_changes 的 StateUpdateRequest
-            # 需要根据 StateUpdateRequest 的实际定义调整
             try:
-                # TODO: Verify the structure expected by StateUpdateRequest and update_state
-                # Assuming StateUpdateRequest can take state_changes directly for now
-                update_request = StateUpdateRequest(state_changes=all_state_changes) 
-                self.game_state_manager.update_state(update_request) # 调用 update_state 一次
+                # 直接将 state_changes 字典传递给更新后的 update_state 方法
+                self.game_state_manager.update_state(all_state_changes)
                 self.logger.info("状态变化应用成功。")
             except Exception as e:
-                 # 捕获可能的 Pydantic 验证错误或其他问题
-                 self.logger.exception(f"应用状态变化时出错: {e}. StateUpdateRequest 可能需要调整。变化内容: {all_state_changes}")
+                 self.logger.exception(f"应用状态变化时出错: {e}. 变化内容: {all_state_changes}")
                  # 可以考虑如何处理错误，例如记录但不应用，或尝试部分应用
         else:
             self.logger.info("没有累积的状态变化需要应用。")
