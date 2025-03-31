@@ -173,7 +173,7 @@
           "id": "contact_external_support",
           "description": "联系外部支援",
           "consequence": [
-             { "type": "gain_knowledge", "topic": "external_support_contacted_attempt" } // 可以用知识点记录尝试联系
+             { "type": "gain_knowledge", "topic": "external_support_contacted_attempt" }
           ]
         }
       ]
