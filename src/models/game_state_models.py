@@ -3,19 +3,13 @@ from typing import Dict, List, Any, Optional, Union, Literal
 from enum import Enum
 from datetime import datetime
 from src.models.scenario_models import Scenario, ScenarioCharacterInfo, ScenarioEvent, LocationInfo, ItemInfo, StoryStage, StorySection, StoryChapter
-from src.models.message_models import Message
+from src.models.message_models import Message, MessageStatus
 from src.models.action_models import InternalThoughts
-
-class MessageReadStatus(Enum):
-    """消息读取状态枚举"""
-    UNREAD = "未读"
-    READ = "已读"
-    REPLIED = "已回复"
 
 class MessageReadMemory(BaseModel):
     """消息已读记录模型"""
     player_id: str = Field(..., description="玩家ID")
-    history_messages: Dict[str, MessageReadStatus] = Field(default_factory=dict, description="可见的消息状态，键为消息ID")
+    history_messages: Dict[str, MessageStatus] = Field(default_factory=dict, description="可见的消息状态，键为消息ID")
 
 class CharacterStatus(BaseModel):
     """角色状态模型，表示角色的当前状态"""
