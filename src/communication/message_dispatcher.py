@@ -42,10 +42,10 @@ class MessageDispatcher:
             
         successful_recipients = []
         
-        # 如果没有指定接收者且存在Agent管理器，获取所有Agent ID
-        if not message.recipients and self.agent_manager:
-            message.recipients = self.agent_manager.get_all_agent_ids()
-            
+        # 如果没有指定接收者，抛出异常
+        if not message.recipients:
+            raise ValueError("Message recipients not specified. Messages must have explicit recipients.")
+    
         # 对每个接收者处理消息
         if self.agent_manager and message.recipients:
             for agent_id in message.recipients:

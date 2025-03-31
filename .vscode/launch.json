@@ -30,7 +30,7 @@
             "type": "debugpy",
             "request": "launch",
             "module": "pytest",
-            "args": ["tests/agents/test_dm_agent.py"],
+            "args": ["-v", "-s", "tests/agents/test_dm_agent.py"],
             "console": "integratedTerminal",
             "cwd": "${workspaceFolder}",
             "env": {
