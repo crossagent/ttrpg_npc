@@ -91,17 +91,29 @@
         {
           "id": "secretly_record_conversation",
           "description": "秘密记录对话",
-          "consequence": "获得关键情报，但引起维克多警惕"
+          "consequence": [
+            { "type": "gain_knowledge", "topic": "victor_last_deal_48h", "detail": "维克多提到'最后的交易'和'48小时后行动'" },
+            { "type": "change_npc_state", "target": "char_003", "state": "suspicion_level", "change": "+1" },
+            { "type": "set_flag", "flag": "event_triggered_evt_001" }
+          ]
         },
         {
           "id": "caught_eavesdropping",
           "description": "偷听被发现",
-          "consequence": "陷入危险处境，需要快速解释或逃离"
+          "consequence": [
+            { "type": "change_npc_state", "target": "char_003", "state": "relationship", "change": "-2" },
+            { "type": "change_npc_state", "target": "char_003", "state": "suspicion_level", "change": "+3" },
+            { "type": "require_skill_check", "skill": "deception", "dc": 14, "success_consequence": [{"type": "gain_knowledge", "topic": "victor_last_deal_incomplete"}], "failure_consequence": [{"type": "change_player_state", "state": "under_surveillance"}]},
+            { "type": "set_flag", "flag": "event_triggered_evt_001" }
+          ]
         },
         {
           "id": "leave_with_incomplete_info",
           "description": "带着不完整信息离开",
-          "consequence": "了解有大事即将发生，但细节不明"
+          "consequence": [
+            { "type": "gain_knowledge", "topic": "victor_last_deal_vague", "detail": "知道维克多在进行秘密交易，但细节不明" },
+            { "type": "set_flag", "flag": "event_triggered_evt_001" }
+          ]
         }
       ]
     },
@@ -163,17 +175,30 @@
         {
           "id": "offer_help",
           "description": "提供帮助",
-          "consequence": "获得警方内应，但增加卷入执法行动风险"
+          "consequence": [
+            { "type": "change_npc_state", "target": "char_004", "state": "relationship", "change": "+2" },
+            { "type": "gain_knowledge", "topic": "rachel_needs_help_secret_task" },
+            { "type": "set_flag", "flag": "event_outcome_evt_004_offer_help" }
+          ]
         },
         {
           "id": "probe_for_truth",
           "description": "试探真相",
-          "consequence": "部分了解真相，关系微妙提升"
+          "consequence": [
+            { "type": "gain_knowledge", "topic": "rachel_not_simple_bartender", "detail": "瑞秋暗示她身份不简单" },
+            { "type": "change_npc_state", "target": "char_004", "state": "relationship", "change": "+1" },
+            { "type": "set_flag", "flag": "event_outcome_evt_004_probe_for_truth" }
+          ]
         },
         {
           "id": "report_to_victor",
           "description": "向维克多报告",
-          "consequence": "获得维克多奖励，但树立强大敌人"
+          "consequence": [
+            { "type": "change_npc_state", "target": "char_003", "state": "relationship", "change": "+1" },
+            { "type": "change_npc_state", "target": "char_004", "state": "relationship", "change": "-3" },
+            { "type": "change_npc_state", "target": "char_004", "state": "status", "value": "compromised" },
+            { "type": "set_flag", "flag": "event_outcome_evt_004_report_to_victor" }
+          ]
         }
       ]
     },
@@ -396,6 +421,7 @@
                 "name": "探索阶段",
                 "description": "玩家熟悉俱乐部环境，了解人物关系，收集初步信息",
                 "objective": "建立初步人脉，发现关键线索，确定个人立场",
+                "completion_criteria": "flag_set:event_triggered_evt_001 OR flag_set:event_outcome_evt_004_probe_for_truth",
                 "locations": ["loc_001", "loc_002"],
                 "characters": ["char_001", "char_002", "char_003"],
                 "events": ["evt_001", "evt_004"],
