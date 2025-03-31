@@ -9,7 +9,11 @@
             "type": "debugpy",
             "request": "launch",
             "program": "${file}",
-            "console": "integratedTerminal"
+            "console": "integratedTerminal",
+            "cwd": "${workspaceFolder}",
+            "env": {
+                "PYTHONPATH": "${workspaceFolder}"
+            }
         },
         {
             "name": "启动 CLI Runner",
@@ -17,7 +21,10 @@
             "request": "launch",
             "module": "src.scripts.cli_runner",
             "console": "integratedTerminal",
-            "cwd": "${workspaceFolder}"
+            "cwd": "${workspaceFolder}",
+            "env": {
+                "PYTHONPATH": "${workspaceFolder}"
+            }
         }
     ]
 }
