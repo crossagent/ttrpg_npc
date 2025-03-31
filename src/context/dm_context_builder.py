@@ -155,7 +155,7 @@ def build_action_resolve_user_prompt(
     return f"""
 【第{game_state.round_number}回合】
 
-玩家{action.player_id}控制的角色{character_info}尝试执行以下行动:
+玩家{action.character_id}控制的角色{character_info}尝试执行以下行动:
 行动类型: {action.action_type}
 行动内容: {action.content}
 目标对象: {action.target}

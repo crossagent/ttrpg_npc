@@ -67,7 +67,7 @@ async def test_judge_action(
             perceived_risks=["可能卷入麻烦"],
             perceived_opportunities=["获得任务线索", "了解本地情况"]
         ),
-        action_type=ActionType.DIALOGUE, # Dialogue action
+        action_type=ActionType.TALK, # Dialogue action
         content="哦？什么样的奇怪事情？请详细说说。", # Player asks Elara
         target="elara", # Target the NPC Elara
         timestamp=datetime.now().isoformat()

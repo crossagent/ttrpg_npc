@@ -52,7 +52,7 @@ class RefereeAgent(BaseAgent):
 
         # 创建临时的AssistantAgent实例用于本次调用
         # Use a unique name for each call to avoid potential state issues if reused
-        assistant_name = f"{self.agent_name}_action_resolver_helper_{uuid.uuid4()}"
+        assistant_name = f"{self.agent_name}_action_resolver_helper"
         assistant = AssistantAgent(
             name=assistant_name,
             model_client=self.model_client,
