@@ -17,7 +17,7 @@ from src.agents.player_agent import PlayerAgent
 # are now provided by tests/agents/conftest.py
 
 # Define the player character ID used in the default scenario
-PLAYER_CHAR_ID = "player"
+PLAYER_CHAR_ID = "char_001"
 
 @pytest.fixture
 def player_agent_instance(llm_model_client: Optional[Any]) -> PlayerAgent:

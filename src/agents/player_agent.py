@@ -148,7 +148,7 @@ class PlayerAgent(BaseAgent):
         # 直接创建新的AssistantAgent实例
         from autogen_agentchat.agents import AssistantAgent
         assistant = AssistantAgent(
-            name=f"{self.agent_name}_action_helper_{uuid.uuid4()}", # Use unique name per call
+            name=self.agent_name, # Use unique name per call
             model_client=self.model_client,
             system_message=system_message
         )
