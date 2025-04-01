@@ -90,9 +90,10 @@ class GameEngine:
             scenario_manager = ScenarioManager()
             scenario = scenario_manager.load_scenario("default")
 
-            # 初始化游戏状态
-            game_state_manager = GameStateManager()
-            game_state = game_state_manager.initialize_game_state(scenario)
+            # 初始化游戏状态，传入 scenario_manager
+            game_state_manager = GameStateManager(scenario_manager=scenario_manager)
+            # initialize_game_state 现在不再需要 scenario 参数，因为它会从 scenario_manager 获取
+            game_state = game_state_manager.initialize_game_state()
 
             # 创建代理管理器
             agent_manager = AgentManager(

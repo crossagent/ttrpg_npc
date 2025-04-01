@@ -365,3 +365,55 @@ class ScenarioManager:
             return []
         
         return section.stages
+
+    def find_next_stage(self, current_stage_id: str, current_section_id: str, current_chapter_id: str) -> tuple[Optional[str], Optional[str], Optional[str]]:
+        """
+        根据当前阶段、小节、章节ID，查找下一个阶段、小节、章节ID。
+
+        Args:
+            current_stage_id: 当前阶段ID
+            current_section_id: 当前小节ID
+            current_chapter_id: 当前章节ID
+
+        Returns:
+            一个元组 (next_stage_id, next_section_id, next_chapter_id)。
+            如果找不到下一个阶段（例如已是最后一个），则返回 (None, None, None)。
+        """
+        if not self.scenario or not self.scenario.story_structure:
+            return None, None, None
+
+        found_current = False
+        for chapter_idx, chapter in enumerate(self.scenario.story_structure.chapters):
+            if chapter.id == current_chapter_id:
+                for section_idx, section in enumerate(chapter.sections):
+                    if section.id == current_section_id:
+                        for stage_idx, stage in enumerate(section.stages):
+                            if stage.id == current_stage_id:
+                                found_current = True
+                                # 检查当前小节内是否有下一个阶段
+                                if stage_idx + 1 < len(section.stages):
+                                    next_stage = section.stages[stage_idx + 1]
+                                    return next_stage.id, section.id, chapter.id
+                                else:
+                                    # 检查当前章节内是否有下一个小节
+                                    if section_idx + 1 < len(chapter.sections):
+                                        next_section = chapter.sections[section_idx + 1]
+                                        if next_section.stages: # 确保下一个小节有阶段
+                                            next_stage = next_section.stages[0]
+                                            return next_stage.id, next_section.id, chapter.id
+                                    else:
+                                        # 检查是否有下一个章节
+                                        if chapter_idx + 1 < len(self.scenario.story_structure.chapters):
+                                            next_chapter = self.scenario.story_structure.chapters[chapter_idx + 1]
+                                            if next_chapter.sections and next_chapter.sections[0].stages: # 确保下一个章节有小节和阶段
+                                                next_section = next_chapter.sections[0]
+                                                next_stage = next_section.stages[0]
+                                                return next_stage.id, next_section.id, next_chapter.id
+                                # 如果所有检查都失败，说明这是最后一个阶段
+                                return None, None, None
+            # 如果已经找到当前阶段但跳出了循环（意味着当前阶段是章节/小节的最后一个），则不需要继续查找
+            if found_current:
+                 break
+
+        # 如果遍历完所有章节都没找到当前阶段（理论上不应发生），或找到了但它是最后一个
+        return None, None, None

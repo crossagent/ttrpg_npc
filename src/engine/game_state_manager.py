@@ -4,12 +4,18 @@ import uuid
 import logging # Add logging import
 from operator import add, sub, mul, truediv # For attribute updates
 
+from typing import List, Dict, Any, Optional, TYPE_CHECKING # Import TYPE_CHECKING
+from datetime import datetime
+import uuid
+import logging # Add logging import
+from operator import add, sub, mul, truediv # For attribute updates
+
 from src.models.game_state_models import (
-    GameState, CharacterInstance, CharacterStatus, 
+    GameState, CharacterInstance, CharacterStatus,
     EnvironmentStatus, EventInstance, ProgressStatus,
     LocationStatus, ItemStatus, ItemInstance # Add ItemInstance
 )
-from src.models.scenario_models import Scenario
+from src.models.scenario_models import Scenario, StoryStage # Import StoryStage
 from src.models.context_models import StateChanges, Inconsistency, StateUpdateRequest
 from src.models.action_models import ItemQuery, ItemResult
 from src.models.consequence_models import Consequence, ConsequenceType # Import Consequence models
@@ -18,46 +24,55 @@ from src.models.message_models import Message, MessageType, MessageVisibility # 
 import uuid # Import uuid for message IDs
 from datetime import datetime # Import datetime for timestamps
 
+# Use TYPE_CHECKING to avoid circular imports at runtime
+if TYPE_CHECKING:
+    from src.engine.scenario_manager import ScenarioManager
+
 
 class GameStateManager:
     """
     游戏状态管理器类，负责维护游戏状态的一致性、解析DM叙述中的状态变化、提供状态查询。
     """
 
-    def __init__(self, initial_state: Optional[GameState] = None):
+    def __init__(self, scenario_manager: 'ScenarioManager', initial_state: Optional[GameState] = None):
         """
         初始化游戏状态管理器
 
         Args:
+            scenario_manager: 剧本管理器实例
             initial_state: 初始游戏状态，如果为None则创建新状态
         """
         self.game_state = initial_state
+        self.scenario_manager = scenario_manager # Store the scenario manager
         # self.message_dispatcher = message_dispatcher # Removed dispatcher dependency
         self.logger = logging.getLogger("GameStateManager") # Add logger
 
-    def initialize_game_state(self, scenario: Scenario) -> GameState:
+    def initialize_game_state(self) -> GameState:
         """
-        初始化游戏状态
-        
-        Args:
-            scenario: 要使用的剧本
-            
+        初始化游戏状态 (现在依赖 self.scenario_manager)
+
         Returns:
             GameState: 初始化的游戏状态
         """
+        # 从 ScenarioManager 获取剧本
+        scenario = self.scenario_manager.get_current_scenario()
+        if not scenario:
+            self.logger.error("无法初始化游戏状态：ScenarioManager 中没有加载剧本。")
+            raise ValueError("无法初始化游戏状态：ScenarioManager 中没有加载剧本。")
+
         # 创建基本游戏状态
         game_id = str(uuid.uuid4())
-        
+
         # 确定初始地点
         initial_location_id = None
-        if hasattr(scenario, 'locations') and scenario.locations:
+        if scenario.locations:
             # 使用第一个地点作为初始位置
             initial_location_id = next(iter(scenario.locations.keys()))
-        
+
         # 如果没有找到任何地点，使用默认位置
         if not initial_location_id:
             initial_location_id = "main_location"
-        
+
         # 创建环境状态
         environment = EnvironmentStatus(
             current_location_id=initial_location_id,
@@ -66,56 +81,50 @@ class GameStateManager:
             atmosphere="平静",
             lighting="明亮"
         )
-        
+
         # 创建进度状态 - 使用第一章节、小节、阶段作为初始值
-        # 如果剧本中有故事结构，则使用其中的第一个章节、小节、阶段
         current_chapter_id = "chapter_1"
         current_section_id = "section_1"
         current_stage_id = "stage_1"
-        
-        if (hasattr(scenario, 'story_structure') and 
-            scenario.story_structure and 
-            scenario.story_structure.chapters):
-            
+
+        if scenario.story_structure and scenario.story_structure.chapters:
             first_chapter = scenario.story_structure.chapters[0]
             current_chapter_id = first_chapter.id
-            
             if first_chapter.sections:
                 first_section = first_chapter.sections[0]
                 current_section_id = first_section.id
-                
                 if first_section.stages:
                     current_stage_id = first_section.stages[0].id
-        
+
         progress = ProgressStatus(
             current_chapter_id=current_chapter_id,
             current_section_id=current_section_id,
             current_stage_id=current_stage_id
         )
-        
+
         # 创建游戏状态
         game_state = GameState(
             game_id=game_id,
             scenario_id=scenario.story_info.id,
-            scenario=scenario,
+            scenario=scenario, # Keep scenario reference for now, though ideally accessed via manager
             environment=environment,
             progress=progress
         )
-        
+
         # 存储游戏状态
         self.game_state = game_state
-        
+
         # 初始化角色
         self._initialize_characters_from_scenario(game_state, scenario)
-        
+
         # 初始化场景
         self._initialize_locations_from_scenario(game_state, scenario)
-        
+
         # 初始化事件
         self._initialize_events_from_scenario(game_state, scenario)
 
         # --- 阶段三: 初始化后更新活动事件 ---
-        self.update_active_events()
+        self.update_active_events() # This method also needs scenario access, currently uses game_state.scenario
         self.logger.info("游戏状态初始化完成，并已更新初始活动事件列表。")
         # --- 阶段三结束 ---
 
@@ -584,15 +593,16 @@ class GameStateManager:
         检查当前阶段的完成条件是否满足。
         注意：此方法仅检查条件，不执行推进。
         """
-        if not self.game_state or not self.game_state.scenario or not self.game_state.scenario.story_structure:
-            self.logger.warning("无法检查阶段完成条件：游戏状态或剧本结构缺失。")
+        if not self.game_state:
+            self.logger.warning("无法检查阶段完成条件：游戏状态未初始化。")
             return False
 
         current_stage_id = self.game_state.progress.current_stage_id
-        current_stage = self.game_state.scenario.get_stage_by_id(current_stage_id)
+        # 使用 ScenarioManager 获取阶段信息
+        current_stage: Optional[StoryStage] = self.scenario_manager.get_stage_info(current_stage_id)
 
         if not current_stage:
-            self.logger.warning(f"无法检查阶段完成条件：未在剧本中找到当前阶段 ID '{current_stage_id}'。")
+            self.logger.warning(f"无法检查阶段完成条件：通过 ScenarioManager 未找到当前阶段 ID '{current_stage_id}'。")
             return False
 
         if not current_stage.completion_criteria:
@@ -605,15 +615,20 @@ class GameStateManager:
             # TODO: Implement more sophisticated condition checking logic
             # This is a very basic example assuming simple flag checks or item checks
             condition_met = False
-            if condition.type == "flag_set":
-                flag_name = condition.details.get("flag_name")
-                required_value = condition.details.get("value", True)
-                if flag_name and self.game_state.flags.get(flag_name) == required_value:
+            condition_type = condition.get('type') # Use .get() for safety
+            condition_details = condition.get('details', {}) # Use .get() with default empty dict
+            condition_description = condition.get('description', '未知条件') # Use .get() with default
+
+            if condition_type == "flag_set":
+                flag_name = condition_details.get("flag_name")
+                required_value = condition_details.get("value", True)
+                # Ensure flags attribute exists before accessing
+                if flag_name and hasattr(self.game_state, 'flags') and self.game_state.flags.get(flag_name) == required_value:
                     condition_met = True
-            elif condition.type == "item_possession":
-                char_id = condition.details.get("character_id")
-                item_id = condition.details.get("item_id")
-                quantity = condition.details.get("quantity", 1)
+            elif condition_type == "item_possession":
+                char_id = condition_details.get("character_id")
+                item_id = condition_details.get("item_id")
+                quantity = condition_details.get("quantity", 1)
                 if char_id and item_id:
                      # Use the already implemented check_item method
                      item_result = self.check_item(char_id, item_id, quantity)
@@ -621,14 +636,14 @@ class GameStateManager:
                          condition_met = True
             # Add more condition types (e.g., attribute_check, location_reached)
             else:
-                self.logger.warning(f"未知的阶段完成条件类型: {condition.type}")
+                self.logger.warning(f"未知的阶段完成条件类型: {condition_type}")
 
             if not condition_met:
-                self.logger.debug(f"阶段 '{current_stage_id}' 完成条件未满足: {condition.description} (类型: {condition.type})")
+                self.logger.debug(f"阶段 '{current_stage_id}' 完成条件未满足: {condition_description} (类型: {condition_type})")
                 all_conditions_met = False
                 break # No need to check further if one condition fails
             else:
-                 self.logger.debug(f"阶段 '{current_stage_id}' 完成条件已满足: {condition.description} (类型: {condition.type})")
+                 self.logger.debug(f"阶段 '{current_stage_id}' 完成条件已满足: {condition_description} (类型: {condition_type})")
 
 
         if all_conditions_met:
@@ -647,15 +662,16 @@ class GameStateManager:
             self.logger.debug("advance_stage 调用：当前阶段未完成，无法推进。")
             return False
 
-        if not self.game_state or not self.game_state.scenario or not self.game_state.scenario.story_structure:
-            self.logger.error("无法推进阶段：游戏状态或剧本结构缺失。")
+        if not self.game_state:
+            self.logger.error("无法推进阶段：游戏状态未初始化。")
             return False
 
         current_chapter_id = self.game_state.progress.current_chapter_id
         current_section_id = self.game_state.progress.current_section_id
         current_stage_id = self.game_state.progress.current_stage_id
 
-        next_stage_id, next_section_id, next_chapter_id = self.game_state.scenario.find_next_stage(
+        # 使用 ScenarioManager 查找下一个阶段
+        next_stage_id, next_section_id, next_chapter_id = self.scenario_manager.find_next_stage(
             current_stage_id, current_section_id, current_chapter_id
         )
 

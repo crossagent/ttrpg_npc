@@ -29,4 +29,4 @@ class Consequence(BaseModel):
     metadata: Optional[Dict[str, Any]] = Field(default_factory=dict, description="Optional metadata for context or debugging.")
 
     class Config:
-        use_enum_values = True # Store enum values as strings
+        pass # Default behavior: use Enum members, Pydantic handles conversion from string values on load

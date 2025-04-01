@@ -8,5 +8,5 @@ always answer in chinese.
 -Maintain parameter annotations and return value annotations for Python functions.
 
 ## debug
--log file in logs folder
+-log file in logs folder,文件名包含时间
 
