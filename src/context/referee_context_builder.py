@@ -63,10 +63,21 @@ JSON 输出格式示例：
   "success": false,
   "narrative": "你尝试说服守卫，但他毫不动摇，反而更加警惕。",
   "direct_consequences": [
-      {"type": "change_relationship", "entity_id": "guard_01", "target_entity_id": "player", "op": "-=", "value": 5}
+      {"type": "change_relationship", "target_entity_id": "guard_01", "secondary_entity_id": "player", "value": -5} 
+      # Example: Relationship change requires target_entity_id and secondary_entity_id
   ]
 }
 ```
+
+**关于 `direct_consequences` 列表的重要说明：**
+如果包含后果，每个后果对象中的 `type` 字段的值**必须**严格从以下列表中选择：
+- 'update_attribute'
+- 'add_item'
+- 'remove_item'
+- 'change_relationship'
+- 'trigger_event'
+- 'send_message'
+请确保使用这些预定义的类型，并根据类型提供必要的其他字段（如 `target_entity_id`, `item_id`, `value` 等）。
 """
     # Add scenario specific rules or context if available
     # if scenario and scenario.rules:
