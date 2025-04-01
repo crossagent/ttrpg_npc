@@ -23,24 +23,24 @@
 
 ## 3. 当前待办 (主要基于开发计划)
 
-*   **裁判代理增强 (阶段二核心逻辑)**:
-    *   **实现结局选择逻辑**: 在 `RoundManager._extract_consequences_for_triggered_events` 中实现更完善的结局选择策略（替代当前选择第一个的占位符）。
-    *   **调整 LLM Prompts**: 优化 `referee_context_builder.py` 中的 Prompts (行动判定和事件触发) 以匹配新职责和期望的输出格式。
-    *   (可选) 实现更复杂的事件触发条件评估逻辑（如果需要超越 LLM 判断）。
-*   **游戏状态管理器增强 (阶段三)**:
-    *   实现 `apply_consequences` 核心方法。
-    *   实现阶段完成检查 (`check_stage_completion`) 和阶段推进 (`advance_stage`) 逻辑。
-    *   实现激活事件列表管理 (`update_active_events`)。
-*   **集成与测试**:
-    *   将增强后的模块整合进游戏循环。
-    *   编写相应的单元测试和集成测试。
+*   **集成与测试 (阶段四)**:
+    *   将修改后的 `GameStateManager` 和 `RoundManager` 整合回 `GameEngine` 的游戏循环。
+    *   编写单元测试和集成测试，验证状态更新、阶段推进和后果应用的正确性。
+    *   (可选) 实现 `GameStateManager.apply_consequences` 中剩余的 TODO (CHANGE_RELATIONSHIP, TRIGGER_EVENT, SEND_MESSAGE)。
+    *   (可选) 优化 `referee_context_builder.py` 中的 Prompts。
+    *   (可选) 扩展 `GameStateManager.check_stage_completion` 以支持更复杂的条件类型。
 
 ## 4. 已知问题/当前局限性
 
-*   **裁判代理**: `determine_triggered_event_ids` 和 `judge_action` 依赖的 LLM Prompts 尚未优化；`determine_triggered_event_ids` 的 LLM 响应解析和错误处理可能需要加强。
-*   **回合管理器**: `_extract_consequences_for_triggered_events` 中的结局选择逻辑是占位符；后果应用逻辑 (`apply_consequences`) 尚未实现。
-*   **游戏状态管理器**: `update_state` 仍存在；`apply_consequences` 及相关的阶段推进逻辑尚未实现。
-*   **事件触发条件**: `format_trigger_condition` 的实现可能需要根据实际的结构化条件格式进一步完善。
-*   **游戏进程管理**: 自动化游戏进程推进机制仍缺乏。
+*   **裁判代理**:
+    *   `determine_triggered_events_and_outcomes` 依赖的 LLM Prompts 可能需要根据测试结果进行调优。
+    *   LLM 响应解析和错误处理可能需要加强。
+*   **游戏状态管理器**:
+    *   `apply_consequences` 中部分后果类型 (`CHANGE_RELATIONSHIP`, `TRIGGER_EVENT`, `SEND_MESSAGE`) 的处理逻辑尚未实现 (TODO)。
+    *   `check_stage_completion` 目前只支持基础的 `flag_set` 和 `item_possession` 条件。
+    *   `check_consistency` 方法尚未实现。
+*   **回合管理器**:
+    *   与 `GameStateManager` 的集成已完成，但需要通过测试验证。
+*   **测试**: 阶段三引入的新功能缺乏单元测试和集成测试。
 
-*(此文件基于 docs/开发计划_裁判与状态管理.md 生成)*
+*(此文件基于 docs/开发计划_裁判与状态管理.md 和近期开发活动更新)*

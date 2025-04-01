@@ -22,33 +22,41 @@
 *   **阶段一：数据模型定义与完善 (Models Refinement) - 已完成**
     *   已定义结构化的 `Consequence` 模型 (`src/models/consequence_models.py`)。
     *   已调整 `EventOutcome`, `StoryStage` (`src/models/scenario_models.py`), `GameState` (`src/models/game_state_models.py`), `ActionResult` (`src/models/action_models.py`)。
-*   **阶段二：裁判代理增强 (Referee Agent Enhancement) - 当前阶段**
+*   **阶段二：裁判代理增强 (Referee Agent Enhancement) - 已完成**
     *   **结构调整 (已完成)**:
         *   `ScenarioEvent.trigger_condition` 类型已更新。
         *   `context_utils.format_trigger_condition` 已添加。
         *   `context/referee_context_builder.py` 已创建，Prompt 函数骨架已迁移/添加。
-        *   `RefereeAgent` 职责已分离 (`judge_action`, `determine_triggered_event_ids`)。
-        *   `RoundManager` 流程已调整，添加 `_extract_consequences_for_triggered_events` 占位符。
-    *   **核心逻辑实现 (待办)**:
-        *   实现 `RoundManager._extract_consequences_for_triggered_events` 中的结局选择和后果提取逻辑。
-        *   调整 `referee_context_builder.py` 中的 LLM Prompts (行动判定和事件触发)。
-        *   (可选) 实现更复杂的事件触发条件评估逻辑。
-*   **阶段三：游戏状态管理器增强 (Game State Manager Enhancement)**
-    *   实现核心方法 `apply_consequences` 来处理整合后的后果列表 (`all_round_consequences`)。
-    *   重构/移除旧的 `update_state`。
-    *   实现 `check_item`、`check_stage_completion`、`advance_stage` 和 `update_active_events` 等核心状态管理和进程推进方法。
-    *   更新初始化逻辑以调用 `update_active_events`。
-*   **阶段四：集成与测试 (Integration and Testing)**
+        *   `RefereeAgent` 职责已分离 (`judge_action`, `determine_triggered_events_and_outcomes`)。
+        *   `RoundManager` 流程已调整，使用 `_extract_consequences_for_chosen_outcomes` 辅助方法。
+    *   **核心逻辑实现 (已完成)**:
+        *   `RoundManager._extract_consequences_for_chosen_outcomes` 已实现，依赖 `RefereeAgent` 提供选定结局。
+        *   `referee_context_builder.py` 中的 Prompts 已调整，明确指示 LLM 选择结局 ID。
+        *   (可选的复杂条件评估逻辑未实现，当前依赖 LLM)。
+*   **阶段三：游戏状态管理器增强 (Game State Manager Enhancement) - 当前阶段 (主要完成)**
+    *   **核心方法 `apply_consequences` (已实现框架)**:
+        *   已在 `GameStateManager` 中实现 `apply_consequences` 方法。
+        *   已实现 `UPDATE_ATTRIBUTE`, `ADD_ITEM`, `REMOVE_ITEM` 的处理逻辑。
+        *   `CHANGE_RELATIONSHIP`, `TRIGGER_EVENT`, `SEND_MESSAGE` 的处理逻辑为 **TODO** 占位符。
+    *   **旧逻辑移除 (已完成)**: 旧 `update_state` 方法已注释掉。
+    *   **核心状态管理与进程推进方法 (已实现)**:
+        *   已实现 `check_item`。
+        *   已实现 `check_stage_completion` (包含基础的 flag 和 item 条件检查)。
+        *   已实现 `advance_stage` (包含调用 `update_active_events`)。
+        *   已实现 `update_active_events` (基于 `activation_stage_id`)。
+    *   **初始化逻辑更新 (已完成)**: `initialize_game_state` 现在调用 `update_active_events`。
+    *   **`RoundManager` 整合 (已完成)**: `execute_round` 现在调用 `apply_consequences` 和 `advance_stage`。
+*   **阶段四：集成与测试 (Integration and Testing) - 下一阶段**
     *   将修改后的模块整合回 `GameEngine` 的游戏循环。
-    *   编写单元测试和集成测试。
+    *   编写单元测试和集成测试，特别是针对 `GameStateManager` 的新方法和 `RoundManager` 的流程。
+    *   (可选) 实现 `apply_consequences` 中剩余的 TODO 处理逻辑。
+    *   (可选) 优化 `referee_context_builder.py` 中的 Prompts。
 
-## 3. 当前决策与考虑 (阶段二 - 核心逻辑实现)
+## 3. 当前决策与考虑 (阶段三完成，准备阶段四)
 
-*   **事件结局选择**: 在 `_extract_consequences_for_triggered_events` 中，当一个事件有多个 `possible_outcomes` 时，如何决定选择哪一个？（当前占位符是选择第一个）。需要确定是基于规则、随机，还是需要 LLM 判断（这将需要额外的 Prompt 和调用）。
-*   **LLM Prompt 调整**:
-    *   `build_action_resolve_*`: 需要细化，明确指示 LLM 只关注直接结果，并定义好可选的 `direct_consequences` 输出。
-    *   `build_event_trigger_*`: 需要细化，确保提供了足够且清晰的上下文（包括格式化后的条件），并明确要求输出 `triggered_event_ids` 列表。
-*   **事件触发条件评估**: `RefereeAgent.determine_triggered_event_ids` 目前完全依赖 LLM。是否需要加入一些基础的代码层面的预过滤或后验证逻辑？`format_trigger_condition` 的实现是否足够满足 LLM 理解的需求？
-*   **错误处理**: 在 `determine_triggered_event_ids` 和 `_extract_consequences_for_triggered_events` 中需要考虑更健壮的错误处理（例如，LLM 返回格式错误、事件 ID 无效、结局选择失败等）。
+*   **`apply_consequences` TODOs**: `CHANGE_RELATIONSHIP`, `TRIGGER_EVENT`, `SEND_MESSAGE` 的处理逻辑尚未实现。这些可以在阶段四测试期间或根据需要再实现。`SEND_MESSAGE` 可能需要 `GameStateManager` 能够访问 `MessageDispatcher`。
+*   **`check_stage_completion` 复杂性**: 当前实现只处理了基础的 `flag_set` 和 `item_possession` 条件。如果剧本需要更复杂的条件（如属性检查、组合条件等），需要后续扩展。
+*   **测试覆盖**: 阶段四需要重点测试 `GameStateManager` 的状态更新和阶段推进逻辑，以及 `RoundManager` 中这些新调用的正确性。
+*   **Prompt 调优**: `referee_context_builder.py` 中的 Prompt 可能需要根据测试结果进行调优。
 
-*(此文件基于 docs/开发计划_裁判与状态管理.md 生成)*
+*(此文件基于 docs/开发计划_裁判与状态管理.md 和近期开发活动更新)*

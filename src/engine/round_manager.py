@@ -387,26 +387,28 @@ class RoundManager:
                  self.logger.info(f"回合 {round_id}: 无实质性活动，last_active_round 保持为 {state.last_active_round}")
 
 
-            # --- 阶段三 TODO: 应用所有后果 ---
+            # --- 阶段三: 应用所有后果 ---
             if all_round_consequences:
                 self.logger.info(f"准备应用本回合所有后果 ({len(all_round_consequences)} 条)")
-                # await self.game_state_manager.apply_consequences(all_round_consequences) # 待阶段三实现
-                # Placeholder: Log consequences instead of applying
-                for i, cons in enumerate(all_round_consequences):
-                    # Use model_dump_json for Pydantic v2 if available, else fallback
-                    log_str = f"  后果 {i+1}: "
-                    if hasattr(cons, 'model_dump_json'):
-                        log_str += cons.model_dump_json(indent=2)
-                    else:
-                        log_str += str(cons) # Fallback
-                    self.logger.debug(log_str)
+                await self.game_state_manager.apply_consequences(all_round_consequences) # 应用后果
+
+                # --- 阶段三: 检查并推进阶段 ---
+                self.logger.debug("应用后果后，检查阶段完成情况...")
+                # advance_stage already includes check_stage_completion internally
+                stage_advanced = self.game_state_manager.advance_stage()
+                if stage_advanced:
+                    self.logger.info("游戏阶段已在本回合推进。")
+                else:
+                    self.logger.debug("当前阶段未完成或已是最后阶段。")
+                # --- 阶段三结束 ---
+
             else:
                 self.logger.info("本回合没有需要应用的后果。")
-            # --- 阶段三 TODO 结束 ---
+            # --- 后果应用与阶段推进结束 ---
 
 
             # 8. 结束回合
-            final_state = self.end_round()
+            final_state = self.end_round() # Note: end_round just logs and returns state now
             return final_state
 
         except Exception as e:
