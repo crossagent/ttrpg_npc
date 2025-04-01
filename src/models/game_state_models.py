@@ -105,6 +105,7 @@ class GameState(BaseModel):
     location_states: Dict[str, LocationStatus] = Field(default_factory=dict, description="位置状态字典，键为位置ID")
     item_states: Dict[str, ItemStatus] = Field(default_factory=dict, description="物品状态字典，键为物品ID")
     event_instances: Dict[str, EventInstance] = Field(default_factory=dict, description="事件实例字典，键为实例ID")
+    active_event_ids: List[str] = Field(default_factory=list, description="当前激活的、等待玩家或环境触发的事件ID列表")
     
     # 游戏交互历史
     chat_history: List[Message] = Field(default_factory=list, description="完整消息历史记录列表")

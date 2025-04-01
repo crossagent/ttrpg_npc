@@ -12,17 +12,22 @@
 *   配置加载 (YAML) 和剧本加载 (JSON) 机制存在。
 *   基本的命令行运行入口 (`cli_runner.py`)。
 *   代理（NPC、叙事、裁判）的基本概念和职责已定义。
+*   **数据模型完善 (已完成)**:
+    *   定义了结构化的 `Consequence` 模型 (`src/models/consequence_models.py`)。
+    *   调整了 `EventOutcome`, `StoryStage` (`src/models/scenario_models.py`), `GameState` (`src/models/game_state_models.py`), `ActionResult` (`src/models/action_models.py`) 以支持结构化后果、阶段完成条件和激活事件列表。
+*   **裁判代理与回合管理器结构调整 (阶段二部分完成)**:
+    *   `RefereeAgent` 职责分离：`judge_action` (直接结果) 和 `determine_triggered_event_ids` (事件触发判断)。
+    *   `RoundManager` 流程调整：分离行动判定和事件触发调用，添加后果整合步骤。
+    *   创建了 `referee_context_builder.py` 并迁移/添加了 Prompt 函数骨架。
+    *   添加了 `context_utils.format_trigger_condition` 辅助函数。
 
 ## 3. 当前待办 (主要基于开发计划)
 
-*   **数据模型完善**:
-    *   定义结构化的 `Consequence` 模型。
-    *   调整 `EventOutcome`, `StoryStage`, `GameState`, `ActionResult` 以支持结构化后果、阶段完成条件和激活事件列表。
-*   **裁判代理增强**:
-    *   实现事件触发检查逻辑。
-    *   实现后果提取与整合逻辑。
-    *   调整 LLM Prompt 以适应新职责。
-*   **游戏状态管理器增强**:
+*   **裁判代理增强 (阶段二核心逻辑)**:
+    *   实现 `RoundManager._extract_consequences_for_triggered_events` 中的结局选择和后果提取逻辑。
+    *   调整 `referee_context_builder.py` 中的 LLM Prompts (行动判定和事件触发) 以匹配新职责。
+    *   (可选) 实现更复杂的事件触发条件评估逻辑（如果需要超越 LLM 判断）。
+*   **游戏状态管理器增强 (阶段三)**:
     *   实现 `apply_consequences` 核心方法。
     *   实现阶段完成检查 (`check_stage_completion`) 和阶段推进 (`advance_stage`) 逻辑。
     *   实现激活事件列表管理 (`update_active_events`)。
@@ -32,9 +37,10 @@
 
 ## 4. 已知问题/当前局限性
 
-*   **裁判代理**: 当前无法根据剧本进行事件触发判断和结构化后果处理。
-*   **游戏状态管理器**: `update_state` 功能非常有限，无法处理结构化后果，无法检查阶段完成或推进游戏阶段，缺少激活事件管理。
-*   **数据模型不一致**: `EventOutcome.consequence` 和 `ActionResult.state_changes` 的定义与设计文档中的结构化后果概念不符；`StoryStage` 缺少 `completion_criteria`；`GameState` 缺少 `active_event_ids`。
-*   **游戏进程管理**: 缺乏基于结构化后果和阶段完成条件的自动化游戏进程推进机制。
+*   **裁判代理**: `determine_triggered_event_ids` 依赖的 LLM Prompt 和解析逻辑尚未完全调整和测试；`judge_action` 可能需要调整 Prompt 以明确排除事件。
+*   **回合管理器**: `_extract_consequences_for_triggered_events` 结局选择逻辑是占位符；后果整合后的应用逻辑 (`apply_consequences`) 尚未实现。
+*   **游戏状态管理器**: `update_state` 仍存在且功能有限；`apply_consequences` 及相关的阶段推进逻辑尚未实现。
+*   **事件触发条件**: `trigger_condition` 的具体评估逻辑（代码 vs LLM）和 `format_trigger_condition` 的完善程度待定。
+*   **游戏进程管理**: 自动化游戏进程推进机制仍缺乏。
 
 *(此文件基于 docs/开发计划_裁判与状态管理.md 生成)*

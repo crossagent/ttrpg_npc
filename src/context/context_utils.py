@@ -264,3 +264,90 @@ def format_current_stage_locations(game_state) -> str:
         return "未找到地点详细信息"
     
     return "\n".join(location_details)
+
+
+def format_trigger_condition(conditions: List[Dict[str, Any]], game_state) -> str:
+    """
+    将结构化的触发条件列表转换为自然语言描述。
+
+    Args:
+        conditions: 结构化条件字典的列表。
+            示例: [{"type": "attribute", "entity_id": "player", "attribute": "health", "op": "<=", "value": 10}, ...]
+        game_state: 当前游戏状态实例，用于查找实体名称和状态。
+
+    Returns:
+        str: 格式化后的自然语言条件描述。
+    """
+    if not conditions:
+        return "无特定触发条件。"
+
+    descriptions = []
+    for condition in conditions:
+        condition_type = condition.get("type")
+        entity_id = condition.get("entity_id")
+        op = condition.get("op")
+        value = condition.get("value")
+        desc = f"条件({condition_type})" # Default description
+
+        # Helper to get entity name
+        def get_entity_name(ent_id):
+            if not game_state: return ent_id
+            if ent_id == "player": # Assuming 'player' is a special ID
+                # Find the player character ID
+                player_char_id = None
+                for char_id, char_instance in game_state.characters.items():
+                    if char_instance.player_controlled:
+                        player_char_id = char_id
+                        break
+                if player_char_id and player_char_id in game_state.characters:
+                     return f"玩家({game_state.characters[player_char_id].name})"
+                else:
+                    return "玩家" # Fallback
+            elif game_state.characters and ent_id in game_state.characters:
+                return f"角色'{game_state.characters[ent_id].name}'({ent_id})"
+            elif game_state.items and ent_id in game_state.items:
+                 # Assuming items have a 'name' attribute in scenario.items
+                 item_info = game_state.scenario.items.get(ent_id) if game_state.scenario else None
+                 return f"物品'{getattr(item_info, 'name', ent_id)}'({ent_id})"
+            elif game_state.locations and ent_id in game_state.locations:
+                 # Assuming locations have a 'name' attribute in scenario.locations
+                 loc_info = game_state.scenario.locations.get(ent_id) if game_state.scenario else None
+                 return f"地点'{getattr(loc_info, 'name', ent_id)}'({ent_id})"
+            return ent_id # Fallback to ID
+
+        try:
+            if condition_type == "attribute":
+                attribute = condition.get("attribute")
+                entity_name = get_entity_name(entity_id)
+                # TODO: Get actual attribute value from game_state for comparison context?
+                # current_value = get_attribute_value(game_state, entity_id, attribute) # Need helper
+                desc = f"{entity_name} 的属性 '{attribute}' {op} {value}"
+            elif condition_type == "item":
+                item_id = condition.get("item_id")
+                entity_name = get_entity_name(entity_id)
+                item_name = get_entity_name(item_id) # Use helper for item name too
+                has_item_str = "拥有" if op == "has" else "不拥有" if op == "not_has" else f"{op}"
+                desc = f"{entity_name} {has_item_str} {item_name}"
+            elif condition_type == "location":
+                location_id = condition.get("location_id")
+                entity_name = get_entity_name(entity_id)
+                location_name = get_entity_name(location_id)
+                is_at_str = "位于" if op == "is_at" else "不位于" if op == "not_at" else f"{op}"
+                desc = f"{entity_name} {is_at_str} {location_name}"
+            elif condition_type == "relationship":
+                target_entity_id = condition.get("target_entity_id")
+                entity_name = get_entity_name(entity_id)
+                target_name = get_entity_name(target_entity_id)
+                # TODO: Get actual relationship value from game_state
+                desc = f"{entity_name} 与 {target_name} 的关系值 {op} {value}"
+            # Add more condition types as needed (e.g., game_state variable, time)
+            else:
+                 desc = f"未知条件类型: {condition_type} ({condition})"
+
+        except Exception as e:
+            print(f"错误: 格式化条件时出错: {e}, 条件: {condition}")
+            desc = f"格式化条件出错 ({condition.get('type', '未知类型')})"
+
+        descriptions.append(desc)
+
+    return " 并且 ".join(descriptions) + "。"

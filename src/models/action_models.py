@@ -3,6 +3,8 @@ from typing import List, Optional, Dict, Any, Union
 from enum import Enum
 from datetime import datetime
 
+from src.models.consequence_models import Consequence
+
 # Add this new model before InternalThoughts class
 class AttitudeType(str, Enum):
     """态度类型枚举"""
@@ -77,7 +79,7 @@ class ActionResult(BaseModel):
     success: bool = Field(..., description="行动是否成功")
     narrative: str = Field(..., description="结果叙述")
     dice_result: Optional[DiceResult] = Field(None, description="如果涉及掷骰，则包含骰子结果")
-    state_changes: Dict[str, Any] = Field(default_factory=dict, description="导致的状态变化")
+    consequences: List[Consequence] = Field(default_factory=list, description="行动导致的结构化后果列表")
 
 
 class ActionResolutionRequest(BaseModel):
