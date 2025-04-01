@@ -61,6 +61,8 @@ def build_decision_system_prompt(charaInfo: ScenarioCharacterInfo) -> str:
 
 {model_instruction}
 
+**特别注意：** 在 `internal_thoughts.other_players_assessment` 中，每个角色的 `attitude_toward_self` 字段，其值**必须**严格从以下选项中选择一个：'友好', '中立', '敌对', '未知'。请勿包含任何其他字符或解释。
+
 注意：只有"action"部分会被其他人看到，其他部分只有你自己知道。
 根据当前情境和角色性格来调整你的目标、计划、心情和行动。
 你的回应必须包含上述五个部分，各部分应有明确的逻辑关联，展现角色的思考过程。

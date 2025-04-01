@@ -478,7 +478,18 @@
                 "name": "探索阶段",
                 "description": "玩家熟悉俱乐部环境，了解人物关系，收集初步信息",
                 "objective": "建立初步人脉，发现关键线索，确定个人立场",
-                "completion_criteria": "has_item:info_victor_deal_details OR has_item:info_rachel_not_simple",
+                "completion_criteria": [
+                  {
+                    "type": "item_possession",
+                    "details": { "character_id": "char_001", "item_id": "info_victor_deal_details", "quantity": 1 },
+                    "description": "莫妮卡拥有维克多交易情报"
+                  },
+                  {
+                    "type": "item_possession",
+                    "details": { "character_id": "char_001", "item_id": "info_rachel_not_simple", "quantity": 1 },
+                    "description": "莫妮卡拥有瑞秋身份线索"
+                  }
+                ],
                 "locations": ["loc_001", "loc_002"],
                 "characters": ["char_001", "char_002", "char_003"],
                 "events": ["evt_001", "evt_004"],
@@ -503,7 +514,18 @@
                 "name": "博弈阶段",
                 "description": "各方势力明确目标，开始相互试探和较量",
                 "objective": "确立盟友和对手，深入了解俱乐部秘密",
-                "completion_criteria": "has_item:item_004 OR has_item:info_rachel_confirmed_undercover",
+                "completion_criteria": [
+                  {
+                    "type": "item_possession",
+                    "details": { "character_id": "char_001", "item_id": "item_004", "quantity": 1 },
+                    "description": "莫妮卡拥有莫妮卡的U盘"
+                  },
+                  {
+                    "type": "item_possession",
+                    "details": { "character_id": "char_001", "item_id": "info_rachel_confirmed_undercover", "quantity": 1 },
+                    "description": "莫妮卡确认瑞秋卧底身份"
+                  }
+                ],
                 "locations": ["loc_002", "loc_003", "loc_004"],
                 "characters": ["char_001", "char_002", "char_004", "char_005"],
                 "events": ["evt_002", "evt_006", "evt_007"],
@@ -528,7 +550,18 @@
                 "name": "冲突阶段",
                 "description": "公开对抗，各方为达成目标不择手段",
                 "objective": "获取关键证据，处理人际危机，为最终决断做准备",
-                "completion_criteria": "has_item:item_001 OR has_item:item_002",
+                "completion_criteria": [
+                  {
+                    "type": "item_possession",
+                    "details": { "character_id": "char_001", "item_id": "item_001", "quantity": 1 },
+                    "description": "莫妮卡拥有录音存储器"
+                  },
+                  {
+                    "type": "item_possession",
+                    "details": { "character_id": "char_001", "item_id": "item_002", "quantity": 1 },
+                    "description": "莫妮卡拥有账目记录"
+                  }
+                ],
                 "locations": ["loc_001", "loc_004", "loc_005"],
                 "characters": ["char_001", "char_002", "char_003", "char_004", "char_005"],
                 "events": ["evt_003", "evt_005", "evt_008", "evt_009"],
@@ -553,7 +586,13 @@
                 "name": "真相阶段",
                 "description": "所有隐藏身份和议程揭露，玩家作出最终选择",
                 "objective": "根据之前行动和关系确定结局",
-                "completion_criteria": "has_item:info_final_decision_made",
+                "completion_criteria": [
+                  {
+                    "type": "item_possession",
+                    "details": { "character_id": "char_001", "item_id": "info_final_decision_made", "quantity": 1 },
+                    "description": "莫妮卡已做出最终抉择"
+                  }
+                ],
                 "locations": ["loc_001", "loc_002", "loc_003", "loc_004", "loc_005"],
                 "characters": ["char_001", "char_002", "char_003", "char_004", "char_005"],
                 "events": ["evt_010"],

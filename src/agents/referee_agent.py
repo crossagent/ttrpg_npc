@@ -63,7 +63,7 @@ class RefereeAgent(BaseAgent):
         system_message_content: str = build_action_resolve_system_prompt(scenario)
 
         # 创建临时的AssistantAgent实例用于本次调用
-        assistant_name = f"{self.agent_name}_action_resolver_helper_{uuid.uuid4()}" # Ensure unique name
+        assistant_name = f"{self.agent_name}_action_resolver_helper_{uuid.uuid4().hex}" # Use .hex for valid identifier
         assistant = AssistantAgent(
             name=assistant_name,
             model_client=self.model_client,
@@ -171,7 +171,7 @@ class RefereeAgent(BaseAgent):
         user_message_content = build_event_trigger_and_outcome_user_prompt(game_state, action_results, scenario)
 
         # 创建临时 Agent
-        assistant_name = f"{self.agent_name}_event_trigger_helper_{uuid.uuid4()}"
+        assistant_name = f"{self.agent_name}_event_trigger_helper_{uuid.uuid4().hex}" # Use .hex for valid identifier
         assistant = AssistantAgent(
             name=assistant_name,
             model_client=self.model_client,

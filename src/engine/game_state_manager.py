@@ -185,14 +185,31 @@ class GameStateManager:
         
         # 从剧本中加载位置
         for loc_id, location_info in scenario.locations.items():
-            # 创建位置状态
+            # --- Correctly initialize available_items as List[ItemInstance] ---
+            item_instances: List[ItemInstance] = []
+            available_item_ids = getattr(location_info, 'available_items', None) # Get list of IDs or None
+
+            if available_item_ids and isinstance(available_item_ids, list):
+                for item_id in available_item_ids:
+                    if isinstance(item_id, str): # Ensure it's a string ID
+                        item_definition = game_state.scenario.items.get(item_id) if game_state.scenario and game_state.scenario.items else None
+                        if item_definition:
+                            # Assuming default quantity 1 for items initially present in locations
+                            item_instances.append(ItemInstance(item_id=item_id, name=item_definition.name, quantity=1))
+                        else:
+                            self.logger.warning(f"初始化地点 '{loc_id}' 时警告：在剧本物品定义中未找到物品 ID '{item_id}'。")
+                    else:
+                         self.logger.warning(f"初始化地点 '{loc_id}' 时警告：available_items 列表中包含非字符串元素 '{item_id}'。")
+
+            # 创建位置状态，使用处理过的 item_instances 列表
             location_status = LocationStatus(
                 location_id=loc_id,
                 search_status="未搜索",
-                available_items=getattr(location_info, 'available_items', []),
+                available_items=item_instances, # Pass the list of ItemInstance objects
                 present_characters=[]
             )
-            
+            # --- End of correction ---
+
             # 将位置添加到游戏状态
             game_state.location_states[loc_id] = location_status
             
