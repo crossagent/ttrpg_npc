@@ -2,3 +2,8 @@
 
 ## language
 always answer in chinese.
+
+## Code Style & Patterns
+-Use pydantic for creating new data
+-Maintain parameter annotations and return value annotations for Python functions.
+
