@@ -2,6 +2,8 @@ from autogen_agentchat.agents import BaseChatAgent
 from autogen_agentchat.messages import TextMessage
 import asyncio
 from typing import Optional, List, Dict, Any
+import logging # Added logging import
+from src.utils.logging_utils import setup_logging # Added setup_logging import
 
 # 导入我们的游戏引擎
 from src.engine.game_engine import GameEngine
@@ -38,6 +40,7 @@ async def display_output(message: TextMessage) -> None:
     if hasattr(message, 'message_subtype') and message.message_subtype == "action_description":
         prefix = "(行动) "
 
+    # Note: This function now only prints. Logging is handled by the handler in GameEngine.
     print(f"{source_display}: {prefix}{message.content}")
 
 
@@ -49,60 +52,71 @@ async def show_player_history(round_manager, player_name: str) -> None:
         round_manager: 回合管理器
         player_name: 玩家名称
     """
-    history = round_manager.get_player_history(player_name)
-    if not history:
+    # This function prints directly to console. It's not part of the main game flow messages.
+    # If logging for this command is needed, it should be added here or handled differently.
+    # The GameEngine's _show_player_history now handles logging.
+    # This cli_runner version might become redundant or needs refactoring if GameEngine handles commands.
+    
+    # Check if round_manager is available (might be None if called before engine init or after cleanup)
+    if not round_manager:
+        print("回合管理器不可用，无法显示历史记录。")
+        return
+        
+    # Assuming round_manager has access to the necessary history data or methods
+    # The original implementation relied on a specific structure in round_manager.
+    # Let's adapt based on GameEngine's approach, assuming round_manager has message_dispatcher
+    if not hasattr(round_manager, 'message_dispatcher'):
+         print("回合管理器缺少消息分发器，无法获取历史记录。")
+         return
+
+    messages = round_manager.message_dispatcher.get_message_history(player_id=player_name) # Use player_id kwarg
+
+    if not messages:
         print(f"找不到玩家 '{player_name}' 的历史记录")
         return
     
     print(f"\n--- {player_name} 的历史记录 ---")
     
-    # 按回合分组
-    rounds = {}
-    for entry in history:
-        round_num = entry.get("round", 0)
-        if round_num not in rounds:
-            rounds[round_num] = []
-        rounds[round_num].append(entry)
-    
-    # 按回合显示历史记录
-    for round_num in sorted(rounds.keys()):
-        if round_num == 0:  # 跳过回合为0的记录
-            continue
-            
-        print(f"\n————第{round_num}回合————")
-        entries = rounds[round_num]
-        
-        # 按时间戳排序
-        entries.sort(key=lambda x: x.get("timestamp", ""))
-        
-        # 显示该回合的所有记录
-        for entry in entries:
-            character_name = entry.get("character_name", "")
-            message = entry.get("message", "")
-            print(f"{character_name}: {message}")
+    # Simplified display based on GameEngine's _show_player_history
+    for message in messages:
+        sender = message.source if hasattr(message, 'source') else "未知"
+        content = message.content if hasattr(message, 'content') else str(message)
+        timestamp = message.timestamp if hasattr(message, 'timestamp') else "未知时间"
+        print(f"\n[{timestamp}] {sender}: {content}")
+
+    print("\n" + "-" * 50)
+
 
 async def main() -> None:
     """
     CLI入口，管理整个游戏流程
     """
+    # --- Setup Logging ---
+    # Set level to INFO by default, or DEBUG for more details
+    setup_logging(level=logging.INFO) 
+    # --- End Logging Setup ---
+
+    logging.info("=== TTRPG NPC游戏系统启动 (CLI Runner) ===") # Log start
     print("=== TTRPG NPC游戏系统启动 ===")
-    print("这是一个多人角色扮演游戏，包含3个AI玩家和1个人类玩家")
-    print("每回合DM会描述场景，然后所有玩家依次行动")
-    print("可用命令:")
-    print("  /history [玩家名称] - 查看指定玩家的内部状态历史")
-    print("  /quit - 退出游戏\n")
+    # Removed redundant help messages as GameEngine handles command input now
     
     # 创建游戏引擎
-    engine = GameEngine(max_rounds=5)
+    # Max rounds might be better configured elsewhere (e.g., game_config.yaml)
+    engine = GameEngine(max_rounds=5) 
     
     try:
-        # 启动游戏
+        # 启动游戏 - GameEngine now handles the main loop and command input
         await engine.run_game()
-        print("\n=== 游戏结束 ===")
+        logging.info("=== 游戏正常结束 (CLI Runner) ===") # Log normal end
+        # print("\n=== 游戏结束 ===") # GameEngine prints its own end message
     except KeyboardInterrupt:
+        logging.warning("游戏被用户中断 (CLI Runner)") # Log interruption
         print("\n游戏被用户中断")
     except Exception as e:
+        logging.exception(f"游戏出错 (CLI Runner): {str(e)}") # Log exception
         print(f"\n游戏出错: {str(e)}")
+    finally:
+        logging.info("CLI Runner main function finished.")
 
 if __name__ == "__main__":
     # 启动异步事件循环
