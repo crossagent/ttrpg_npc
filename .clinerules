@@ -7,3 +7,6 @@ always answer in chinese.
 -Use pydantic for creating new data
 -Maintain parameter annotations and return value annotations for Python functions.
 
+## debug
+-log file in logs folder
+
