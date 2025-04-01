@@ -8,7 +8,7 @@
 *   添加了 `context_utils.format_trigger_condition` 用于预处理结构化条件。
 *   创建了 `context/referee_context_builder.py` 并迁移/添加了 Prompt 函数骨架。
 *   `RefereeAgent` 职责分离：`judge_action` (直接结果) 和 `determine_triggered_event_ids` (事件触发判断)。
-*   `RoundManager` 流程调整：分离行动判定和事件触发调用，添加 `_extract_consequences_for_triggered_events` 辅助方法（占位符）。
+*   `RoundManager` 流程调整：分离行动判定和事件触发调用，添加 `_extract_consequences_for_triggered_events` 辅助方法（含占位符结局选择逻辑）。
 
 当前的开发重点是**实现阶段二的核心逻辑**:
 1.  **实现事件结局选择与后果提取**: 在 `RoundManager._extract_consequences_for_triggered_events` 中实现选择 `EventOutcome` 并提取其 `consequences` 的具体逻辑。

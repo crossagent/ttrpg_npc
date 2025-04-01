@@ -239,48 +239,62 @@ class RoundManager:
         self.logger.info(f"完成对 {len(processed_action_results)} 个实质性行动的直接结果判定。")
         return processed_action_results
 
-    # --- 新增: 结局选择与后果提取辅助方法 ---
-    def _extract_consequences_for_triggered_events(self, triggered_event_ids: List[str], scenario: Scenario, game_state: GameState) -> List[Consequence]:
+    # --- 更新: 结局选择与后果提取辅助方法 ---
+    def _extract_consequences_for_chosen_outcomes(self, triggered_events_with_outcomes: List[Dict[str, str]], scenario: Scenario) -> List[Consequence]:
         """
-        根据触发的事件ID列表，确定结局并提取后果。
-        (当前为占位符实现，仅选择第一个结局)
+        根据裁判选定的事件结局，提取相应的后果。
 
         Args:
-            triggered_event_ids: 被触发的事件ID列表。
+            triggered_events_with_outcomes: 包含 "event_id" 和 "chosen_outcome_id" 的字典列表。
             scenario: 当前剧本。
-            game_state: 当前游戏状态 (可能用于结局选择)。
 
         Returns:
             List[Consequence]: 从触发事件的选定结局中提取的后果列表。
         """
         all_event_consequences: List[Consequence] = []
         if not scenario or not scenario.events:
+            self.logger.warning("无法提取事件后果，剧本或事件列表为空。")
             return all_event_consequences
 
-        for event_id in triggered_event_ids:
-            event = next((e for e in scenario.events if e.event_id == event_id), None)
-            if event:
-                self.logger.info(f"处理已触发事件 '{event.name}' ({event.id}) 的后果。")
-                if event.possible_outcomes:
-                    # TODO: 实现结局选择逻辑 (Outcome Selection Logic)
-                    # - 可以基于规则、随机、或 LLM 判断 (需要额外调用)
-                    # - 当前简单选择第一个结局作为占位符
-                    chosen_outcome: EventOutcome = event.possible_outcomes[0]
-                    self.logger.info(f"为事件 '{event.name}' 选择结局: '{chosen_outcome.id}' - {chosen_outcome.description}")
+        # Create a quick lookup map for events
+        event_map = {event.event_id: event for event in scenario.events}
 
-                    # 提取后果
-                    if chosen_outcome.consequences:
-                        all_event_consequences.extend(chosen_outcome.consequences)
+        for trigger_info in triggered_events_with_outcomes:
+            event_id = trigger_info.get("event_id")
+            chosen_outcome_id = trigger_info.get("chosen_outcome_id")
 
-                    # TODO: (可选) 广播事件结局消息
-                    # outcome_message_content = f"事件 '{event.name}' 发生结局: {chosen_outcome.description}"
-                    # ... create and broadcast message ...
+            if not event_id or not chosen_outcome_id:
+                self.logger.warning(f"无效的事件触发信息: {trigger_info}，跳过后果提取。")
+                continue
 
-                else:
-                    self.logger.warning(f"触发的事件 '{event.name}' ({event.id}) 没有定义可能的结局。")
+            event = event_map.get(event_id)
+            if not event:
+                self.logger.warning(f"无法在剧本中找到触发的事件ID: {event_id}，跳过后果提取。")
+                continue
+
+            self.logger.info(f"处理已触发事件 '{event.name}' ({event.id}) 的选定结局 '{chosen_outcome_id}'。")
+
+            # Find the chosen outcome
+            chosen_outcome: Optional[EventOutcome] = None
+            if event.possible_outcomes:
+                chosen_outcome = next((outcome for outcome in event.possible_outcomes if outcome.id == chosen_outcome_id), None)
+
+            if not chosen_outcome:
+                self.logger.warning(f"无法在事件 '{event.name}' 中找到选定的结局ID: {chosen_outcome_id}。")
+                continue
+
+            # 提取后果
+            if chosen_outcome.consequences:
+                self.logger.debug(f"从结局 '{chosen_outcome.id}' ({chosen_outcome.description}) 提取 {len(chosen_outcome.consequences)} 条后果。")
+                all_event_consequences.extend(chosen_outcome.consequences)
             else:
-                self.logger.warning(f"无法在剧本中找到触发的事件ID: {event_id}")
+                self.logger.info(f"选定结局 '{chosen_outcome.id}' 没有定义后果。")
 
+            # TODO: (可选) 广播事件结局消息
+            # outcome_message_content = f"事件 '{event.name}' 发生结局: {chosen_outcome.description}"
+            # ... create and broadcast message ...
+
+        self.logger.info(f"共提取 {len(all_event_consequences)} 条事件触发后果。")
         return all_event_consequences
 
 
@@ -334,23 +348,23 @@ class RoundManager:
             # 4. 解析每个行动的直接结果
             action_results: List[ActionResult] = await self.resolve_actions(player_actions)
 
-            # 5. 事件触发判定 (调用 RefereeAgent 的新方法)
+            # 5. 事件触发判定与结局选择 (调用 RefereeAgent 的合并方法)
             current_state_for_event_check = self.game_state_manager.get_state()
-            scenario_for_event_check = self.scenario_manager.get_current_scenario() # Get scenario
-            triggered_event_ids: List[str] = []
-            if scenario_for_event_check: # Ensure scenario exists
-                triggered_event_ids = await self.referee_agent.determine_triggered_event_ids(
+            scenario_for_event_check = self.scenario_manager.get_current_scenario()
+            triggered_events_with_outcomes: List[Dict[str, str]] = []
+            if scenario_for_event_check:
+                triggered_events_with_outcomes = await self.referee_agent.determine_triggered_events_and_outcomes(
                     action_results, current_state_for_event_check, scenario_for_event_check
                 )
             else:
-                self.logger.warning("无法获取当前剧本，跳过事件触发判定。")
+                self.logger.warning("无法获取当前剧本，跳过事件触发与结局选择。")
 
-            # 5b. 结局选择与后果提取 (基于触发的事件ID)
+            # 5b. 后果提取 (基于选定的结局)
             triggered_event_consequences: List[Consequence] = []
-            if triggered_event_ids and scenario_for_event_check:
-                # Use the helper method to get consequences
-                triggered_event_consequences = self._extract_consequences_for_triggered_events(
-                    triggered_event_ids, scenario_for_event_check, current_state_for_event_check
+            if triggered_events_with_outcomes and scenario_for_event_check:
+                # Use the updated helper method
+                triggered_event_consequences = self._extract_consequences_for_chosen_outcomes(
+                    triggered_events_with_outcomes, scenario_for_event_check
                 )
 
             # 6. 整合所有后果
@@ -364,7 +378,8 @@ class RoundManager:
             has_substantive_action_this_round = any(
                 action.action_type == ActionType.ACTION for action in player_actions
             )
-            if has_substantive_action_this_round or triggered_event_ids: # Consider triggered events as substantive?
+            # Consider triggered events as substantive activity as well
+            if has_substantive_action_this_round or triggered_events_with_outcomes:
                 current_state_before_apply.last_active_round = round_id
                 self.logger.info(f"回合 {round_id}: 有实质性活动，更新 last_active_round 为 {round_id}")
             else:

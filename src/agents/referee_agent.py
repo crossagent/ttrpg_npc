@@ -18,10 +18,11 @@ from src.agents.base_agent import BaseAgent
 from src.context.referee_context_builder import (
     build_action_resolve_system_prompt,
     build_action_resolve_user_prompt,
-    build_event_trigger_system_prompt,
-    build_event_trigger_user_prompt
+    # Import the new combined prompt builders
+    build_event_trigger_and_outcome_system_prompt,
+    build_event_trigger_and_outcome_user_prompt
 )
-from src.models.scenario_models import Scenario # Ensure Scenario is imported if not already
+from src.models.scenario_models import Scenario # Ensure Scenario is imported
 from autogen_agentchat.agents import AssistantAgent # Import AssistantAgent
 
 
@@ -149,9 +150,9 @@ class RefereeAgent(BaseAgent):
                 consequences=[]
             )
 
-    async def determine_triggered_event_ids(self, action_results: List[ActionResult], game_state: GameState, scenario: Scenario) -> List[str]:
+    async def determine_triggered_events_and_outcomes(self, action_results: List[ActionResult], game_state: GameState, scenario: Scenario) -> List[Dict[str, str]]:
         """
-        使用LLM判断本回合触发了哪些活动事件。
+        使用LLM判断本回合触发了哪些活动事件，并为每个触发的事件选择一个结局。
 
         Args:
             action_results: 本回合所有行动的直接结果列表。
@@ -159,15 +160,15 @@ class RefereeAgent(BaseAgent):
             scenario: 当前剧本。
 
         Returns:
-            List[str]: 被触发的事件 ID 列表。
+            List[Dict[str, str]]: 一个列表，每个元素是包含 "event_id" 和 "chosen_outcome_id" 的字典。
         """
         if not game_state.active_event_ids:
             self.logger.info("没有活动事件需要检查触发。")
             return []
 
-        # 构建 Prompt
-        system_message_content = build_event_trigger_system_prompt(scenario)
-        user_message_content = build_event_trigger_user_prompt(game_state, action_results, scenario)
+        # 构建 Prompt using the new combined builders
+        system_message_content = build_event_trigger_and_outcome_system_prompt(scenario)
+        user_message_content = build_event_trigger_and_outcome_user_prompt(game_state, action_results, scenario)
 
         # 创建临时 Agent
         assistant_name = f"{self.agent_name}_event_trigger_helper_{uuid.uuid4()}"
@@ -179,13 +180,13 @@ class RefereeAgent(BaseAgent):
         user_message = TextMessage(content=user_message_content, source="system")
 
         response_content: str = ""
-        triggered_ids: List[str] = []
+        triggered_events_with_outcomes: List[Dict[str, str]] = []
 
         try:
             # 调用 LLM
             response = await assistant.on_messages([user_message], CancellationToken())
             if not response or not response.chat_message or not response.chat_message.content:
-                self.logger.warning(f"未能从LLM获取有效的事件触发判断响应。")
+                self.logger.warning(f"未能从LLM获取有效的事件触发与结局选择响应。")
                 return [] # Return empty list on LLM error
 
             response_content = response.chat_message.content
@@ -196,45 +197,51 @@ class RefereeAgent(BaseAgent):
             if json_match:
                 json_str = json_match.group(1).strip()
             else:
-                self.logger.warning(f"事件触发LLM响应未包含 ```json ``` 标记。尝试直接解析。响应: {response_content[:100]}...")
+                self.logger.warning(f"事件触发与结局选择LLM响应未包含 ```json ``` 标记。尝试直接解析。响应: {response_content[:100]}...")
 
             try:
                 response_data = json.loads(json_str)
-                if "triggered_event_ids" in response_data and isinstance(response_data["triggered_event_ids"], list):
-                    # Validate that IDs are strings or ints, convert to string
-                    raw_ids = response_data["triggered_event_ids"]
-                    triggered_ids = [str(eid) for eid in raw_ids if isinstance(eid, (str, int))]
+                # Expecting {"triggered_events": [{"event_id": "...", "chosen_outcome_id": "..."}, ...]}
+                if "triggered_events" in response_data and isinstance(response_data["triggered_events"], list):
+                    raw_triggered_list = response_data["triggered_events"]
+                    valid_results = []
+                    active_event_ids_set = set(game_state.active_event_ids)
+                    scenario_event_map = {event.event_id: event for event in scenario.events} if scenario and scenario.events else {}
 
-                    # Filter IDs to only include those that were actually active and valid in the scenario
-                    active_and_valid_ids = set(game_state.active_event_ids)
-                    if scenario and scenario.events:
-                         valid_scenario_event_ids = {event.event_id for event in scenario.events}
-                         active_and_valid_ids = active_and_valid_ids.intersection(valid_scenario_event_ids)
+                    for item in raw_triggered_list:
+                        if isinstance(item, dict) and "event_id" in item and "chosen_outcome_id" in item:
+                            event_id = str(item["event_id"])
+                            outcome_id = str(item["chosen_outcome_id"])
 
-                    final_triggered_ids = [tid for tid in triggered_ids if tid in active_and_valid_ids]
+                            # Validate: event_id must be active and exist in scenario
+                            if event_id not in active_event_ids_set or event_id not in scenario_event_map:
+                                self.logger.warning(f"LLM 返回了无效或非活动的事件ID: {event_id}")
+                                continue
 
-                    if len(final_triggered_ids) != len(triggered_ids):
-                         invalid_returned_ids = set(triggered_ids) - set(final_triggered_ids)
-                         self.logger.warning(f"LLM 返回了无效或非活动的事件ID: {invalid_returned_ids}")
-                    triggered_ids = final_triggered_ids
+                            # Validate: chosen_outcome_id must exist for the given event_id
+                            event = scenario_event_map[event_id]
+                            if not any(outcome.id == outcome_id for outcome in event.possible_outcomes):
+                                self.logger.warning(f"LLM 为事件 {event_id} 返回了无效的结局ID: {outcome_id}")
+                                continue
 
+                            valid_results.append({"event_id": event_id, "chosen_outcome_id": outcome_id})
+                        else:
+                             self.logger.warning(f"LLM 返回的 triggered_events 列表包含无效项: {item}")
+
+                    triggered_events_with_outcomes = valid_results
                 else:
-                    self.logger.warning(f"事件触发LLM响应JSON格式不正确或缺少 'triggered_event_ids' 列表。响应数据: {response_data}")
-                    triggered_ids = [] # Ensure it's an empty list
+                    self.logger.warning(f"事件触发与结局选择LLM响应JSON格式不正确或缺少 'triggered_events' 列表。响应数据: {response_data}")
 
             except json.JSONDecodeError as e:
-                self.logger.error(f"事件触发JSON解析失败。错误: {e}。原始JSON: '{json_str}'. LLM响应: {response_content}")
-                triggered_ids = [] # Ensure it's an empty list
+                self.logger.error(f"事件触发与结局选择JSON解析失败。错误: {e}。原始JSON: '{json_str}'. LLM响应: {response_content}")
 
         except Exception as e:
-            self.logger.exception(f"判断事件触发时发生意外错误: {str(e)}")
+            self.logger.exception(f"判断事件触发与结局选择时发生意外错误: {str(e)}")
             print(f"LLM Response Content (if any): {response_content[:200]}...") # Keep print for traceback context
-            # traceback.print_exc() # logger.exception includes traceback
-            triggered_ids = [] # Return empty list on general error
 
-        if triggered_ids:
-             self.logger.info(f"LLM 判断触发的事件 IDs: {triggered_ids}")
+        if triggered_events_with_outcomes:
+             self.logger.info(f"LLM 判断触发的事件及选定结局: {triggered_events_with_outcomes}")
         else:
-             self.logger.info("LLM 判断本回合无事件触发。")
+             self.logger.info("LLM 判断本回合无事件触发或未能选择结局。")
 
-        return triggered_ids
+        return triggered_events_with_outcomes
