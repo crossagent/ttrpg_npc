@@ -20,23 +20,28 @@
     *   实现用户选择角色的交互界面。
     *   初始化 `GameState` 时设置 `player_character_id`。
 
-4.  **调整 Agent 管理 (`src/engine/agent_manager.py`)**:
-    *   根据 `player_character_id` 创建 `UserAgent` 实例。
+4.  **重命名 Agent**:
+    *   将 `src/agents/player_agent.py` 重命名为 `src/agents/companion_agent.py`。
+    *   将类 `PlayerAgent` 重命名为 `CompanionAgent`。
+    *   更新所有引用该文件和类的地方。
+
+5.  **调整 Agent 管理 (`src/engine/agent_manager.py`)**:
+    *   根据 `player_character_id` 创建 `PlayerAgent` 实例。
     *   根据 `is_companion=True` 创建 `CompanionAgent` 实例。
     *   不为普通 NPC 创建 Agent。
 
-5.  **实现 `UserAgent` (`src/agents/user_agent.py` - 新文件)**:
-    *   创建 `UserAgent` 类 (继承 `BaseAgent`)。
+6.  **实现 `PlayerAgent` (`src/agents/player_agent.py` - 新文件)**:
+    *   创建新的 `PlayerAgent` 类 (继承 `BaseAgent`)。
     *   实现 `generate_action_options()` 方法，调用 LLM 生成 3 个结构化选项。
     *   (可能需要) 实现接收玩家选择的方法。
 
-6.  **调整游戏循环 (`src/engine/round_manager.py` 或 `src/engine/game_engine.py`)**:
+7.  **调整游戏循环 (`src/engine/round_manager.py` 或 `src/engine/game_engine.py`)**:
     *   在处理活动 Agent 时，判断 Agent 类型。
-    *   如果是 `UserAgent`，调用 `generate_action_options()`，展示选项，获取选择，传递给 `RefereeAgent`。
+    *   如果是 `PlayerAgent`，调用 `generate_action_options()`，展示选项，获取选择，传递给 `RefereeAgent`。
     *   如果是 `CompanionAgent`，调用其行动生成方法，传递给 `RefereeAgent`。
 
-7.  **更新 `systemPatterns.md`**:
-    *   反映新的 Agent 类型和交互流程。
+8.  **更新 `systemPatterns.md`**:
+    *   反映正确的 Agent 类型 (`PlayerAgent`, `CompanionAgent`) 和交互流程。
 
 ## 待办事项
 
@@ -46,5 +51,5 @@
 
 ## 已完成
 
-*   Memory Bank 同步与计划制定。
-*   `activeContext.md` 更新。
+*   Memory Bank 同步与计划制定（已包含命名修正）。
+*   `activeContext.md` 更新（已包含命名修正）。
