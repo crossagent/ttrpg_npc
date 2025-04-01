@@ -2,7 +2,8 @@
 from typing import List, Dict, Any, Optional, Tuple
 from datetime import datetime
 import uuid
-import asyncio
+# import asyncio # Already imported below if needed, or ensure it's present
+import asyncio # Ensure asyncio is imported
 import logging
 
 from src.models.game_state_models import GameState
@@ -193,89 +194,123 @@ class RoundManager:
         """
         processed_action_results: List[ActionResult] = []
         substantive_actions = [action for action in actions if action.action_type == ActionType.ACTION]
+        tasks = []
+        action_map = {} # 用于在 gather 后关联结果和原始 action
+        messages_to_broadcast = [] # 收集需要广播的消息
 
-        for action in substantive_actions:
-            try:
-                current_game_state = self.game_state_manager.get_state()
-                action_result = await self.referee_agent.judge_action(
-                    action=action,
-                    game_state=current_game_state,
-                    scenario=self.scenario_manager.get_current_scenario()
+        if not substantive_actions:
+            self.logger.info("没有实质性行动需要裁判判断。")
+            return []
+
+        # 获取一次状态和剧本，减少重复调用
+        current_game_state = self.game_state_manager.get_state()
+        current_scenario = self.scenario_manager.get_current_scenario()
+        all_agent_ids = self.agent_manager.get_all_agent_ids() # 获取一次接收者列表
+
+        # 获取一次代理实例，避免在循环中重复获取
+        referee_agent_instance = self.agent_manager.get_referee_agent()
+        system_source_id = referee_agent_instance.agent_id if referee_agent_instance else "referee_agent"
+        dm_agent_instance = self.agent_manager.get_dm_agent()
+        dm_source_name = dm_agent_instance.agent_name if dm_agent_instance else "DM"
+        dm_source_id = dm_agent_instance.agent_id if dm_agent_instance else "dm_agent"
+
+        # 1. 收集所有判断任务
+        for i, action in enumerate(substantive_actions):
+            task = self.referee_agent.judge_action(
+                action=action,
+                game_state=current_game_state,
+                scenario=current_scenario
+            )
+            tasks.append(task)
+            action_map[i] = action # 记录索引对应的 action
+
+        # 2. 并发执行所有判断任务
+        try:
+            # 使用 return_exceptions=True 捕获单个任务的错误，防止 gather 提前失败
+            results_or_exceptions = await asyncio.gather(*tasks, return_exceptions=True)
+        except Exception as gather_error:
+            self.logger.exception(f"asyncio.gather 在 resolve_actions 中失败: {gather_error}")
+            # 返回空列表或根据需要处理
+            return []
+
+        # 3. 处理结果 (在 gather 完成后)
+        for i, result_or_exc in enumerate(results_or_exceptions):
+            original_action = action_map[i]
+            action_result: Optional[ActionResult] = None
+
+            if isinstance(result_or_exc, Exception):
+                # 处理单个任务的异常
+                self.logger.exception(f"处理行动 '{original_action.content}' (来自 {original_action.character_id}) 时发生错误: {result_or_exc}")
+                action_result = ActionResult(
+                    character_id=original_action.character_id,
+                    action=original_action,
+                    success=False,
+                    narrative=f"系统处理行动时发生内部错误。",
+                    consequences=[]
                 )
+            elif result_or_exc is None: # 检查 judge_action 是否可能返回 None
+                 self.logger.error(f"Referee未能解析行动: {original_action.content} 来自 {original_action.character_id}")
+                 action_result = ActionResult(
+                     character_id=original_action.character_id,
+                     action=original_action,
+                     success=False,
+                     narrative=f"系统无法理解行动 '{original_action.content}'。",
+                     consequences=[]
+                 )
+            else:
+                action_result = result_or_exc # 成功的 ActionResult
 
-                if action_result is None: # Should not happen if judge_action handles errors, but check anyway
-                    self.logger.error(f"Referee未能解析行动: {action.content} 来自 {action.character_id}")
-                    action_result = ActionResult(
-                        character_id=action.character_id,
-                        action=action,
-                        success=False,
-                        narrative=f"系统无法理解行动 '{action.content}'。",
-                        consequences=[]
-                    )
-
+            if action_result:
                 processed_action_results.append(action_result)
 
-                # --- 根据裁判结果广播消息 ---
-                # 1. 广播系统效果消息 (客观结果)
-                effect_description = f"玩家 {action.character_id} 执行 '{action.content}'。结果: {'成功' if action_result.success else '失败'}。"
+                # --- 准备要广播的消息 (但不立即发送) ---
+                # 1. 准备系统效果消息
+                effect_description = f"玩家 {action_result.action.character_id} 执行 '{action_result.action.content}'。结果: {'成功' if action_result.success else '失败'}。"
                 message_id_effect = str(uuid.uuid4())
                 timestamp_effect = datetime.now().isoformat()
-                # 获取 Referee 代理 ID (用于系统消息)
-                referee_agent_instance = self.agent_manager.get_referee_agent()
-                system_source_id = referee_agent_instance.agent_id if referee_agent_instance else "referee_agent" # Fallback ID
-
                 system_effect_message = Message(
                     message_id=message_id_effect,
                     type=MessageType.SYSTEM_ACTION_RESULT,
-                    source="裁判", # 将 source 改为 "裁判"
-                    source_id=system_source_id, # 添加裁判代理 ID
+                    source="裁判",
+                    source_id=system_source_id,
                     content=effect_description,
                     timestamp=timestamp_effect,
                     visibility=MessageVisibility.PUBLIC,
-                    recipients=self.agent_manager.get_all_agent_ids(),
+                    recipients=all_agent_ids,
                     round_id=self.current_round_id
                 )
-                self.message_dispatcher.broadcast_message(system_effect_message)
+                messages_to_broadcast.append(system_effect_message)
 
-                # 2. 广播DM叙事结果 (如果裁判代理提供了)
+                # 2. 准备DM叙事结果消息
                 if action_result.narrative:
-                    # 获取 DM(Narrative) 代理以获取名称和 ID
-                    dm_agent_instance = self.agent_manager.get_dm_agent()
-                    if dm_agent_instance:
-                        dm_source_name = dm_agent_instance.agent_name
-                        dm_source_id = dm_agent_instance.agent_id
-                    else:
-                        self.logger.warning("无法获取 DM 代理实例，将使用默认值 'DM' 作为来源。")
-                        dm_source_name = "DM"
-                        dm_source_id = "dm_agent" # Fallback ID
-
                     message_id_narrative = str(uuid.uuid4())
                     timestamp_narrative = datetime.now().isoformat()
                     result_message = Message(
                         message_id=message_id_narrative,
                         type=MessageType.RESULT,
-                        source=dm_source_name, # 使用 DM 代理名称
-                        source_id=dm_source_id, # 使用 DM 代理 ID
+                        source=dm_source_name,
+                        source_id=dm_source_id,
                         content=action_result.narrative,
                         timestamp=timestamp_narrative,
                         visibility=MessageVisibility.PUBLIC,
-                        recipients=self.agent_manager.get_all_agent_ids(),
+                        recipients=all_agent_ids,
                         round_id=self.current_round_id
                     )
-                    self.message_dispatcher.broadcast_message(result_message)
+                    messages_to_broadcast.append(result_message)
 
-            except Exception as e:
-                self.logger.exception(f"处理行动 '{action.content}' (来自 {action.character_id}) 时发生意外错误: {e}")
-                # Create a default failure result if an exception occurs during processing
-                processed_action_results.append(ActionResult(
-                    character_id=action.character_id,
-                    action=action,
-                    success=False,
-                    narrative=f"系统处理行动时发生内部错误。",
-                    consequences=[]
-                ))
+        # 4. 在所有结果处理完毕后，统一广播消息
+        if messages_to_broadcast:
+            self.logger.info(f"准备广播 {len(messages_to_broadcast)} 条行动结果相关消息...")
+            for msg in messages_to_broadcast:
+                try:
+                    self.message_dispatcher.broadcast_message(msg)
+                except Exception as broadcast_error:
+                    self.logger.error(f"广播消息 (ID: {msg.message_id}) 时出错: {broadcast_error}")
+        else:
+            self.logger.info("没有需要广播的行动结果消息。")
 
-        self.logger.info(f"完成对 {len(processed_action_results)} 个实质性行动的直接结果判定。")
+
+        self.logger.info(f"完成对 {len(processed_action_results)} 个实质性行动的并行结果判定。")
         return processed_action_results
 
     # --- 更新: 结局选择与后果提取辅助方法 ---

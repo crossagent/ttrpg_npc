@@ -104,13 +104,19 @@ class RefereeAgent(BaseAgent):
             try:
                 response_data: Dict[str, Any] = json.loads(json_str)
             except json.JSONDecodeError as e:
-                self.logger.error(f"JSON解析失败。错误信息: {e}。原始JSON字符串: '{json_str}'。完整LLM响应: {response_content}")
+                # Enhanced logging: Include the specific JSON string that failed parsing.
+                self.logger.error(f"JSON解析失败。错误信息: {e}。导致错误的JSON字符串: ```json\n{json_str}\n```")
+                # Return a more specific error narrative
+                error_narrative = f"系统错误：裁判未能正确解析行动结果的格式。错误详情: {e}。"
+                # Optionally include a snippet of the bad JSON in the narrative for easier debugging if needed,
+                # but be mindful of length and potential sensitive info exposure.
+                # error_narrative += f" 无效JSON片段: {json_str[:100]}..."
                 return ActionResult(
                     character_id=action.character_id,
                     action=action,
-                    success=False,
-                    narrative=f"系统错误：无法解析行动结果格式。原始响应: {response_content}",
-                    consequences=[] # Use consequences list
+                    success=False, # Parsing failure implies action couldn't be properly judged
+                    narrative=error_narrative,
+                    consequences=[] # No consequences could be parsed
                 )
 
             # --- 行动直接后果处理 ---
