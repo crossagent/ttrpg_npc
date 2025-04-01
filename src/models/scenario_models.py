@@ -156,19 +156,27 @@ class Scenario(BaseModel):
                 outcomes = []
                 for outcome_data in event_data.get("possible_outcomes", []):
                      if all(k in outcome_data for k in ["id", "description"]):
-                        # TODO: Update from_json to parse structured consequences if JSON format changes.
-                        # Placeholder: Create a single SEND_MESSAGE consequence from the string.
                         consequence_list = []
-                        consequence_str = outcome_data.get("consequence", "") # Still check for old format?
-                        # If JSON provides structured consequences directly:
-                        # raw_consequences = outcome_data.get("consequences", [])
-                        # for cons_data in raw_consequences:
-                        #     try:
-                        #         consequence_list.append(Consequence(**cons_data))
-                        #     except Exception as e:
-                        #         print(f"警告: 解析事件 {event_data['id']} 结局 {outcome_data['id']} 的后果失败: {e}, 数据: {cons_data}")
-                        if consequence_str: # Temporary fallback for old string format
-                            consequence_list.append(Consequence(type="send_message", message_content=f"Outcome consequence: {consequence_str}"))
+                        # Check if 'consequences' field exists and is a list (preferred format)
+                        raw_consequences = outcome_data.get("consequences")
+                        if isinstance(raw_consequences, list):
+                            for cons_data in raw_consequences:
+                                if isinstance(cons_data, dict): # Ensure it's a dictionary
+                                    try:
+                                        # Attempt to parse the dictionary into a Consequence object
+                                        consequence_list.append(Consequence(**cons_data))
+                                    except Exception as e:
+                                        print(f"警告: 解析事件 {event_data.get('id', '未知事件ID')} 结局 {outcome_data.get('id', '未知结局ID')} 的结构化后果失败: {e}, 数据: {cons_data}")
+                                else:
+                                     print(f"警告: 事件 {event_data.get('id', '未知事件ID')} 结局 {outcome_data.get('id', '未知结局ID')} 的后果列表包含非字典元素: {cons_data}")
+                        # Fallback for old string format (consider removing later)
+                        elif isinstance(raw_consequences, str):
+                             print(f"警告: 事件 {event_data.get('id', '未知事件ID')} 结局 {outcome_data.get('id', '未知结局ID')} 使用了旧的字符串后果格式: '{raw_consequences}'. 将尝试创建 send_message 后果。")
+                             # You might want a more robust fallback or error handling here
+                             consequence_list.append(Consequence(type="send_message", message_content=f"结局效果: {raw_consequences}"))
+                        elif raw_consequences is not None:
+                             print(f"警告: 事件 {event_data.get('id', '未知事件ID')} 结局 {outcome_data.get('id', '未知结局ID')} 的后果格式未知: {type(raw_consequences)}")
+
 
                         outcome = EventOutcome(
                             id=outcome_data["id"],

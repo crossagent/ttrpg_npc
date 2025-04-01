@@ -253,17 +253,25 @@
         {
           "id": "successful_concealment",
           "description": "成功隐瞒",
-          "consequence": "暂时排除嫌疑，获得活动自由"
+          "consequences": [
+            { "type": "send_message", "message_content": "你成功地打消了杰克逊的疑虑，他暂时不再怀疑你。" }
+          ]
         },
         {
           "id": "partial_truth_for_trust",
           "description": "部分坦白以获取信任",
-          "consequence": "建立某种互利关系，但增加风险"
+          "consequences": [
+            { "type": "change_relationship", "target_entity_id": "char_002", "secondary_entity_id": "player", "value": 1 },
+            { "type": "send_message", "message_content": "你透露了部分信息，与杰克逊的关系略有改善，但也增加了暴露的风险。" }
+          ]
         },
         {
           "id": "nervous_slip",
           "description": "紧张失言",
-          "consequence": "被重点监视，行动受限"
+          "consequences": [
+            { "type": "update_attribute", "target_entity_id": "player", "attribute_name": "status_flags", "value": {"op": "+=", "amount": ["under_surveillance"]} },
+            { "type": "send_message", "message_content": "你的紧张引起了杰克逊的警觉，他开始密切监视你。" }
+          ]
         }
       ]
     },
@@ -277,17 +285,25 @@
         {
           "id": "accept_deal",
           "description": "接受交易",
-          "consequence": "获得资金和人脉但可能背叛其他目标"
+          "consequences": [
+            { "type": "add_item", "item_id": "money_large_sum", "quantity": 1 },
+            { "type": "send_message", "message_content": "你接受了卡特的交易，获得了一笔资金，但这可能会让你与其他人的目标产生冲突。" }
+          ]
         },
         {
           "id": "refuse_and_threaten",
           "description": "拒绝并威胁",
-          "consequence": "树敌但保持立场，其他阵营好感提升"
+          "consequences": [
+            { "type": "change_relationship", "target_entity_id": "char_005", "secondary_entity_id": "player", "value": -3 },
+            { "type": "send_message", "message_content": "你强硬地拒绝了卡特并发出威胁，这让你与他结怨，但也可能赢得了其他人的尊重。" }
+          ]
         },
         {
           "id": "pretend_to_accept",
           "description": "假装接受",
-          "consequence": "高风险行动，成功则双赢失败则危险加倍"
+          "consequences": [
+            { "type": "send_message", "message_content": "你假装接受了卡特的提议，这是一个高风险的策略，结果难以预料。" }
+          ]
         }
       ]
     },
@@ -301,17 +317,24 @@
         {
           "id": "eavesdrop",
           "description": "偷听对话",
-          "consequence": "获得关键情报但可能被发现"
+          "consequences": [
+            { "type": "add_item", "item_id": "info_basement_meeting_details", "quantity": 1 },
+            { "type": "send_message", "message_content": "你成功偷听到了维克多与神秘人的部分谈话，获得了关于'最终交易'和'清洗'的关键信息，但也冒着被发现的风险。" }
+          ]
         },
         {
           "id": "intervene",
           "description": "介入谈话",
-          "consequence": "打乱多方计划，成为关注焦点"
+          "consequences": [
+            { "type": "send_message", "message_content": "你突然介入了维克多的密会，打断了他们的谈话，现在所有人的目光都集中在你身上。" }
+          ]
         },
         {
           "id": "quietly_report",
           "description": "悄悄报告",
-          "consequence": "信息可能失真，但避免直接风险"
+          "consequences": [
+            { "type": "send_message", "message_content": "你选择悄悄离开并向上级或盟友报告了密会的情况，避免了直接冲突，但信息可能不完整。" }
+          ]
         }
       ]
     },
@@ -325,17 +348,25 @@
         {
           "id": "help_evacuate",
           "description": "协助疏散",
-          "consequence": "获得多人信任和感激，建立广泛人脉"
+          "consequences": [
+            { "type": "send_message", "message_content": "你在火灾中帮助疏散了其他人，赢得了他们的信任和感激。" }
+          ]
         },
         {
           "id": "complete_objectives",
           "description": "完成自身目标",
-          "consequence": "核心任务推进但社交关系受损"
+          "consequences": [
+            { "type": "send_message", "message_content": "你趁着混乱专注于完成自己的目标，虽然任务有所进展，但可能错失了帮助他人或建立关系的机会。" }
+          ]
         },
         {
           "id": "protect_key_character",
           "description": "保护关键人物",
-          "consequence": "与该人物建立特殊联系，获得专属信息"
+          "consequences": [
+            { "type": "change_relationship", "target_entity_id": "key_character_id_placeholder", "secondary_entity_id": "player", "value": 3 },
+            { "type": "add_item", "item_id": "info_from_protected_character", "quantity": 1 },
+            { "type": "send_message", "message_content": "你在火灾中保护了某个关键人物，与他/她建立了特殊联系，并可能获得了重要信息。" }
+          ]
         }
       ]
     },
