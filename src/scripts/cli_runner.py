@@ -22,7 +22,24 @@ async def display_output(message: TextMessage) -> None:
     Args:
         message: 要显示的消息
     """
-    print(f"{message.source}: {message.content}")
+    # 检查 message 是否有 source_id 属性 (因为它是 Optional)
+    source_display = message.source
+    if hasattr(message, 'source_id') and message.source_id:
+        # 排除非角色ID的情况，例如 "dm_agent" 或 "referee_agent"
+        # 假设角色ID通常包含下划线或数字，而代理ID不包含
+        # 或者更可靠地，检查 source 是否与 source_id 不同 (对于玩家/NPC)
+        if message.source != message.source_id: # 简单的区分方式
+             source_display = f"{message.source}({message.source_id})"
+        # else: # 如果 source 和 source_id 相同，或者 source_id 是 'dm_agent' 等，只显示 source
+        #     source_display = message.source
+
+    # 根据 subtype 添加前缀
+    prefix = ""
+    if hasattr(message, 'message_subtype') and message.message_subtype == "action_description":
+        prefix = "(行动) "
+
+    print(f"{source_display}: {prefix}{message.content}")
+
 
 async def show_player_history(round_manager, player_name: str) -> None:
     """

@@ -30,6 +30,8 @@ class Message(BaseChatMessage):
     visibility: MessageVisibility = Field(MessageVisibility.PUBLIC, description="消息可见性：广播或私聊")
     recipients: List[str] = Field(..., description="接收者列表，包含可接收此消息的玩家ID列表")
     round_id: int = Field(..., description="回合ID")
+    source_id: Optional[str] = Field(None, description="消息来源的唯一ID (例如, agent_id), 如果适用") # 新增 source_id
+    message_subtype: Optional[str] = Field(None, description="消息子类型 (例如, 'dialogue', 'action_description')") # 新增 subtype
     # ChatMessage已经包含metadata字段，我们可以继承使用，不需要重复定义
 
 

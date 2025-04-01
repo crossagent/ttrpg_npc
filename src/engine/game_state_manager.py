@@ -13,22 +13,28 @@ from src.models.scenario_models import Scenario
 from src.models.context_models import StateChanges, Inconsistency, StateUpdateRequest
 from src.models.action_models import ItemQuery, ItemResult
 from src.models.consequence_models import Consequence, ConsequenceType # Import Consequence models
+from src.communication.message_dispatcher import MessageDispatcher # Import MessageDispatcher
+from src.models.message_models import Message, MessageType, MessageVisibility # Import Message models for broadcasting
+import uuid # Import uuid for message IDs
+from datetime import datetime # Import datetime for timestamps
+
 
 class GameStateManager:
     """
     游戏状态管理器类，负责维护游戏状态的一致性、解析DM叙述中的状态变化、提供状态查询。
     """
-    
+
     def __init__(self, initial_state: Optional[GameState] = None):
         """
         初始化游戏状态管理器
-        
+
         Args:
             initial_state: 初始游戏状态，如果为None则创建新状态
         """
         self.game_state = initial_state
+        # self.message_dispatcher = message_dispatcher # Removed dispatcher dependency
         self.logger = logging.getLogger("GameStateManager") # Add logger
-    
+
     def initialize_game_state(self, scenario: Scenario) -> GameState:
         """
         初始化游戏状态
@@ -335,26 +341,37 @@ class GameStateManager:
 
         Args:
             consequences: 后果对象的列表。
+
+        Returns:
+            List[str]: 应用后果产生的描述信息列表。
         """
         if not self.game_state:
             self.logger.error("无法应用后果：游戏状态未初始化。")
-            return
+            return [] # Return empty list
 
+        change_descriptions: List[str] = [] # List to store descriptions
         self.logger.info(f"开始应用 {len(consequences)} 条后果...")
         for i, cons in enumerate(consequences):
             self.logger.debug(f"应用后果 {i+1}/{len(consequences)}: {cons.model_dump_json()}")
+            description = None # Initialize description for this consequence
             try:
                 handler = self._get_consequence_handler(cons.type)
                 if handler:
-                    await handler(self.game_state, cons)
+                    # Await the handler and get the description string
+                    description = await handler(self.game_state, cons)
                 else:
                     self.logger.warning(f"未找到后果类型 '{cons.type.value}' 的处理程序。")
             except Exception as e:
                 self.logger.exception(f"应用后果时出错 ({cons.type.value}): {e}")
 
+            # Add the description to the list if it's not None or empty
+            if description:
+                change_descriptions.append(description)
+
         # 更新最后修改时间
         self.game_state.last_updated = datetime.now()
-        self.logger.info("所有后果应用完成。")
+        self.logger.info(f"所有后果应用完成，共产生 {len(change_descriptions)} 条状态变更描述。")
+        return change_descriptions # Return the list of descriptions
 
     def _get_consequence_handler(self, consequence_type: ConsequenceType):
         """根据后果类型返回对应的处理方法。"""
@@ -411,9 +428,12 @@ class GameStateManager:
                      new_value = amount # Fallback to setting the amount directly if op fails
 
             setattr(target_obj, cons.attribute_name, new_value)
-            self.logger.info(f"属性更新：实体 '{cons.target_entity_id}' 的属性 '{cons.attribute_name}' 已从 '{current_value}' 更新为 '{new_value}'。")
+            description = f"属性更新：实体 '{cons.target_entity_id}' 的属性 '{cons.attribute_name}' 已从 '{current_value}' 更新为 '{new_value}'。"
+            self.logger.info(description)
+            return description # Return the description string
         except Exception as e:
             self.logger.exception(f"更新属性 '{cons.attribute_name}' 时出错：{e}")
+            return None # Return None on error
 
     async def _apply_add_item(self, game_state: GameState, cons: Consequence):
         """处理 ADD_ITEM 后果。"""
@@ -440,7 +460,10 @@ class GameStateManager:
 
                 new_item = ItemInstance(item_id=cons.item_id, quantity=quantity, name=item_def.name if item_def else cons.item_id)
                 character_state.items.append(new_item)
-                self.logger.info(f"物品添加：向角色 '{cons.target_entity_id}' 添加了 {quantity} 个物品 '{cons.item_id}'。")
+                description = f"物品添加：向角色 '{cons.target_entity_id}' 添加了 {quantity} 个物品 '{cons.item_id}'。"
+                self.logger.info(description)
+                return description # Return the description string
+
 
         # Add to location
         elif cons.target_entity_id in game_state.location_states:
@@ -456,9 +479,13 @@ class GameStateManager:
 
                 new_item = ItemInstance(item_id=cons.item_id, quantity=quantity, name=item_def.name if item_def else cons.item_id)
                 location_state.available_items.append(new_item)
-                self.logger.info(f"物品添加：向地点 '{cons.target_entity_id}' 添加了 {quantity} 个物品 '{cons.item_id}'。")
+                description = f"物品添加：向地点 '{cons.target_entity_id}' 添加了 {quantity} 个物品 '{cons.item_id}'。"
+                self.logger.info(description)
+                return description # Return the description string
+
         else:
             self.logger.warning(f"ADD_ITEM 失败：未找到目标实体 ID '{cons.target_entity_id}' (既不是角色也不是地点)。")
+            return None # Return None on failure
 
 
     async def _apply_remove_item(self, game_state: GameState, cons: Consequence):
@@ -475,13 +502,23 @@ class GameStateManager:
             item_to_remove: Optional[ItemInstance] = next((item for item in character_state.items if item.item_id == cons.item_id), None)
             if item_to_remove:
                 if item_to_remove.quantity >= quantity_to_remove:
+                    original_quantity = item_to_remove.quantity
                     item_to_remove.quantity -= quantity_to_remove
-                    self.logger.info(f"物品移除：从角色 '{cons.target_entity_id}' 移除 {quantity_to_remove} 个物品 '{cons.item_id}'，剩余数量: {item_to_remove.quantity}。")
+                    description = f"物品移除：从角色 '{cons.target_entity_id}' 移除 {quantity_to_remove} 个物品 '{cons.item_id}'，剩余数量: {item_to_remove.quantity}。"
+                    self.logger.info(description)
+
+                    description_to_return = description # Start with the base description
                     if item_to_remove.quantity == 0:
                         character_state.items.remove(item_to_remove)
-                        self.logger.info(f"物品移除：角色 '{cons.target_entity_id}' 的物品 '{cons.item_id}' 已完全移除。")
+                        description_removed = f"物品移除：角色 '{cons.target_entity_id}' 的物品 '{cons.item_id}' 已完全移除。"
+                        self.logger.info(description_removed)
+                        description_to_return = description_removed # Update return value if fully removed
+
+                    return description_to_return # Return the appropriate description
+
                 else:
                     self.logger.warning(f"REMOVE_ITEM 失败：角色 '{cons.target_entity_id}' 物品 '{cons.item_id}' 数量不足 ({item_to_remove.quantity} < {quantity_to_remove})。")
+                    return None # Return None on failure
             else:
                 self.logger.warning(f"REMOVE_ITEM 失败：角色 '{cons.target_entity_id}' 没有物品 '{cons.item_id}'。")
 
@@ -491,13 +528,22 @@ class GameStateManager:
             item_to_remove: Optional[ItemInstance] = next((item for item in location_state.available_items if item.item_id == cons.item_id), None)
             if item_to_remove:
                 if item_to_remove.quantity >= quantity_to_remove:
+                    original_quantity = item_to_remove.quantity
                     item_to_remove.quantity -= quantity_to_remove
-                    self.logger.info(f"物品移除：从地点 '{cons.target_entity_id}' 移除 {quantity_to_remove} 个物品 '{cons.item_id}'，剩余数量: {item_to_remove.quantity}。")
+                    description = f"物品移除：从地点 '{cons.target_entity_id}' 移除 {quantity_to_remove} 个物品 '{cons.item_id}'，剩余数量: {item_to_remove.quantity}。"
+                    self.logger.info(description)
+
+                    description_to_return = description # Start with the base description
                     if item_to_remove.quantity == 0:
                         location_state.available_items.remove(item_to_remove)
-                        self.logger.info(f"物品移除：地点 '{cons.target_entity_id}' 的物品 '{cons.item_id}' 已完全移除。")
+                        description_removed = f"物品移除：地点 '{cons.target_entity_id}' 的物品 '{cons.item_id}' 已完全移除。"
+                        self.logger.info(description_removed)
+                        description_to_return = description_removed # Update return value if fully removed
+
+                    return description_to_return # Return the appropriate description
                 else:
                     self.logger.warning(f"REMOVE_ITEM 失败：地点 '{cons.target_entity_id}' 物品 '{cons.item_id}' 数量不足 ({item_to_remove.quantity} < {quantity_to_remove})。")
+                    return None # Return None on failure
             else:
                 self.logger.warning(f"REMOVE_ITEM 失败：地点 '{cons.target_entity_id}' 没有物品 '{cons.item_id}'。")
         else:

@@ -86,14 +86,25 @@ class RoundManager:
 
         message_id = str(uuid.uuid4())
         timestamp = datetime.now().isoformat()
+        # 获取 DM 代理以获取名称和 ID
+        dm_agent_instance = self.agent_manager.get_dm_agent()
+        if dm_agent_instance:
+            dm_source_name = dm_agent_instance.agent_name
+            dm_source_id = dm_agent_instance.agent_id
+        else:
+            self.logger.warning("无法获取 DM 代理实例，将使用默认值 'DM' 作为来源。")
+            dm_source_name = "DM"
+            dm_source_id = "dm_agent" # Fallback ID
+
         dm_message = Message(
             message_id=message_id,
             type=MessageType.DM,
-            source="DM",
+            source=dm_source_name, # 使用 DM 代理名称
+            source_id=dm_source_id, # 使用 DM 代理 ID
             content=dm_narrative,
             timestamp=timestamp,
             visibility=MessageVisibility.PUBLIC,
-            recipients=self.agent_manager.get_all_player_ids(),
+            recipients=self.agent_manager.get_all_player_ids(), # Should probably be get_all_agent_ids() to include referee? Check logic.
             round_id=self.current_round_id
         )
         self.message_dispatcher.broadcast_message(dm_message)
@@ -133,17 +144,29 @@ class RoundManager:
                     continue
                 player_actions.append(player_action)
 
+                # 获取角色名称 (player_id is character_id)
+                game_state = self.game_state_manager.get_state()
+                character_state = game_state.characters.get(player_id)
+                if character_state and character_state.name:
+                    character_name = character_state.name
+                else:
+                    self.logger.warning(f"无法在游戏状态中找到角色 {player_id} 的名称，将使用 ID 作为消息来源。")
+                    character_name = player_id # Fallback to ID if name not found
+
                 message_id = str(uuid.uuid4())
                 timestamp = datetime.now().isoformat()
                 player_message = Message(
                     message_id=message_id,
                     type=MessageType.PLAYER if player_action.action_type == ActionType.TALK else MessageType.ACTION,
-                    source=player_id,
+                    source=character_name, # 使用 character_name 作为 source
+                    source_id=player_id, # 使用 player_id (character_id) 作为 source_id
                     content=player_action.content,
                     timestamp=timestamp,
                     visibility=MessageVisibility.PUBLIC,
                     recipients=self.agent_manager.get_all_agent_ids(),
-                    round_id=self.current_round_id
+                    round_id=self.current_round_id,
+                    # 根据 action_type 设置 subtype
+                    message_subtype="dialogue" if player_action.action_type == ActionType.TALK else "action_description"
                 )
                 player_messages.append(player_message)
 
@@ -197,10 +220,15 @@ class RoundManager:
                 effect_description = f"玩家 {action.character_id} 执行 '{action.content}'。结果: {'成功' if action_result.success else '失败'}。"
                 message_id_effect = str(uuid.uuid4())
                 timestamp_effect = datetime.now().isoformat()
+                # 获取 Referee 代理 ID (用于系统消息)
+                referee_agent_instance = self.agent_manager.get_referee_agent()
+                system_source_id = referee_agent_instance.agent_id if referee_agent_instance else "referee_agent" # Fallback ID
+
                 system_effect_message = Message(
                     message_id=message_id_effect,
                     type=MessageType.SYSTEM_ACTION_RESULT,
-                    source="system",
+                    source="裁判", # 将 source 改为 "裁判"
+                    source_id=system_source_id, # 添加裁判代理 ID
                     content=effect_description,
                     timestamp=timestamp_effect,
                     visibility=MessageVisibility.PUBLIC,
@@ -211,12 +239,23 @@ class RoundManager:
 
                 # 2. 广播DM叙事结果 (如果裁判代理提供了)
                 if action_result.narrative:
+                    # 获取 DM(Narrative) 代理以获取名称和 ID
+                    dm_agent_instance = self.agent_manager.get_dm_agent()
+                    if dm_agent_instance:
+                        dm_source_name = dm_agent_instance.agent_name
+                        dm_source_id = dm_agent_instance.agent_id
+                    else:
+                        self.logger.warning("无法获取 DM 代理实例，将使用默认值 'DM' 作为来源。")
+                        dm_source_name = "DM"
+                        dm_source_id = "dm_agent" # Fallback ID
+
                     message_id_narrative = str(uuid.uuid4())
                     timestamp_narrative = datetime.now().isoformat()
                     result_message = Message(
                         message_id=message_id_narrative,
                         type=MessageType.RESULT,
-                        source="DM", # 叙事通常来自DM视角
+                        source=dm_source_name, # 使用 DM 代理名称
+                        source_id=dm_source_id, # 使用 DM 代理 ID
                         content=action_result.narrative,
                         timestamp=timestamp_narrative,
                         visibility=MessageVisibility.PUBLIC,
@@ -387,10 +426,38 @@ class RoundManager:
                  self.logger.info(f"回合 {round_id}: 无实质性活动，last_active_round 保持为 {state.last_active_round}")
 
 
-            # --- 阶段三: 应用所有后果 ---
+            # --- 阶段三: 应用所有后果并获取描述 ---
+            change_descriptions: List[str] = []
             if all_round_consequences:
                 self.logger.info(f"准备应用本回合所有后果 ({len(all_round_consequences)} 条)")
-                await self.game_state_manager.apply_consequences(all_round_consequences) # 应用后果
+                # 应用后果并接收描述列表
+                change_descriptions = await self.game_state_manager.apply_consequences(all_round_consequences)
+
+                # --- 广播状态更新消息 ---
+                if change_descriptions:
+                    self.logger.info(f"广播 {len(change_descriptions)} 条状态更新消息...")
+                    referee_agent_instance = self.agent_manager.get_referee_agent()
+                    system_source_id = referee_agent_instance.agent_id if referee_agent_instance else "referee_agent" # Fallback ID
+                    all_agent_ids = self.agent_manager.get_all_agent_ids() # 获取所有接收者
+
+                    for description in change_descriptions:
+                        state_update_message = Message(
+                            message_id=str(uuid.uuid4()),
+                            type=MessageType.SYSTEM_EVENT,
+                            source="裁判", # 使用 "裁判" 作为来源名称
+                            source_id=system_source_id, # 使用裁判代理ID
+                            content=description,
+                            timestamp=datetime.now().isoformat(),
+                            visibility=MessageVisibility.PUBLIC,
+                            recipients=all_agent_ids,
+                            round_id=self.current_round_id # 使用当前回合ID
+                        )
+                        try:
+                            self.message_dispatcher.broadcast_message(state_update_message)
+                        except Exception as broadcast_error:
+                            self.logger.error(f"广播状态更新消息时出错: {broadcast_error}")
+                # --- 状态更新消息广播结束 ---
+
 
                 # --- 阶段三: 检查并推进阶段 ---
                 self.logger.debug("应用后果后，检查阶段完成情况...")
