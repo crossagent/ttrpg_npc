@@ -1,6 +1,7 @@
 import logging
 import os
-from logging.handlers import RotatingFileHandler
+# Removed RotatingFileHandler, using FileHandler now
+# from logging.handlers import RotatingFileHandler
 from datetime import datetime # Import datetime
 
 LOG_DIR = "logs"
@@ -20,9 +21,9 @@ def setup_logging(level=logging.INFO):
     # 创建日志目录
     os.makedirs(LOG_DIR, exist_ok=True)
 
-    # --- Generate date-based filename ---
-    current_date_str = datetime.now().strftime("%Y%m%d")
-    log_filename = f"debug_{current_date_str}.log"
+    # --- Generate timestamp-based filename ---
+    timestamp_str = datetime.now().strftime("%Y%m%d_%H%M%S")
+    log_filename = f"debug_{timestamp_str}.log" # Include HHMMSS
     log_filepath = os.path.join(LOG_DIR, log_filename)
     # --- End filename generation ---
 
@@ -30,21 +31,14 @@ def setup_logging(level=logging.INFO):
     logger = logging.getLogger()
     logger.setLevel(level) # 设置根日志记录器的级别
 
-    # 如果已经有处理器，则不重复添加，避免日志重复
-    # 检查处理器是否已经是针对今天的文件，如果是，则不添加
-    # （更复杂的场景可能需要移除旧日期的处理器，但这里简化处理）
-    already_configured = False
-    for handler in logger.handlers:
-        if isinstance(handler, RotatingFileHandler) and handler.baseFilename == log_filepath:
-            already_configured = True
-            break
-        # Optional: Remove handlers for previous dates if needed
-        # elif isinstance(handler, RotatingFileHandler) and os.path.basename(handler.baseFilename).startswith("debug_"):
-        #     logger.removeHandler(handler)
-
-    if already_configured:
-        logger.debug("Logging already configured for today's file.")
-        return
+    # Since filename changes each time, we don't need to check for existing handlers for the *same* file.
+    # However, we might want to clear previous handlers if the setup is called multiple times in one process.
+    # For simplicity now, assume setup_logging is called once per process start.
+    # If handlers exist, remove them to avoid duplication if setup is called again unexpectedly.
+    if logger.handlers:
+        logger.warning("Removing existing logging handlers before re-configuring.")
+        for handler in logger.handlers[:]: # Iterate over a copy
+            logger.removeHandler(handler)
 
     # 创建格式化器
     formatter = logging.Formatter(
@@ -52,16 +46,13 @@ def setup_logging(level=logging.INFO):
         datefmt='%Y-%m-%d %H:%M:%S'
     )
 
-    # --- 文件处理器 (Rotating) ---
-    file_handler = RotatingFileHandler(
-        log_filepath,
-        maxBytes=LOG_MAX_BYTES,
-        backupCount=LOG_BACKUP_COUNT,
-        encoding='utf-8'
-    )
+    # --- 文件处理器 (Simple FileHandler, no rotation) ---
+    # Using FileHandler because RotatingFileHandler requires a fixed base filename
+    file_handler = logging.FileHandler(log_filepath, encoding='utf-8')
     file_handler.setLevel(level) # 文件处理器也设置级别
     file_handler.setFormatter(formatter)
     logger.addHandler(file_handler)
+    logger.warning("Debug log rotation is disabled due to timestamp in filename. Each run creates a new file.") # Warn user
 
     # --- 控制台处理器 (可选) ---
     # console_handler = logging.StreamHandler()
@@ -80,4 +71,5 @@ if __name__ == '__main__':
     logging.warning("This is a warning message.")
     logging.error("This is an error message.")
     logging.critical("This is a critical message.")
-    print(f"Log messages should be in {os.path.join(LOG_DIR, f'debug_{datetime.now().strftime("%Y%m%d")}.log')}")
+    # Update the test print message to reflect the new filename format
+    print(f"Log messages should be in {os.path.join(LOG_DIR, f'debug_{datetime.now().strftime("%Y%m%d_%H%M%S")}.log')}")

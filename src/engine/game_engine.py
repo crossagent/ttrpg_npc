@@ -1,5 +1,5 @@
 from autogen_agentchat.messages import TextMessage, ChatMessage
-from typing import Dict, List, Any, Callable, Optional # Removed TextIO
+from typing import Dict, List, Any, Callable, Optional, TextIO # Re-added TextIO for type hint
 import asyncio
 from datetime import datetime
 import uuid
@@ -15,6 +15,7 @@ from src.engine.game_state_manager import GameStateManager
 from src.engine.scenario_manager import ScenarioManager
 from src.engine.round_manager import RoundManager
 from src.models.message_models import Message, MessageType
+from src.utils.display_utils import format_message_display_parts # Import the new util function
 
 from src.config.color_utils import (
     format_dm_message, format_player_message, format_observation,
@@ -27,20 +28,27 @@ DEFAULT_MAX_ROUNDS = 5
 
 # --- Simple Console Display Handler ---
 def simple_console_display_handler(message: Message) -> None:
-    """简单的控制台消息显示处理器"""
-    source = message.source if hasattr(message, 'source') else "未知来源"
+    """简单的控制台消息显示处理器，现在使用通用格式化逻辑"""
     content = message.content if hasattr(message, 'content') else str(message)
 
-    # 根据消息来源确定显示格式 (保持颜色)
-    if source.lower() == "dm":
-        print(format_dm_message(source, content))
-    elif source.lower() == "human_player" or source.lower() == "human":
-        print(gray_text(f'{source}: {content}'))
-    # Basic handling for Referee/System messages
-    elif source.lower() == "裁判":
-         print(yellow_text(f'{source}: {content}')) # Example: Yellow for referee
+    # 调用工具函数获取格式化后的来源和前缀
+    source_display, prefix = format_message_display_parts(message)
+
+    # 组合最终的输出字符串 (无颜色)
+    base_output = f"{source_display}: {prefix}{content}"
+
+    # 根据原始来源应用颜色
+    original_source = message.source if hasattr(message, 'source') else ""
+    if original_source.lower() == "dm":
+        print(format_dm_message(source_display, f"{prefix}{content}")) # Pass parts to color func
+    elif original_source.lower() == "human_player" or original_source.lower() == "human":
+        print(gray_text(base_output))
+    elif original_source.lower() == "裁判":
+         print(yellow_text(base_output)) # Example: Yellow for referee
     else: # Default for other players/NPCs
-        print(format_player_message(source, content))
+        # format_player_message might need adjustment if it assumes only source/content
+        # Let's try passing the pre-formatted source_display and the rest
+        print(format_player_message(source_display, f"{prefix}{content}"))
 # --- End Simple Console Display Handler ---
 
 
@@ -49,15 +57,23 @@ class GameEngine:
     游戏引擎类，负责初始化游戏配置和状态，创建并管理所有Agent，建立GroupChat，并提供游戏启动接口
     """
 
-    def __init__(self, max_rounds: int = DEFAULT_MAX_ROUNDS):
+    def __init__(self,
+                 max_rounds: int = DEFAULT_MAX_ROUNDS,
+                 record_handler: Optional[Callable[[Message, TextIO], None]] = None,
+                 record_file_handle: Optional[TextIO] = None):
         """
         初始化游戏引擎
 
         Args:
             max_rounds: 最大回合数，默认为配置中的DEFAULT_MAX_ROUNDS
+            record_handler: (可选) 用于记录游戏消息的处理器函数。
+            record_file_handle: (可选) 传递给记录处理器的文件句柄。
         """
-        self.round_manager = None # Initialize round_manager
-        self.message_dispatcher = None # Added to store dispatcher reference
+        self.max_rounds = max_rounds # Store max_rounds
+        self.round_manager = None
+        self.message_dispatcher = None
+        self._record_handler = record_handler
+        self._record_file_handle = record_file_handle
 
     async def run_game(self) -> None:
         """
@@ -91,12 +107,27 @@ class GameEngine:
             )
             self.message_dispatcher = message_dispatcher # Store reference
 
-            # Register the simple console display handler
-            # Runner will register its own handler for logging/display
+            # Register the simple console display handler (always active)
             message_dispatcher.register_message_handler(
                 simple_console_display_handler,
                 list(MessageType)
             )
+
+            # --- Register the external record handler if provided ---
+            if self._record_handler and self._record_file_handle:
+                try:
+                    # Use lambda to pass the file handle stored in self
+                    message_dispatcher.register_message_handler(
+                        lambda msg: self._record_handler(msg, self._record_file_handle),
+                        list(MessageType) # Register for all message types
+                    )
+                    # Logging this registration might be better done in the runner
+                    # print(f"External record handler registered.")
+                except Exception as e:
+                    # Log error if registration fails
+                    print(f"Error registering external record handler: {e}")
+            # --- End record handler registration ---
+
 
             # 创建回合管理器
             round_manager = RoundManager(
