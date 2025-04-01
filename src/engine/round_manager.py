@@ -430,6 +430,16 @@ class RoundManager:
             change_descriptions: List[str] = []
             if all_round_consequences:
                 self.logger.info(f"准备应用本回合所有后果 ({len(all_round_consequences)} 条)")
+                self.logger.debug("--- 检查 all_round_consequences 内容 ---")
+                for idx, cons_item in enumerate(all_round_consequences):
+                    item_type = type(cons_item)
+                    type_attr_value = getattr(cons_item, 'type', 'N/A')
+                    type_attr_type = type(type_attr_value)
+                    self.logger.debug(f"  后果 {idx}: 对象类型={item_type}, type属性值='{type_attr_value}', type属性类型={type_attr_type}")
+                    # 可以在这里添加更多字段的打印，例如 cons_item 本身
+                    # self.logger.debug(f"    内容: {cons_item}")
+                self.logger.debug("--- 检查结束 ---")
+
                 # 应用后果并接收描述列表
                 change_descriptions = await self.game_state_manager.apply_consequences(all_round_consequences)
 
