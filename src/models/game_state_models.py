@@ -16,16 +16,26 @@ class CharacterStatus(BaseModel):
     character_id: str = Field(..., description="角色ID")
     location: str = Field(..., description="当前位置")
     health: int = Field(100, description="健康值")
-    items: Optional[List[str]] = Field(default_factory=list, description="拥有的物品，None表示未确定")
+    items: List['ItemInstance'] = Field(default_factory=list, description="拥有的物品实例列表") # Updated type hint
     known_information: Optional[List[str]] = Field(default_factory=list, description="已知信息，None表示未确定")
 
 class LocationStatus(BaseModel):
     """位置状态模型，跟踪地点当前状态"""
     location_id: str = Field(..., description="地点ID")
     search_status: str = Field("未搜索", description="搜索状态(未搜索/部分搜索/被搜索过)")
-    available_items: Optional[List[str]] = Field(default_factory=list, description="当前可获取的物品，None表示未确定")
+    available_items: List['ItemInstance'] = Field(default_factory=list, description="当前可获取的物品实例列表") # Updated type hint
     present_characters: List[str] = Field(default_factory=list, description="当前在此位置的角色")
     description_state: str = Field("", description="当前位置状态描述(例如,是否有破坏,特殊情况等)")
+
+# Added ItemInstance model
+class ItemInstance(BaseModel):
+    """物品实例模型，表示角色或地点持有的具体物品"""
+    item_id: str = Field(..., description="物品的唯一标识符 (对应 Scenario.items 中的 key)")
+    quantity: int = Field(1, description="持有的数量")
+    name: str = Field(..., description="物品的名称 (方便使用，可从 Scenario.items 获取)")
+    # 可以添加更多实例特定的属性，例如耐久度、特殊效果等
+    # durability: Optional[int] = None
+    # effects: List[str] = Field(default_factory=list)
 
 class ItemStatus(BaseModel):
     """物品状态模型，跟踪物品当前状态"""
