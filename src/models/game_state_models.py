@@ -2,7 +2,7 @@ from pydantic import BaseModel, Field
 from typing import Dict, List, Any, Optional, Union, Literal
 from enum import Enum
 from datetime import datetime
-from src.models.scenario_models import Scenario, ScenarioCharacterInfo, ScenarioEvent, LocationInfo, ItemInfo, StoryStage, StorySection, StoryChapter
+from src.models.scenario_models import Scenario, StoryStage, AttributeSet, SkillSet
 from src.models.message_models import Message, MessageStatus
 from src.models.action_models import InternalThoughts
 
@@ -10,22 +10,6 @@ class MessageReadMemory(BaseModel):
     """消息已读记录模型"""
     player_id: str = Field(..., description="玩家ID")
     history_messages: Dict[str, MessageStatus] = Field(default_factory=dict, description="可见的消息状态，键为消息ID")
-
-# +++ 新增模型定义 +++
-class AttributeSet(BaseModel):
-    """角色属性集合"""
-    strength: int = Field(10, description="力量")
-    dexterity: int = Field(10, description="敏捷")
-    intelligence: int = Field(10, description="智力")
-    charisma: int = Field(10, description="魅力")
-    # 可以根据需要添加更多属性
-
-class SkillSet(BaseModel):
-    """角色技能集合"""
-    persuasion: int = Field(0, description="说服")
-    stealth: int = Field(0, description="潜行")
-    combat: int = Field(0, description="战斗")
-    # 可以根据需要添加更多技能
 
 # --- 移除 CharacterStatus ---
 # class CharacterStatus(BaseModel):

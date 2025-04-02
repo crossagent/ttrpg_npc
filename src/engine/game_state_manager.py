@@ -11,7 +11,7 @@ import logging # Add logging import
 from operator import add, sub, mul, truediv # For attribute updates
 
 from src.models.game_state_models import (
-    GameState, CharacterInstance, CharacterStatus,
+    GameState, CharacterInstance,
     EnvironmentStatus, EventInstance, ProgressStatus,
     LocationStatus, ItemStatus, ItemInstance # Add ItemInstance
 )

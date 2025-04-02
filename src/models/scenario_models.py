@@ -3,8 +3,23 @@ from pydantic import BaseModel, Field
 from typing import List, Dict, Any, Optional, Union
 
 # +++ 添加导入 +++
-from src.models.game_state_models import AttributeSet, SkillSet
 from src.models.consequence_models import Consequence
+
+# +++ 新增模型定义 +++
+class AttributeSet(BaseModel):
+    """角色属性集合"""
+    strength: int = Field(10, description="力量")
+    dexterity: int = Field(10, description="敏捷")
+    intelligence: int = Field(10, description="智力")
+    charisma: int = Field(10, description="魅力")
+    # 可以根据需要添加更多属性
+
+class SkillSet(BaseModel):
+    """角色技能集合"""
+    persuasion: int = Field(0, description="说服")
+    stealth: int = Field(0, description="潜行")
+    combat: int = Field(0, description="战斗")
+    # 可以根据需要添加更多技能
 
 class ScenarioCharacterInfo(BaseModel):
     """剧本角色信息模型 - 静态数据，游戏过程中不变"""

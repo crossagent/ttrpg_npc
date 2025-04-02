@@ -3,7 +3,7 @@
 """
 from typing import List, Dict, Any
 from src.models.message_models import Message
-from src.models.game_state_models import CharacterInstance
+from src.models.game_state_models import CharacterInstance, GameState
 
 def format_messages(messages: List[Message]) -> str:
     """
@@ -50,7 +50,7 @@ def format_location_list(locations: Dict[str, Any]) -> str:
     
     return ", ".join(locations.keys())
 
-def format_environment_info(game_state) -> str:
+def format_environment_info(game_state:GameState) -> str:
     """
     格式化当前环境信息为文本
     
@@ -86,7 +86,7 @@ def format_environment_info(game_state) -> str:
            f"氛围: {env.atmosphere}\n" \
            f"光照: {env.lighting}"
 
-def format_current_stage_summary(game_state) -> str:
+def format_current_stage_summary(game_state:GameState) -> str:
     """
     格式化当前章节剧情大纲为文本
     
@@ -135,7 +135,7 @@ def format_current_stage_summary(game_state) -> str:
     
     return summary
 
-def format_current_stage_characters(game_state) -> str:
+def format_current_stage_characters(game_state:GameState) -> str:
     """
     格式化当前阶段相关角色的公开信息为文本
     
@@ -183,17 +183,20 @@ def format_current_stage_characters(game_state) -> str:
         char_instance = game_state.characters[char_id]
         char_info = f"- {char_instance.name} ({char_instance.public_identity})\n"
         
-        # 获取角色当前位置
-        status = char_instance.status
-        if status and status.location:
+        # 直接访问location属性而不是通过status
+        if hasattr(char_instance, 'location') and char_instance.location:
             # 获取位置名称
-            location_name = status.location
-            if game_state.scenario.locations and status.location in game_state.scenario.locations:
-                location_obj = game_state.scenario.locations.get(status.location)
+            location_name = char_instance.location
+            if game_state.scenario.locations and char_instance.location in game_state.scenario.locations:
+                location_obj = game_state.scenario.locations.get(char_instance.location)
                 if location_obj and hasattr(location_obj, 'name'):
                     location_name = location_obj.name
             
             char_info += f"  当前位置: {location_name}\n"
+        
+        # 如果需要添加其他属性，如健康状态等
+        if hasattr(char_instance, 'health'):
+            char_info += f"  健康值: {char_instance.health}\n"
         
         character_info_list.append(char_info)
     
@@ -202,7 +205,7 @@ def format_current_stage_characters(game_state) -> str:
     
     return "\n".join(character_info_list)
 
-def format_current_stage_locations(game_state) -> str:
+def format_current_stage_locations(game_state:GameState) -> str:
     """
     格式化当前阶段关联的地点信息为文本
     

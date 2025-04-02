@@ -14,7 +14,7 @@ from src.models.scenario_models import (
 )
 from src.models.game_state_models import (
     GameState, ProgressStatus, EnvironmentStatus, CharacterInstance,
-    CharacterStatus, LocationStatus, ItemStatus
+    LocationStatus, ItemStatus
 )
 from src.models.message_models import Message, MessageType
 from src.agents.dm_agent import DMAgent
