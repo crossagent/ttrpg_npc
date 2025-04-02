@@ -52,15 +52,22 @@ class PlayerAgent(BaseAgent):
 
         # Placeholder prompts for now
         # Extract relevant game state info for the prompt
-        current_location_id = game_state.characters[self.character_id].location_id
+        # Correctly get location from character_states
+        current_location_id = game_state.character_states[self.character_id].location
         current_location_desc = game_state.scenario.locations.get(current_location_id, LocationInfo(description="未知地点")).description if game_state.scenario.locations else "未知地点"
+        # Correctly check location in character_states for visible characters
         visible_characters = [
-            f"{char.name} ({char.public_identity})"
-            for char_id, char in game_state.characters.items()
-            if char.location_id == current_location_id and char_id != self.character_id
+            f"{char_instance.name} ({char_instance.public_identity})" # Use char_instance from game_state.characters
+            for char_id, char_instance in game_state.characters.items() # Iterate through CharacterInstance
+            if game_state.character_states[char_id].location == current_location_id and char_id != self.character_id
         ]
         visible_chars_str = ", ".join(visible_characters) if visible_characters else "无"
         recent_events = "\n".join([f"- {msg.content}" for msg in game_state.chat_history[-5:]]) # Last 5 messages as recent events
+
+        # Get current character status and inventory correctly from character_states
+        current_char_status = game_state.character_states[self.character_id]
+        status_str = f"Health: {current_char_status.health}, Known Info: {current_char_status.known_information}" # Example status string
+        inventory_str = ", ".join([item.name for item in current_char_status.items]) if current_char_status.items else "无"
 
         system_prompt = f"""你是角色 {chara_info.name} ({chara_info.public_identity})。你的目标是: {chara_info.secret_goal}。
 你当前的背景是: {chara_info.background or '无'}
@@ -77,8 +84,8 @@ class PlayerAgent(BaseAgent):
 最近发生的事件或对话:
 {recent_events}
 
-你的当前状态: {game_state.characters[self.character_id].status}
-你的物品栏: {game_state.characters[self.character_id].inventory}
+你的当前状态: {status_str}
+你的物品栏: {inventory_str}
 
 请严格按照 JSON 列表格式返回 3 个选项:
 [
@@ -172,10 +179,11 @@ class PlayerAgent(BaseAgent):
 
     def _get_default_options(self, game_state: GameState) -> List[ActionOption]:
         """Provides default fallback action options."""
-        # Try to find another character to talk to
+        # Try to find another character to talk to (Corrected location check)
         target_char_id = "environment"
-        for char_id, char in game_state.characters.items():
-            if char_id != self.character_id and char.location_id == game_state.characters[self.character_id].location_id:
+        current_player_location = game_state.character_states[self.character_id].location
+        for char_id in game_state.characters.keys():
+            if char_id != self.character_id and game_state.character_states[char_id].location == current_player_location:
                 target_char_id = char_id
                 break
 

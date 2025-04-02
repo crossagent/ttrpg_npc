@@ -95,6 +95,7 @@ class GameState(BaseModel):
     """完整游戏状态模型，表示游戏的当前状态"""
     game_id: str = Field(..., description="游戏实例ID")
     scenario_id: str = Field(..., description="使用的剧本ID")
+    player_character_id: Optional[str] = Field(None, description="玩家选择控制的角色ID") # 新增字段
     round_number: int = Field(0, description="当前回合数")
     max_rounds: int = Field(10, description="最大回合数")
     is_finished: bool = Field(False, description="游戏是否结束")

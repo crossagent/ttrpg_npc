@@ -141,7 +141,9 @@ class Scenario(BaseModel):
                     secret_goal=char_data["secret_goal"],
                     background=char_data.get("background"),
                     special_ability=char_data.get("special_ability"),
-                    weakness=char_data.get("weakness")
+                    weakness=char_data.get("weakness"),
+                    # 读取 is_playable 字段，默认为 False
+                    is_playable=char_data.get("is_playable", False)
                 )
                 characters[character.character_id] = character
             else:
