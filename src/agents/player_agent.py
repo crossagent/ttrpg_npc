@@ -11,6 +11,10 @@ from src.models.game_state_models import GameState
 from src.models.action_models import ActionType, ActionOption # Import ActionOption from action_models
 from src.models.llm_validation import create_validator_for, LLMOutputError
 from src.models.context_models import ActionOptionsLLMOutput # Now this should work
+# Add imports for the revised approach
+from autogen_agentchat.agents import AssistantAgent
+from autogen_agentchat.messages import TextMessage
+from autogen_core import CancellationToken
 
 class PlayerAgent(BaseAgent):
     """
@@ -104,16 +108,33 @@ class PlayerAgent(BaseAgent):
             if not self.model_client:
                  raise ValueError("LLM model client is not configured for PlayerAgent.")
 
-            # 启用实际的 LLM 调用
-            # 假设 model_client 有一个接受 system 和 user prompt 的方法
-            # (如果您的客户端方法不同，请相应调整)
-            # 例如: response = await self.model_client.chat_completion(system_prompt=system_prompt, user_prompt=user_prompt)
-            # 或者:
-            full_prompt = system_prompt + "\n\n" + user_prompt # 根据需要组合
-            response = await self.model_client.generate_text(full_prompt) # 假设 generate_text 存在
+            # 采用与 dm_agent 类似的模式：创建临时 AssistantAgent
+            from autogen_agentchat.agents import AssistantAgent
+            from autogen_agentchat.messages import TextMessage
+            from autogen_core import CancellationToken
 
-            # 确保 response_content 是字符串
-            response_content = response if isinstance(response, str) else str(response)
+            # 创建临时助手
+            assistant = AssistantAgent(
+                name=f"{self.agent_name}_options_helper", # Give a unique name
+                model_client=self.model_client,
+                system_message=system_prompt # Pass the constructed system prompt
+            )
+
+            # 构建用户消息
+            user_message = TextMessage(
+                content=user_prompt,
+                source="system" # Or perhaps self.agent_id? Check consistency if needed.
+            )
+
+            # 调用 on_messages 获取响应
+            response = await assistant.on_messages([user_message], CancellationToken())
+
+            # 从响应中提取内容
+            if response and response.chat_message and response.chat_message.content:
+                response_content = response.chat_message.content
+            else:
+                self.logger.error("LLM did not return a valid response structure via AssistantAgent.")
+                response_content = ""
             print(f"  LLM Raw Response for options: {response_content[:300]}...") # Log raw response
 
             # --- 3. 解析和验证 LLM 输出 ---
