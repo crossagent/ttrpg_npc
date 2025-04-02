@@ -13,11 +13,11 @@
     *   **职责**: 管理所有智能体（玩家、NPC、叙事、裁判）的生命周期和调度。实现“深度思考的 AI 角色”。
     *   **模式**: 代理模式 (Agent Pattern)，面向对象设计。
     *   **核心代理类型**:
-        *   **PlayerAgent**: 代表人类玩家控制的角色 (PC)。其行动不由自身生成，而是通过调用 LLM 生成多个行动选项（如交谈、行动、待机），由玩家通过展现层选择一个。由 `AgentManager` 根据剧本中角色的 `is_playable=True` 标记创建。
-        *   **CompanionAgent**: 代表由 AI 驱动的陪玩角色（非玩家控制，但有独立思考和行动能力）。模拟 NPC 思考（感知-思考-行动循环），自主生成行动。由 `AgentManager` 根据剧本中角色的 `is_companion=True` 标记创建。（注意：此类由原 `PlayerAgent` 重命名而来）。
-        *   **NarrativeAgent (叙事代理)**: 负责生成环境描述、剧情叙述、普通 NPC 的对话和行为描述（原 DM 叙事部分）。不直接代表某个角色。
-        *   **RefereeAgent (裁判代理)**: 负责解析所有 Agent（包括 `PlayerAgent` 选择的行动和 `CompanionAgent` 生成的行动）的意图、判定规则、判断事件触发、生成结构化状态变更指令（原 DM 规则部分）。不直接代表某个角色。
-        *   **普通 NPC**: 没有对应的 Agent 实例。其行为由 `NarrativeAgent` 描述或由 `RefereeAgent` 在处理后果时触发。
+        *   **PlayerAgent**: 代表人类玩家控制的角色 (PC)。对应玩家在游戏开始时从 `is_playable=True` 列表中选择的角色 (其 ID 存储在 `GameState.player_character_id`)。其行动不由自身生成，而是通过调用 LLM 生成多个行动选项，由玩家通过展现层选择一个。由 `AgentManager` 在初始化时创建。
+        *   **CompanionAgent**: 代表由 AI 驱动的陪玩角色（非玩家控制，但有独立思考和行动能力）。对应未被玩家选择但 `is_playable=True` 的角色。模拟 NPC 思考（感知-思考-行动循环），自主生成行动。由 `AgentManager` 在初始化时创建。（注意：此类由原 `PlayerAgent` 重命名而来）。
+        *   **NarrativeAgent (叙事代理)**: 负责生成环境描述、剧情叙述、普通 NPC 的对话和行为描述（原 DM 叙事部分）。不直接代表某个角色。由 `AgentManager` 在初始化时创建。
+        *   **RefereeAgent (裁判代理)**: 负责解析所有 Agent（包括 `PlayerAgent` 选择的行动和 `CompanionAgent` 生成的行动）的意图、判定规则、判断事件触发、生成结构化状态变更指令（原 DM 规则部分）。不直接代表某个角色。由 `AgentManager` 在初始化时创建。
+        *   **普通 NPC**: 对应剧本中 `is_playable=False` 的角色。没有对应的 Agent 实例。其行为由 `NarrativeAgent` 描述或由 `RefereeAgent` 在处理后果时触发。
 *   **游戏状态管理器 (Game State Manager)**:
     *   **职责**: 存储和管理游戏世界状态（角色、环境、物品、事件进展等），应用结构化后果，并处理游戏阶段的检查与推进。
     *   **模式**: 单一事实来源 (Single Source of Truth)，数据库模式。确保状态更新的原子性。
@@ -28,7 +28,7 @@
     *   **职责**: 路由和分发消息，处理可见性过滤，连接逻辑层与展现层，管理消息历史。
     *   **模式**: 发布/订阅模式 (Publish/Subscribe)，消息队列。
 *   **上下文构建器 (Context Builders)**:
-    *   **职责**: 将结构化数据格式化为自然语言或 LLM Prompt。
+    *   **职责**: 将结构化数据格式化为自然语言 或 LLM Prompt。
     *   **模式**: 数据转换层 (Data Transformation Layer)，适配器模式 (Adapter Pattern)。
 *   **展现层 (Presentation Layer)**:
     *   **职责**: 用户界面，显示信息，接收输入。

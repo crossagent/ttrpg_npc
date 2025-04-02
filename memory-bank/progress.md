@@ -9,16 +9,16 @@
 ## 下一步实施计划
 
 1.  **修改数据模型 (`src/models/scenario_models.py`)**:
-    *   在 `ScenarioCharacterInfo` 类中添加 `is_companion: bool = Field(False, ...)` 和 `is_playable: bool = Field(False, ...)` 字段。
+    *   在 `ScenarioCharacterInfo` 类中**仅添加** `is_playable: bool = Field(False, description="是否可供玩家选择或作为陪玩角色")` 字段。
     *   更新 `Scenario.from_json` 方法以解析新字段。
 
 2.  **更新剧本数据 (`scenarios/default.json`)**:
-    *   为 `default.json` 中的角色添加 `is_companion` 和 `is_playable` 字段（需要用户指定具体值）。
+    *   为 `default.json` 中的角色添加 `is_playable` 字段（需要用户指定哪些角色是 `True`）。
 
-3.  **实现角色选择流程 (主要在 `src/scripts/cli_runner.py` 和 `src/engine/game_engine.py` / `src/engine/game_state_manager.py`)**:
-    *   游戏启动时加载并筛选可玩角色 (`is_playable=True`)。
-    *   实现用户选择角色的交互界面。
-    *   初始化 `GameState` 时设置 `player_character_id`。
+3.  **实现角色选择与 Agent 初始化 (主要在 `src/scripts/cli_runner.py`, `src/engine/game_engine.py`, `src/engine/agent_manager.py`)**:
+    *   游戏启动时加载剧本，筛选出所有 `is_playable=True` 的角色。
+    *   向玩家展示这些角色，让玩家选择一个作为 PC。
+    *   在 `GameState` 中记录玩家选择的 `player_character_id`。
 
 4.  **重命名 Agent**:
     *   将 `src/agents/player_agent.py` 重命名为 `src/agents/companion_agent.py`。
@@ -26,9 +26,10 @@
     *   更新所有引用该文件和类的地方。
 
 5.  **调整 Agent 管理 (`src/engine/agent_manager.py`)**:
-    *   根据 `player_character_id` 创建 `PlayerAgent` 实例。
-    *   根据 `is_companion=True` 创建 `CompanionAgent` 实例。
-    *   不为普通 NPC 创建 Agent。
+    *   遍历剧本中的所有角色。
+    *   如果角色 ID 与 `player_character_id` 匹配，则创建 `PlayerAgent`。
+    *   如果角色 ID 与 `player_character_id` **不匹配**，但其 `is_playable` 为 `True`，则创建 `CompanionAgent`。
+    *   如果角色的 `is_playable` 为 `False`，则不创建 Agent。
 
 6.  **实现 `PlayerAgent` (`src/agents/player_agent.py` - 新文件)**:
     *   创建新的 `PlayerAgent` 类 (继承 `BaseAgent`)。
@@ -43,13 +44,13 @@
 8.  **更新 `systemPatterns.md`**:
     *   反映正确的 Agent 类型 (`PlayerAgent`, `CompanionAgent`) 和交互流程。
 
-## 待办事项
+## 待办事项 (代码实现阶段)
 
-*   等待用户指定 `default.json` 中各角色的 `is_companion` 和 `is_playable` 值。
-*   完成上述所有实施步骤。
+*   等待用户指定 `default.json` 中各角色的 `is_playable` 值。
+*   完成上述所有代码实施步骤。
 *   进行测试。
 
-## 已完成
+## 已完成 (本次文档更新任务)
 
-*   Memory Bank 同步与计划制定（已包含命名修正）。
-*   `activeContext.md` 更新（已包含命名修正）。
+*   Memory Bank 同步与计划修订（仅使用 `is_playable`）。
+*   `activeContext.md` 更新。
