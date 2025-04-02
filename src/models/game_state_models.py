@@ -118,6 +118,9 @@ class GameState(BaseModel):
     event_instances: Dict[str, EventInstance] = Field(default_factory=dict, description="事件实例字典，键为实例ID")
     active_event_ids: List[str] = Field(default_factory=list, description="当前激活的、等待玩家或环境触发的事件ID列表")
     
+    # 叙事 Flags
+    flags: Dict[str, bool] = Field(default_factory=dict, description="Stores the boolean state of narrative flags.")
+
     # 游戏交互历史
     chat_history: List[Message] = Field(default_factory=list, description="完整消息历史记录列表")
     revealed_secrets: List[str] = Field(default_factory=list, description="已揭示的秘密")

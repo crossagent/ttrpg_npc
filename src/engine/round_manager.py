@@ -40,7 +40,7 @@ from src.agents import RefereeAgent # Keep RefereeAgent import
 from src.engine.round_phases.base_phase import PhaseContext
 from src.engine.round_phases.narration_phase import NarrationPhase
 from src.engine.round_phases.action_declaration_phase import ActionDeclarationPhase
-from src.engine.round_phases.judgement_phase import JudgementPhase, JudgementResult
+from src.engine.round_phases.judgement_phase import JudgementPhase, JudgementOutput # Changed JudgementResult to JudgementOutput
 from src.engine.round_phases.update_phase import UpdatePhase
 
 
@@ -148,11 +148,11 @@ class RoundManager:
 
             # 5. 执行判定阶段
             judgement_phase = JudgementPhase(context)
-            judgement_result: JudgementResult = await judgement_phase.execute(declared_actions)
+            judgement_output: JudgementOutput = await judgement_phase.execute(declared_actions) # Changed type hint and variable name
 
             # 6. 执行更新阶段
             update_phase = UpdatePhase(context)
-            await update_phase.execute(judgement_result, declared_actions)
+            await update_phase.execute(judgement_output, declared_actions) # Pass the renamed variable
 
             # 7. 结束回合
             final_state = self.end_round()

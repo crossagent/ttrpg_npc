@@ -12,6 +12,7 @@ class ConsequenceType(Enum):
     CHANGE_RELATIONSHIP = "change_relationship" # Change the relationship value between two characters
     TRIGGER_EVENT = "trigger_event"        # Trigger a new event (by ID)
     SEND_MESSAGE = "send_message"          # Send a specific message (e.g., GM narration, system message)
+    UPDATE_FLAG = "update_flag"            # Set or update a narrative flag in the game state
     # Add more types as needed, e.g., CHANGE_LOCATION, LEARN_INFO, APPLY_STATUS_EFFECT
 
 class Consequence(BaseModel):
@@ -25,6 +26,8 @@ class Consequence(BaseModel):
     event_id: Optional[str] = Field(None, description="The ID of the event to be triggered (used with TRIGGER_EVENT).")
     message_content: Optional[str] = Field(None, description="The content of the message to be sent (used with SEND_MESSAGE).")
     message_recipient: Optional[str] = Field("PLAYER", description="The recipient of the message ('PLAYER', 'DM', or specific character ID). Default is 'PLAYER'.")
+    flag_name: Optional[str] = Field(None, description="The name of the flag being set or updated (used with UPDATE_FLAG).")
+    flag_value: Optional[bool] = Field(None, description="The boolean value to set the flag to (used with UPDATE_FLAG).")
     # Optional metadata for context or debugging
     metadata: Optional[Dict[str, Any]] = Field(default_factory=dict, description="Optional metadata for context or debugging.")
 

@@ -105,9 +105,9 @@
           "id": "caught_eavesdropping",
           "description": "偷听被发现",
           "consequence": [
-            { "type": "change_npc_state", "target": "char_003", "state": "relationship", "change": "-2" },
-            { "type": "change_npc_state", "target": "char_003", "state": "suspicion_level", "change": "+3" },
-            { "type": "require_skill_check", "skill": "deception", "dc": 14, "success_consequence": [{"type": "gain_item", "item_id": "info_victor_deal_details"}], "failure_consequence": [{"type": "change_player_state", "state": "under_surveillance"}]}
+            { "type": "change_relationship", "target_entity_id": "char_003", "secondary_entity_id": "player", "value": -2 },
+            { "type": "update_attribute", "target_entity_id": "char_003", "attribute_name": "suspicion_level", "value": {"op": "+=", "amount": 3} },
+            { "type": "require_skill_check", "skill": "deception", "dc": 14, "success_consequence": [{"type": "add_item", "target_entity_id": "player", "item_id": "info_victor_deal_details"}], "failure_consequence": [{"type": "update_flag", "flag_name": "player_under_surveillance", "flag_value": true}]}
           ]
         },
         {
@@ -138,8 +138,8 @@
           "id": "refuse_and_inform_jackson",
           "description": "拒绝并告知杰克逊",
           "consequence": [
-             { "type": "change_npc_state", "target": "char_002", "state": "relationship", "change": "+1" },
-             { "type": "change_npc_state", "target": "char_001", "state": "status", "value": "in_danger" }
+             { "type": "change_relationship", "target_entity_id": "char_002", "secondary_entity_id": "player", "value": 1 },
+             { "type": "update_flag", "flag_name": "monica_in_danger", "flag_value": true }
           ]
         },
         {
@@ -210,9 +210,9 @@
           "id": "report_to_victor",
           "description": "向维克多报告",
           "consequence": [
-            { "type": "change_npc_state", "target": "char_003", "state": "relationship", "change": "+1" },
-            { "type": "change_npc_state", "target": "char_004", "state": "relationship", "change": "-3" },
-            { "type": "change_npc_state", "target": "char_004", "state": "status", "value": "compromised" }
+            { "type": "change_relationship", "target_entity_id": "char_003", "secondary_entity_id": "player", "value": 1 },
+            { "type": "change_relationship", "target_entity_id": "char_004", "secondary_entity_id": "player", "value": -3 },
+            { "type": "update_flag", "flag_name": "rachel_compromised", "flag_value": true }
           ]
         }
       ]
@@ -274,7 +274,7 @@
           "id": "nervous_slip",
           "description": "紧张失言",
           "consequences": [
-            { "type": "update_attribute", "target_entity_id": "player", "attribute_name": "status_flags", "value": {"op": "+=", "amount": ["under_surveillance"]} },
+            { "type": "update_flag", "flag_name": "player_under_surveillance", "flag_value": true },
             { "type": "send_message", "message_content": "你的紧张引起了杰克逊的警觉，他开始密切监视你。" }
           ]
         }
