@@ -54,7 +54,8 @@ class UpdatePhase(BaseRoundPhase):
         if attribute_consequences:
             self.logger.info(f"步骤 1: 应用 {len(attribute_consequences)} 条行动属性后果...")
             try:
-                descriptions = await self.game_state_manager.apply_consequences(attribute_consequences)
+                # Access game_state_manager via context
+                descriptions = await self.context.game_state_manager.apply_consequences(attribute_consequences)
                 all_change_descriptions.extend(descriptions)
                 self.logger.info("步骤 1 完成: 属性后果已应用。")
             except Exception as apply_error:
@@ -65,7 +66,8 @@ class UpdatePhase(BaseRoundPhase):
 
         # 2. 应用触发事件的后果 (包括 Flag 设置)
         event_consequences: List[Consequence] = []
-        current_scenario = self.scenario_manager.get_current_scenario()
+        # Access scenario_manager via context
+        current_scenario = self.context.scenario_manager.get_current_scenario()
         if triggered_events and current_scenario:
             self.logger.info(f"步骤 2: 提取并应用 {len(triggered_events)} 个触发事件的后果...")
             try:
@@ -73,7 +75,8 @@ class UpdatePhase(BaseRoundPhase):
                     triggered_events, current_scenario
                 )
                 if event_consequences:
-                    descriptions = await self.game_state_manager.apply_consequences(event_consequences)
+                    # Access game_state_manager via context
+                    descriptions = await self.context.game_state_manager.apply_consequences(event_consequences)
                     all_change_descriptions.extend(descriptions)
                     self.logger.info("步骤 2 完成: 事件后果已应用。")
                 else:
@@ -104,9 +107,9 @@ class UpdatePhase(BaseRoundPhase):
         # 4. 统一广播状态更新消息
         if all_change_descriptions:
             self.logger.info(f"广播 {len(all_change_descriptions)} 条状态更新消息...")
-            referee_instance = self.referee # Use stored referee
+            referee_instance = self.context.referee_agent
             system_source_id = referee_instance.agent_id if referee_instance else "referee_agent"
-            all_agent_ids = self.agent_manager.get_all_agent_ids()
+            all_agent_ids = self.context.agent_manager.get_all_agent_ids()
 
             for description in all_change_descriptions:
                 state_update_message = Message(
@@ -119,24 +122,27 @@ class UpdatePhase(BaseRoundPhase):
                     visibility=MessageVisibility.PUBLIC,
                     recipients=all_agent_ids,
                     round_id=self.current_round_id
-                )
+                ) # Ensure parenthesis is at the correct level
+                # Correct indentation for try/except relative to the for loop
                 try:
-                    self.message_dispatcher.broadcast_message(state_update_message)
+                    # Access message_dispatcher via context
+                    self.context.message_dispatcher.broadcast_message(state_update_message)
                 except Exception as broadcast_error:
                     self.logger.error(f"广播状态更新消息时出错: {broadcast_error}")
-        else:
+        else: # Ensure else aligns with the 'if all_change_descriptions:'
             self.logger.info("本回合没有状态更新消息需要广播。")
 
         # 5. 检查并推进剧本阶段 (在所有状态更新后)
-        self.logger.debug("步骤 3: 检查阶段完成情况...")
+        self.logger.debug("步骤 5: 检查阶段完成情况...")
         try:
             # advance_stage 内部包含检查逻辑，应读取更新后的 GameState.flags
-            stage_advanced = self.game_state_manager.advance_stage()
+            # Access game_state_manager via context
+            stage_advanced = self.context.game_state_manager.advance_stage()
             if stage_advanced:
-                self.logger.info("步骤 3 完成: 游戏剧本阶段已在本回合推进。")
+                self.logger.info("步骤 5 完成: 游戏剧本阶段已在本回合推进。")
                 # TODO: Consider broadcasting a specific STAGE_ADVANCE message?
             else:
-                self.logger.info("步骤 3 完成: 当前剧本阶段未完成或已是最后阶段。")
+                self.logger.info("步骤 5 完成: 当前剧本阶段未完成或已是最后阶段。") # Corrected log message number
         except Exception as stage_error:
             self.logger.exception(f"检查或推进剧本阶段时出错: {stage_error}")
 
