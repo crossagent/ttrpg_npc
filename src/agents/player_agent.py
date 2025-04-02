@@ -64,22 +64,22 @@ class PlayerAgent(BaseAgent):
 
         # Placeholder prompts for now
         # Extract relevant game state info for the prompt
-        # Correctly get location from character_states
-        current_location_id = game_state.character_states[self.character_id].location
+        # Correctly get location from characters
+        current_location_id = game_state.characters[self.character_id].location
         current_location_desc = game_state.scenario.locations.get(current_location_id, LocationInfo(description="未知地点")).description if game_state.scenario.locations else "未知地点"
-        # Correctly check location in character_states for visible characters
+        # Correctly check location in characters for visible characters
         visible_characters = [
             f"{char_instance.name} ({char_instance.public_identity})" # Use char_instance from game_state.characters
             for char_id, char_instance in game_state.characters.items() # Iterate through CharacterInstance
-            if game_state.character_states[char_id].location == current_location_id and char_id != self.character_id
+            if char_instance.location == current_location_id and char_id != self.character_id
         ]
         visible_chars_str = ", ".join(visible_characters) if visible_characters else "无"
         recent_events = "\n".join([f"- {msg.content}" for msg in game_state.chat_history[-5:]]) # Last 5 messages as recent events
 
-        # Get current character status and inventory correctly from character_states
-        current_char_status = game_state.character_states[self.character_id]
-        status_str = f"Health: {current_char_status.health}, Known Info: {current_char_status.known_information}" # Example status string
-        inventory_str = ", ".join([item.name for item in current_char_status.items]) if current_char_status.items else "无"
+        # Get current character status and inventory correctly from characters
+        current_char = game_state.characters[self.character_id]
+        status_str = f"Health: {current_char.health}, Known Info: {', '.join(current_char.known_information) if current_char.known_information else '无'}" # Example status string
+        inventory_str = ", ".join([item.name for item in current_char.items]) if current_char.items else "无"
 
         # --- 1b. 创建验证器并获取格式指令 ---
         # 在调用 LLM 之前创建验证器，以获取格式化指令
@@ -177,11 +177,11 @@ class PlayerAgent(BaseAgent):
 
     def _get_default_options(self, game_state: GameState) -> List[ActionOption]:
         """Provides default fallback action options."""
-        # Try to find another character to talk to (Corrected location check)
+        current_player_location = game_state.characters[self.character_id].location
+        
         target_char_id = "environment"
-        current_player_location = game_state.character_states[self.character_id].location
         for char_id in game_state.characters.keys():
-            if char_id != self.character_id and game_state.character_states[char_id].location == current_player_location:
+            if char_id != self.character_id and game_state.characters[char_id].location == current_player_location:
                 target_char_id = char_id
                 break
 

@@ -87,15 +87,36 @@ def build_decision_user_prompt(
     # 格式化未读消息
     formatted_messages = format_messages(unread_messages)
     
-    # 获取角色当前状态
-    character_status = game_state.character_states.get(character_id)
-    current_location = game_state.location_states.get(character_status.location) if character_status else None
+    # 获取角色当前状态和位置
+    character_instance = game_state.characters.get(character_id)
+    if not character_instance:
+        return "错误：无法找到角色信息"
+        
+    current_location_id = character_instance.location
+    
+    # 从scenario获取位置信息
+    current_location = None
+    location_desc = "无描述"
+    if game_state.scenario and game_state.scenario.locations:
+        current_location = game_state.scenario.locations.get(current_location_id)
+        if current_location:
+            location_desc = current_location.description
+    
+    # 获取同一位置的其他角色
+    other_characters = []
+    for char_id, char in game_state.characters.items():
+        if char_id != character_id and char.location == current_location_id:
+            other_characters.append(char.name)
+    
+    other_chars_text = ", ".join(other_characters) if other_characters else "无"
     
     # 获取最近的内部思考记录(如果有)
-    recent_thoughts = game_state.character_internal_thoughts.get(character_id)
-    if recent_thoughts: 
-        latest_thought:InternalThoughts = recent_thoughts[-1]
-        recent_thoughts = f"""
+    recent_thoughts_text = ""
+    if hasattr(game_state, 'character_internal_thoughts') and isinstance(game_state.character_internal_thoughts, dict):
+        recent_thoughts = game_state.character_internal_thoughts.get(character_id)
+        if recent_thoughts and isinstance(recent_thoughts, list) and recent_thoughts: 
+            latest_thought = recent_thoughts[-1]
+            recent_thoughts_text = f"""
 你的最近思考记录:
 - 主要情绪: {latest_thought.primary_emotion}
 - 短期目标: {', '.join(latest_thought.short_term_goals)}
@@ -106,14 +127,16 @@ def build_decision_user_prompt(
     return f"""
 【第{game_state.round_number}回合】
 
-你当前位置: {current_location.location_id if current_location else "未知"}
-位置描述: {current_location.description_state if current_location else "无描述"}
-场景中的其他角色: {', '.join(current_location.present_characters) if current_location and current_location.present_characters else "无"}
+你当前位置: {current_location_id if current_location_id else "未知"}
+位置描述: {location_desc}
+场景中的其他角色: {other_chars_text}
+你的健康状态: {character_instance.health}
+你的物品: {', '.join([item.name for item in character_instance.items]) if character_instance.items else "无"}
 
 最近的信息:
 {formatted_messages}
 
-{recent_thoughts}
+{recent_thoughts_text}
 
 根据角色性格、背景故事和当前情境，思考并决定你的下一步行动。
 """
