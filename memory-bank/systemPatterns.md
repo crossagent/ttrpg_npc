@@ -36,19 +36,28 @@
 
 ## 3. 关键交互模式与数据流
 
-*   **回合制循环 (Agent 驱动)**: 由游戏引擎 (`GameEngine` 或 `RoundManager`) 驱动，按顺序迭代处理当前回合需要行动的 **Agent 实例** 列表。循环的核心是处理每个活动 Agent 的行动，而非固定的阶段划分。
-*   **基于 Agent 类型的行动处理**: 在处理每个活动 Agent 时：
-    *   **若为 `PlayerAgent`**: 调用其 `generate_action_options()` 方法获取 LLM 生成的选项 -> 通过展现层 (`Presentation Layer`) 显示选项并获取玩家选择 -> 将玩家选择的结构化行动传递给 `RefereeAgent`。
-    *   **若为 `CompanionAgent`**: 调用其行动生成方法 (如 `generate_action()`) -> 将 Agent 生成的结构化行动传递给 `RefereeAgent`。
-    *   **其他 Agent (Narrative/Referee)**: 在循环的不同时机或响应事件时执行其特定职责。
-*   **状态驱动**: Agent 的行为（选项生成或行动生成）和剧本管理器的事件触发都基于当前游戏状态 (`GameState`)。
-*   **消息驱动**: 模块间通过消息分发器进行通信和状态同步。
-*   **LLM 集成**: NPC 代理、叙事代理、裁判代理利用 LLM 进行思考、生成和判断，上下文由构建器提供。
-*   **结构化自由**: 剧本管理器提供剧本框架（阶段、事件、后果），裁判代理根据玩家/NPC 行动判断是否触发事件并应用后果，LLM 代理在此框架内动态生成内容和行为。
-*   **游戏推进逻辑 (分布式)**:
-    *   **裁判代理**: 解析行动，判定结果，判断事件触发，整合后果 (`consequence`)。
-    *   **游戏状态管理器**: 应用后果，更新状态，检查并推进剧本阶段 (`stage`)。
-    *   **叙事代理**: 根据更新后的状态生成描述。
+*   **回合制循环 (阶段驱动)**: 由 `RoundManager` 驱动，按明确定义的顺序执行四个核心阶段。每个阶段的逻辑将被封装在独立的处理器中 (`src/engine/round_phases/`)。
+    1.  **叙事阶段 (Narration Phase)**: 处理可选的开场 DM 叙事。(`narration_phase.py`)
+    2.  **行动宣告阶段 (Action Declaration Phase)**: 收集所有 `PlayerAgent` 和 `CompanionAgent` 的行动意图 (`PlayerAction`)，不进行判定。(`action_declaration_phase.py`)
+    3.  **判定阶段 (Judgement Phase)**:
+        *   **事件优先**: `RefereeAgent` 首先检查宣告的行动是否触发剧本中的**重大事件**。
+        *   若触发事件，则确定事件结局，该结局优先。
+        *   若未触发事件，则 `RefereeAgent` 判定行动的**直接结果** (成功/失败/直接后果)。
+        *   输出为事件结局信息**或**行动结果列表。(`judgement_phase.py`)
+    4.  **更新阶段 (Update Phase)**:
+        *   根据判定阶段的输出，提取所有相关后果 (Consequence)。
+        *   `GameStateManager` 应用后果，更新游戏状态。
+        *   `GameStateManager` 检查并尝试推进剧本阶段。
+        *   广播状态变更消息。(`update_phase.py`)
+*   **状态驱动**: Agent 的行动宣告、裁判的判定（包括事件触发和行动结果）、以及状态更新都基于当前游戏状态 (`GameState`)。
+*   **消息驱动**: 模块间通过消息分发器进行通信，广播行动宣告、判定结果、状态更新等信息。
+*   **LLM 集成**: `NarrativeAgent` (叙事阶段)、`PlayerAgent`/`CompanionAgent` (行动宣告阶段)、`RefereeAgent` (判定阶段) 利用 LLM 进行生成、思考和判断，上下文由构建器提供。
+*   **结构化自由**: 剧本管理器提供事件及其触发条件/结局/后果。判定阶段优先检查事件触发，确保关键剧情节点的影响力，同时允许在非关键时刻进行常规的行动判定。
+*   **游戏推进逻辑 (阶段化)**:
+    *   **行动宣告阶段**: 收集意图。
+    *   **判定阶段**: `RefereeAgent` 负责核心判定逻辑（事件优先）。
+    *   **更新阶段**: `GameStateManager` 负责应用后果和推进剧本阶段。
+    *   **叙事阶段**: `NarrativeAgent` (如果需要) 负责开场叙事。
 
 ## 4. 设计原则
 
