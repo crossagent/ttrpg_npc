@@ -22,14 +22,15 @@ class LLMOutputError(Exception):
 
 def extract_json_from_llm_response(response: str) -> str:
     """
-    从LLM响应中提取JSON字符串。
-    优先查找Markdown代码块。如果找不到，则尝试从第一个 '{' 或 '[' 开始解析JSON。
+    严格从LLM响应中提取Markdown代码块内的JSON字符串。
+    只接受被 ```json ... ``` 或 ``` ... ``` 包裹的内容。
     
     Args:
         response: LLM的原始响应文本
         
     Returns:
-        str: 提取出的JSON字符串，如果找不到则返回原始清理后的响应。
+        str: 提取出的有效JSON字符串。如果找不到有效的Markdown代码块或块内不是有效JSON，
+             则返回空字符串，这将导致后续的 json.loads 失败。
     """
     response_cleaned = response.strip()
 
@@ -39,50 +40,18 @@ def extract_json_from_llm_response(response: str) -> str:
         json_str = json_match_markdown.group(1).strip()
         # 尝试验证Markdown中的内容是否为有效JSON
         try:
-            json.loads(json_str) # 尝试解析以确认有效性
+            # 尝试解析以确认有效性
+            # 这一步很重要，确保返回的确实是有效的JSON字符串
+            json.loads(json_str) 
             return json_str
         except json.JSONDecodeError:
-            # 如果Markdown块内容无效，则忽略并继续尝试其他方法
-            pass # 继续尝试下面的方法
-
-    # 2. 如果没有找到有效的Markdown块，尝试使用 raw_decode 从第一个 '{' 或 '[' 开始解析
-    # 查找第一个 '{' 或 '[' 的位置
-    first_bracket = -1
-    first_curly = -1
-    try:
-        first_bracket = response_cleaned.index('[')
-    except ValueError:
-        pass
-    try:
-        first_curly = response_cleaned.index('{')
-    except ValueError:
-        pass
-
-    start_index = -1
-    if first_bracket != -1 and first_curly != -1:
-        start_index = min(first_bracket, first_curly)
-    elif first_bracket != -1:
-        start_index = first_bracket
-    elif first_curly != -1:
-        start_index = first_curly
-
-    if start_index != -1:
-        # 从找到的第一个括号开始尝试解码
-        decoder = json.JSONDecoder()
-        try:
-            # raw_decode 会返回解析的对象和解析停止的位置
-            # 我们只需要解析的对象，并将其重新序列化为字符串返回
-            # 这可以精确提取第一个有效的JSON结构
-            obj, end_index = decoder.raw_decode(response_cleaned[start_index:])
-            # 重新编码以获得精确的JSON字符串
-            return json.dumps(obj, ensure_ascii=False) 
-        except json.JSONDecodeError:
-            # 如果从第一个括号开始解析失败，则认为没有有效的独立JSON
-            pass
-
-    # 3. 如果上述所有方法都失败，返回原始清理后的响应
-    # 让后续的 Pydantic 验证去处理错误
-    return response_cleaned
+            # 如果Markdown块内容无效，则返回空字符串，表示提取失败
+            print(f"Warning: Found Markdown block, but content is not valid JSON: {json_str[:100]}...")
+            return "" 
+    
+    # 2. 如果没有找到Markdown代码块，直接返回空字符串
+    # 这将强制要求LLM必须使用Markdown块输出JSON
+    return ""
 
 
 class ModelValidator(Generic[T]):

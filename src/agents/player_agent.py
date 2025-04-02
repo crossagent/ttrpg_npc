@@ -69,6 +69,12 @@ class PlayerAgent(BaseAgent):
         status_str = f"Health: {current_char_status.health}, Known Info: {current_char_status.known_information}" # Example status string
         inventory_str = ", ".join([item.name for item in current_char_status.items]) if current_char_status.items else "无"
 
+        # --- 1b. 创建验证器并获取格式指令 ---
+        # 在调用 LLM 之前创建验证器，以获取格式化指令
+        validator = create_validator_for(ActionOptionsLLMOutput)
+        format_instructions = validator.get_prompt_instruction() # 获取包含 Markdown 指令的文本
+
+        # --- 1c. 构建最终的 Prompt ---
         system_prompt = f"""你是角色 {chara_info.name} ({chara_info.public_identity})。你的目标是: {chara_info.secret_goal}。
 你当前的背景是: {chara_info.background or '无'}
 你的特殊能力: {chara_info.special_ability or '无'}
@@ -76,7 +82,6 @@ class PlayerAgent(BaseAgent):
 
 根据以下情境，为玩家生成 3 个清晰、具体、可执行的行动选项。
 选项必须符合你的角色个性和目标。
-选项格式必须是 JSON 列表，每个对象包含 'action_type' (必须是 'TALK', 'ACTION', 或 'WAIT' 之一), 'content' (行动的简短描述), 'target' (行动目标的角色ID, 'environment', 'all', 或物品ID)。
 
 当前情境:
 你在 {current_location_desc}。
@@ -87,14 +92,10 @@ class PlayerAgent(BaseAgent):
 你的当前状态: {status_str}
 你的物品栏: {inventory_str}
 
-请严格按照 JSON 列表格式返回 3 个选项:
-[
-  {{"action_type": "...", "content": "...", "target": "..."}},
-  {{"action_type": "...", "content": "...", "target": "..."}},
-  {{"action_type": "...", "content": "...", "target": "..."}}
-]
+{format_instructions}
 """
-        user_prompt = "请根据以上信息生成行动选项。" # User prompt might be simple if context is in system prompt
+        # User prompt 可以保持简单，因为主要信息都在 system prompt 中
+        user_prompt = "请根据以上信息生成行动选项。"
 
         # --- 2. 调用 LLM ---
         response_content = ""
@@ -103,68 +104,38 @@ class PlayerAgent(BaseAgent):
             if not self.model_client:
                  raise ValueError("LLM model client is not configured for PlayerAgent.")
 
-            # Use a generic call method if available, or adapt as needed
-            # Assuming a method like `generate_text` exists
-            # response = await self.model_client.generate_text(system_prompt + "\n" + user_prompt) # Combine prompts if needed
-            # response_content = response if isinstance(response, str) else str(response) # Adjust based on actual return type
+            # 启用实际的 LLM 调用
+            # 假设 model_client 有一个接受 system 和 user prompt 的方法
+            # (如果您的客户端方法不同，请相应调整)
+            # 例如: response = await self.model_client.chat_completion(system_prompt=system_prompt, user_prompt=user_prompt)
+            # 或者:
+            full_prompt = system_prompt + "\n\n" + user_prompt # 根据需要组合
+            response = await self.model_client.generate_text(full_prompt) # 假设 generate_text 存在
 
-            # --- Placeholder LLM Response (REMOVE IN ACTUAL IMPLEMENTATION) ---
-            print("  WARNING: Using placeholder LLM response for action options!")
-            response_content = json.dumps([
-                {"action_type": "TALK", "content": f"与 {visible_characters[0].split(' ')[0] if visible_characters else '某人'} 交谈，试探其口风。", "target": visible_characters[0].split(' ')[0] if visible_characters else "char_002"},
-                {"action_type": "ACTION", "content": "仔细观察周围环境，寻找线索。", "target": "environment"},
-                {"action_type": "WAIT", "content": "保持低调，继续观察。", "target": "environment"}
-            ], ensure_ascii=False)
-            # --- End Placeholder ---
+            # 确保 response_content 是字符串
+            response_content = response if isinstance(response, str) else str(response)
+            print(f"  LLM Raw Response for options: {response_content[:300]}...") # Log raw response
 
             # --- 3. 解析和验证 LLM 输出 ---
-            # Attempt to parse the JSON response
+            # 使用之前创建的 validator 进行验证
             try:
-                options_data = json.loads(response_content)
-                if not isinstance(options_data, list):
-                    raise ValueError("LLM response is not a JSON list.")
-
-                # Validate the entire list structure using ActionOptionsLLMOutput
-                validator = create_validator_for(ActionOptionsLLMOutput)
-                try:
-                    validated_output: ActionOptionsLLMOutput = validator.validate_response(response_content)
-                    parsed_options = validated_output.options
-                    # Limit to 3 options if LLM returns more
-                    if len(parsed_options) > 3:
-                         self.logger.warning(f"LLM 返回了超过 3 个选项，将只取前 3 个。")
-                         parsed_options = parsed_options[:3]
-                except LLMOutputError as val_err:
-                     print(f"  Error: LLM options output validation failed: {val_err.message}. Raw: {response_content[:200]}...")
-                     parsed_options = self._get_default_options(game_state)
-                except Exception as inner_e:
-                     print(f"  Warning: Error validating options structure: {inner_e}")
-                     parsed_options = self._get_default_options(game_state)
-
-                # Old validation logic removed:
-                # validator = create_validator_for(ActionOption) # Validator for individual options
-                # for option_dict in options_data:
-                #      if len(parsed_options) >= 3: # Limit to 3 options
-                 #         break
-                 #     try:
-                 #         # Validate dict against ActionOption model
-                 #         validated_option = validator.validate_response(json.dumps(option_dict)) # Validate each dict
-                 #         parsed_options.append(validated_option)
-                 #     except LLMOutputError as val_err:
-                 #         print(f"  Warning: Skipping invalid action option from LLM: {val_err.message}. Data: {option_dict}")
-                 #     except Exception as inner_e:
-                 #          print(f"  Warning: Error validating option {option_dict}: {inner_e}")
-
-            except json.JSONDecodeError: # Keep this for initial JSON parsing failure
-                print(f"  Error: Failed to decode LLM JSON response for options: {response_content[:200]}...")
-                # Fallback: Try to extract options using regex or return default options
-                parsed_options = self._get_default_options(game_state)
-            except ValueError as ve:
-                 print(f"  Error: Invalid JSON structure from LLM: {ve}. Response: {response_content[:200]}...")
+                validated_output: ActionOptionsLLMOutput = validator.validate_response(response_content)
+                parsed_options = validated_output.options
+                # Limit to 3 options if LLM returns more
+                if len(parsed_options) > 3:
+                     self.logger.warning(f"LLM 返回了超过 3 个选项，将只取前 3 个。")
+                     parsed_options = parsed_options[:3]
+            except LLMOutputError as val_err:
+                 print(f"  Error: LLM options output validation failed: {val_err.message}. Raw: {response_content[:200]}...")
+                 # 注意：这里不再尝试 json.loads，因为 validate_response 内部会处理提取和解析
+                 parsed_options = self._get_default_options(game_state)
+            except Exception as inner_e: # Catch other potential errors during validation
+                 print(f"  Warning: Error during options validation: {inner_e}")
+                 print(traceback.format_exc()) # Print traceback for unexpected errors
                  parsed_options = self._get_default_options(game_state)
 
-
         except Exception as e:
-            print(f"Error during PlayerAgent {self.agent_id} option generation: {str(e)}")
+            print(f"Error during PlayerAgent {self.agent_id} option generation (LLM call or validation): {str(e)}")
             print(traceback.format_exc())
             # Fallback to default options on any major error
             parsed_options = self._get_default_options(game_state)
