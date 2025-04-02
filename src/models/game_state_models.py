@@ -11,7 +11,32 @@ class MessageReadMemory(BaseModel):
     player_id: str = Field(..., description="玩家ID")
     history_messages: Dict[str, MessageStatus] = Field(default_factory=dict, description="可见的消息状态，键为消息ID")
 
-class CharacterStatus(BaseModel):
+# +++ 新增模型定义 +++
+class AttributeSet(BaseModel):
+    """角色属性集合"""
+    strength: int = Field(10, description="力量")
+    dexterity: int = Field(10, description="敏捷")
+    intelligence: int = Field(10, description="智力")
+    charisma: int = Field(10, description="魅力")
+    # 可以根据需要添加更多属性
+
+class SkillSet(BaseModel):
+    """角色技能集合"""
+    persuasion: int = Field(0, description="说服")
+    stealth: int = Field(0, description="潜行")
+    combat: int = Field(0, description="战斗")
+    # 可以根据需要添加更多技能
+
+# --- 移除 CharacterStatus ---
+# class CharacterStatus(BaseModel):
+#     """角色状态模型，表示角色的当前状态"""
+#     character_id: str = Field(..., description="角色ID")
+#     location: str = Field(..., description="当前位置")
+#     health: int = Field(100, description="健康值")
+#     items: List['ItemInstance'] = Field(default_factory=list, description="拥有的物品实例列表") # Updated type hint
+#     known_information: Optional[List[str]] = Field(default_factory=list, description="已知信息，None表示未确定")
+
+class LocationStatus(BaseModel):
     """角色状态模型，表示角色的当前状态"""
     character_id: str = Field(..., description="角色ID")
     location: str = Field(..., description="当前位置")
@@ -89,7 +114,14 @@ class CharacterInstance(BaseModel):
     public_identity: str = Field(..., description="对应剧本角色ID")
     name: str = Field(..., description="角色名称")
     player_controlled: bool = Field(False, description="是否由玩家控制")
-    status: CharacterStatus = Field(..., description="角色状态")
+    # status: CharacterStatus = Field(..., description="角色状态") # --- 移除 status ---
+    # +++ 添加新字段 +++
+    attributes: AttributeSet = Field(..., description="角色属性")
+    skills: SkillSet = Field(..., description="角色技能")
+    health: int = Field(100, description="健康值")
+    location: str = Field(..., description="当前位置")
+    items: List['ItemInstance'] = Field(default_factory=list, description="拥有的物品实例列表")
+    known_information: List[str] = Field(default_factory=list, description="已知信息")
 
 class GameState(BaseModel):
     """完整游戏状态模型，表示游戏的当前状态"""
@@ -112,7 +144,7 @@ class GameState(BaseModel):
     # 游戏实例状态 - 所有元素都是实例状态，而非模板
     scenario: Optional[Scenario] = Field(None, description="使用的剧本实例")
     characters: Dict[str, CharacterInstance] = Field(default_factory=dict, description="角色引用字典，键为角色ID")
-    character_states: Dict[str, CharacterStatus] = Field(default_factory=dict, description="角色状态字典，键为角色ID")
+    # character_states: Dict[str, CharacterStatus] = Field(default_factory=dict, description="角色状态字典，键为角色ID") # --- 移除 character_states ---
     location_states: Dict[str, LocationStatus] = Field(default_factory=dict, description="位置状态字典，键为位置ID")
     item_states: Dict[str, ItemStatus] = Field(default_factory=dict, description="物品状态字典，键为物品ID")
     event_instances: Dict[str, EventInstance] = Field(default_factory=dict, description="事件实例字典，键为实例ID")

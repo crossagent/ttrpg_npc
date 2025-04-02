@@ -42,6 +42,17 @@
       "background": "原本是名校学生，因经济困难进入行业。在俱乐部工作三年后，偶然发现老板参与的犯罪活动。她开始秘密收集证据，但现在发现自己可能已被怀疑。",
       "special_ability": "极强的社交技巧和洞察力，能轻易获得客人信任",
       "weakness": "对前男友仍有感情，容易因此判断失误",
+      "base_attributes": {
+        "strength": 8,
+        "dexterity": 12,
+        "intelligence": 11,
+        "charisma": 14
+      },
+      "base_skills": {
+        "persuasion": 2,
+        "stealth": 1,
+        "combat": 0
+      },
       "is_playable": true
     },
     {
@@ -52,6 +63,17 @@
       "background": "前特种兵，因某些不为人知的原因被迫离开军队。现为黑帮成员，负责俱乐部安全和非法交易的护送。对老板绝对忠诚，但有自己的职业操守。",
       "special_ability": "战斗技能出众，熟悉各种监控和安保系统",
       "weakness": "严重创伤后应激障碍，在特定触发下可能失控",
+      "base_attributes": {
+        "strength": 14,
+        "dexterity": 11,
+        "intelligence": 9,
+        "charisma": 8
+      },
+      "base_skills": {
+        "persuasion": 0,
+        "stealth": 0,
+        "combat": 3
+      },
       "is_playable": true
     },
     {
@@ -62,6 +84,17 @@
       "background": "表面上是成功商人，实际上与多个犯罪组织有联系。经营俱乐部十年，积累了大量政商界人士的秘密。现计划出售信息后远走高飞，但不知内部已有人背叛。",
       "special_ability": "人脉广泛，善于操控和谈判",
       "weakness": "过度自信，低估了身边的威胁",
+      "base_attributes": {
+        "strength": 9,
+        "dexterity": 9,
+        "intelligence": 13,
+        "charisma": 13
+      },
+      "base_skills": {
+        "persuasion": 3,
+        "stealth": 0,
+        "combat": 1
+      },
       "is_playable": true
     },
     {
@@ -72,6 +105,17 @@
       "background": "实际是警方卧底，潜伏在俱乐部调查洗钱网络。已收集大量证据，但行动即将曝光。她必须在撤离前确保证据安全，同时保护已认识的无辜者。",
       "special_ability": "出色的记忆力和临场反应",
       "weakness": "对部分俱乐部员工产生真实感情，影响判断",
+      "base_attributes": {
+        "strength": 9,
+        "dexterity": 12,
+        "intelligence": 13,
+        "charisma": 11
+      },
+      "base_skills": {
+        "persuasion": 1,
+        "stealth": 2,
+        "combat": 1
+      },
       "is_playable": true
     },
     {
@@ -82,6 +126,17 @@
       "background": "著名政治家的顾问，其雇主在俱乐部的不当言行被秘密录音。他受命找到并销毁这些证据，不惜任何代价保护雇主声誉。",
       "special_ability": "精通心理操控和政治手腕",
       "weakness": "对自身安全过度担忧，容易被威胁吓倒",
+      "base_attributes": {
+        "strength": 7,
+        "dexterity": 8,
+        "intelligence": 14,
+        "charisma": 12
+      },
+      "base_skills": {
+        "persuasion": 3,
+        "stealth": 0,
+        "combat": 0
+      },
       "is_playable": false
     }
   ],

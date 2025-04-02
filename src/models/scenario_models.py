@@ -2,6 +2,8 @@
 from pydantic import BaseModel, Field
 from typing import List, Dict, Any, Optional, Union
 
+# +++ 添加导入 +++
+from src.models.game_state_models import AttributeSet, SkillSet
 from src.models.consequence_models import Consequence
 
 class ScenarioCharacterInfo(BaseModel):
@@ -14,6 +16,9 @@ class ScenarioCharacterInfo(BaseModel):
     special_ability: Optional[str] = Field(None, description="角色的特殊能力")
     weakness: Optional[str] = Field(None, description="角色的弱点")
     is_playable: bool = Field(False, description="是否可供玩家选择或作为陪玩角色")
+    # +++ 添加基础属性和技能 +++
+    base_attributes: AttributeSet = Field(default_factory=AttributeSet, description="角色的基础属性")
+    base_skills: SkillSet = Field(default_factory=SkillSet, description="角色的基础技能")
 
 class EventOutcome(BaseModel):
     """事件结局模型"""
@@ -143,7 +148,10 @@ class Scenario(BaseModel):
                     special_ability=char_data.get("special_ability"),
                     weakness=char_data.get("weakness"),
                     # 读取 is_playable 字段，默认为 False
-                    is_playable=char_data.get("is_playable", False)
+                    is_playable=char_data.get("is_playable", False),
+                    # +++ 读取基础属性和技能，如果不存在则使用默认值 +++
+                    base_attributes=AttributeSet(**char_data.get("base_attributes", {})),
+                    base_skills=SkillSet(**char_data.get("base_skills", {}))
                 )
                 characters[character.character_id] = character
             else:

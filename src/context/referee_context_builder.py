@@ -95,9 +95,18 @@ def build_action_resolve_user_prompt(game_state: GameState, action: PlayerAction
     # 格式化基础信息 - 提供足够判断属性后果的上下文
     environment_info = format_environment_info(game_state)
     stage_summary = format_current_stage_summary(game_state)
-    # 获取行动者和目标的状态信息可能有助于判断
-    actor_status = game_state.character_states.get(action.character_id)
-    actor_status_text = f"行动者状态: {actor_status.model_dump_json(indent=2)}" if actor_status else "行动者状态未知。"
+    # +++ 获取行动者的 CharacterInstance 信息 +++
+    actor_instance = game_state.characters.get(action.character_id)
+    if actor_instance:
+        # 提取需要的状态信息，例如属性、技能、健康、位置等
+        actor_status_text = f"""行动者 ({actor_instance.name}, ID: {action.character_id}) 状态:
+  位置: {actor_instance.location}
+  健康: {actor_instance.health}
+  属性: {actor_instance.attributes.model_dump_json()}
+  技能: {actor_instance.skills.model_dump_json()}
+  物品: {json.dumps([item.model_dump() for item in actor_instance.items], indent=2)}"""
+    else:
+        actor_status_text = f"行动者 (ID: {action.character_id}) 状态未知。"
     # TODO: Handle target being a list or specific entity ID to fetch target status if needed
 
     prompt = f"""
