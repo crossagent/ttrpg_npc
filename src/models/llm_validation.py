@@ -23,7 +23,7 @@ class LLMOutputError(Exception):
 def extract_json_from_llm_response(response: str) -> str:
     """
     从LLM响应中提取JSON字符串。
-    优先查找Markdown代码块，然后尝试查找独立的JSON对象或列表。
+    优先查找Markdown代码块。如果找不到，则尝试从第一个 '{' 或 '[' 开始解析JSON。
     
     Args:
         response: LLM的原始响应文本
@@ -31,8 +31,10 @@ def extract_json_from_llm_response(response: str) -> str:
     Returns:
         str: 提取出的JSON字符串，如果找不到则返回原始清理后的响应。
     """
+    response_cleaned = response.strip()
+
     # 1. 尝试从Markdown代码块中提取JSON
-    json_match_markdown = re.search(r'```(?:json)?\s*([\s\S]*?)\s*```', response)
+    json_match_markdown = re.search(r'```(?:json)?\s*([\s\S]*?)\s*```', response_cleaned)
     if json_match_markdown:
         json_str = json_match_markdown.group(1).strip()
         # 尝试验证Markdown中的内容是否为有效JSON
@@ -43,36 +45,44 @@ def extract_json_from_llm_response(response: str) -> str:
             # 如果Markdown块内容无效，则忽略并继续尝试其他方法
             pass # 继续尝试下面的方法
 
-    # 2. 如果没有找到有效的Markdown块，尝试查找独立的JSON对象 {...}
-    json_match_object = re.search(r'({[\s\S]*})', response)
-    if json_match_object:
-        json_str = json_match_object.group(1).strip()
+    # 2. 如果没有找到有效的Markdown块，尝试使用 raw_decode 从第一个 '{' 或 '[' 开始解析
+    # 查找第一个 '{' 或 '[' 的位置
+    first_bracket = -1
+    first_curly = -1
+    try:
+        first_bracket = response_cleaned.index('[')
+    except ValueError:
+        pass
+    try:
+        first_curly = response_cleaned.index('{')
+    except ValueError:
+        pass
+
+    start_index = -1
+    if first_bracket != -1 and first_curly != -1:
+        start_index = min(first_bracket, first_curly)
+    elif first_bracket != -1:
+        start_index = first_bracket
+    elif first_curly != -1:
+        start_index = first_curly
+
+    if start_index != -1:
+        # 从找到的第一个括号开始尝试解码
+        decoder = json.JSONDecoder()
         try:
-            # 尝试解析以确认找到的是一个有效的JSON对象
-            # 这也有助于处理正则可能匹配到非JSON花括号的情况
-            parsed_obj = json.loads(json_str)
-            if isinstance(parsed_obj, dict): # 确保它是个对象
-                 return json_str
+            # raw_decode 会返回解析的对象和解析停止的位置
+            # 我们只需要解析的对象，并将其重新序列化为字符串返回
+            # 这可以精确提取第一个有效的JSON结构
+            obj, end_index = decoder.raw_decode(response_cleaned[start_index:])
+            # 重新编码以获得精确的JSON字符串
+            return json.dumps(obj, ensure_ascii=False) 
         except json.JSONDecodeError:
-            # 如果解析失败，说明可能不是完整的对象或无效JSON，继续尝试列表
+            # 如果从第一个括号开始解析失败，则认为没有有效的独立JSON
             pass
 
-    # 3. 如果没有找到有效的对象，尝试查找独立的JSON列表 [...]
-    json_match_list = re.search(r'(\[[\s\S]*\])', response)
-    if json_match_list:
-        json_str = json_match_list.group(1).strip()
-        try:
-            # 尝试解析以确认找到的是一个有效的JSON列表
-            parsed_list = json.loads(json_str)
-            if isinstance(parsed_list, list): # 确保它是个列表
-                return json_str
-        except json.JSONDecodeError:
-            # 如果解析失败，继续到最后一步
-            pass
-
-    # 4. 如果上述所有方法都失败，返回原始响应清理后的结果
-    # 此时返回原始响应，让后续的 Pydantic 验证去处理错误
-    return response.strip()
+    # 3. 如果上述所有方法都失败，返回原始清理后的响应
+    # 让后续的 Pydantic 验证去处理错误
+    return response_cleaned
 
 
 class ModelValidator(Generic[T]):
