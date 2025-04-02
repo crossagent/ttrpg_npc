@@ -105,6 +105,8 @@ class PlayerAgent(BaseAgent):
 你的物品栏: {inventory_str}
 
 {format_instructions}
+
+**重要提示**: 在生成的每个选项中，`action_type` 字段的值 **必须** 严格从以下中文选项中选择一个：'讨论沟通', '主要行动', '继续旁观'。请勿使用英文或其他任何值。
 """
         # User prompt 可以保持简单，因为主要信息都在 system prompt 中
         user_prompt = "请根据以上信息生成行动选项。"

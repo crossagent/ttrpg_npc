@@ -81,14 +81,15 @@ class ModelValidator(Generic[T]):
         # 将schema转换为格式化的JSON字符串
         schema_json = json.dumps(schema, ensure_ascii=False, indent=2)
         
-        # 构建提示文本
-        prompt = f"""请以JSON格式返回符合以下模型的响应：
+        # 修改后的 Prompt 指令
+        prompt = f"""请严格按照以下 JSON Schema 格式返回响应。你的输出必须是一个单独的、有效的 JSON 对象，并被包裹在 ```json ... ``` 代码块中。
+代码块内部 **只能** 包含 JSON 对象本身，**不得包含**任何其他文字、注释、标记（如 'json\\n'）或解释。
 
 ```json
 {schema_json}
 ```
 
-请确保你的响应是有效的JSON格式，并包含所有必填字段。"""
+确保 JSON 包含所有必填字段，并且值符合定义的类型和约束。"""
         
         return prompt
     
