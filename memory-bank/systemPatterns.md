@@ -16,13 +16,13 @@
         *   **PlayerAgent**: 代表人类玩家控制的角色 (PC)。对应玩家在游戏开始时从 `is_playable=True` 列表中选择的角色 (其 ID 存储在 `GameState.player_character_id`)。其行动不由自身生成，而是通过调用 LLM 生成多个行动选项，由玩家通过展现层选择一个。由 `AgentManager` 在初始化时创建。
         *   **CompanionAgent**: 代表由 AI 驱动的陪玩角色（非玩家控制，但有独立思考和行动能力）。对应未被玩家选择但 `is_playable=True` 的角色。模拟 NPC 思考（感知-思考-行动循环），自主生成行动。由 `AgentManager` 在初始化时创建。（注意：此类由原 `PlayerAgent` 重命名而来）。
         *   **NarrativeAgent (叙事代理)**: 负责生成环境描述、剧情叙述、普通 NPC 的对话和行为描述（原 DM 叙事部分）。不直接代表某个角色。由 `AgentManager` 在初始化时创建。
-        *   **RefereeAgent (裁判代理)**: 负责判定 Agent 行动的直接**属性后果**（成功/失败、HP 变化、物品增减等），并在回合评估阶段根据剧本和当前状态判断**活跃事件**是否触发。**不直接设置 Flag**，Flag 只能由事件后果设置。由 `AgentManager` 在初始化时创建。
+        *   **RefereeAgent (裁判代理)**: 负责判定 Agent 行动的直接**属性后果**（将利用 `CharacterInstance` 中的属性/技能进行更细致的判定），并在回合评估阶段根据剧本和当前状态判断**活跃事件**是否触发。**不直接设置 Flag**，Flag 只能由事件后果设置。由 `AgentManager` 在初始化时创建。
         *   **普通 NPC**: 对应剧本中 `is_playable=False` 的角色。没有对应的 Agent 实例。其行为由 `NarrativeAgent` 描述或由 `RefereeAgent` 在处理后果时触发。
 *   **游戏状态管理器 (Game State Manager)**:
-    *   **职责**: 存储和管理游戏世界状态（角色、环境、物品、事件进展、**叙事 Flags** 等），应用结构化后果（区分属性和 Flag），并处理游戏阶段的检查与推进（基于 Flags）。
+    *   **职责**: 存储和管理游戏世界状态（通过包含运行时属性/技能的 `CharacterInstance` 模型管理角色状态、环境、物品、事件进展、叙事 Flags 等），应用结构化后果（包括对角色属性/技能的修改），并处理游戏阶段的检查与推进（基于 Flags）。
     *   **模式**: 单一事实来源 (Single Source of Truth)，数据库模式。确保状态更新的原子性。
 *   **剧本管理器 (Scenario Manager)**:
-    *   **职责**: 管理结构化剧本内容（主线、支线、事件、场景、NPC 背景/目标）。实现“结构化的自由叙事”。
+    *   **职责**: 管理结构化剧本内容（主线、支线、事件、场景、包含基础属性/技能的 NPC 模板等）。实现“结构化的自由叙事”。
     *   **模式**: 内容管理系统 (CMS) / 剧本引擎。包含阶段推进 (`completion_criteria`) 和事件后果 (`consequence`) 的结构化定义。
 *   **消息分发器 (Message Dispatcher)**:
     *   **职责**: 路由和分发消息，处理可见性过滤，连接逻辑层与展现层，管理消息历史。
@@ -40,22 +40,22 @@
     1.  **叙事阶段 (Narration Phase)**: 处理可选的开场 DM 叙事。(`narration_phase.py`)
     2.  **行动宣告阶段 (Action Declaration Phase)**: 收集所有 `PlayerAgent` 和 `CompanionAgent` 的行动意图 (`PlayerAction`)，不进行判定。(`action_declaration_phase.py`)
     3.  **判定阶段 (Judgement Phase)**:
-        *   **步骤一：行动判定**: `RefereeAgent` 判定每个宣告行动的成功/失败及其直接**属性后果**。
-        *   **步骤二：事件触发判定**: `RefereeAgent` 基于本回合所有行动的属性后果和当前游戏状态，判断**活跃的 `ScenarioEvent`** 是否被触发，并确定结局。
+        *   **步骤一：行动判定**: `RefereeAgent` 利用 `CharacterInstance` 中的属性/技能判定每个宣告行动的成功/失败及其直接**属性后果**。
+        *   **步骤二：事件触发判定**: `RefereeAgent` 基于本回合所有行动的属性后果和当前游戏状态（含 flags），判断**活跃的 `ScenarioEvent`** 是否被触发，并确定结局。
         *   **输出**: 包含两部分：所有行动的属性后果列表 (`ActionResult`) 和触发的事件及结局列表。(`judgement_phase.py`)
     4.  **更新阶段 (Update Phase)**:
-        *   **应用属性后果**: `GameStateManager` 应用所有 `ActionResult` 中的属性后果。
-        *   **应用事件后果**: `GameStateManager` 根据触发事件的结局，应用其后果（**这是唯一设置 Flag 的地方**）。
+        *   **应用属性后果**: `GameStateManager` 应用所有 `ActionResult` 中的属性后果（包括对 `CharacterInstance` 属性/技能的修改）。
+        *   **应用事件后果**: `GameStateManager` 根据触发事件的结局，应用其后果（**这是唯一设置 Flag 的地方**，也可能包含属性/技能修改）。
         *   **检查阶段推进**: `GameStateManager` 检查 `GameState.flags` 是否满足当前阶段的完成条件。
         *   广播状态变更消息。(`update_phase.py`)
-*   **状态驱动**: Agent 的行动宣告、裁判的判定（属性后果和事件触发）、以及状态更新都基于当前游戏状态 (`GameState`，包含 `flags`)。
+*   **状态驱动**: Agent 的行动宣告、裁判的判定（基于 `CharacterInstance` 的属性/技能）、以及状态更新都基于当前游戏状态 (`GameState`，包含 `flags` 和更新后的 `CharacterInstance`)。
 *   **消息驱动**: 模块间通过消息分发器进行通信，广播行动宣告、判定结果（区分属性和事件）、状态更新等信息。
-*   **LLM 集成**: `NarrativeAgent` (叙事阶段)、`PlayerAgent`/`CompanionAgent` (行动宣告阶段)、`RefereeAgent` (判定阶段) 利用 LLM 进行生成、思考和判断，上下文由构建器提供。
-*   **结构化自由**: 剧本管理器提供 `ScenarioEvent` 及其触发条件/结局/后果（后果可包含 Flag 设置）。`RefereeAgent` 在回合评估时判断事件触发，`GameStateManager` 在更新时检查阶段完成条件（基于 Flag）。
+*   **LLM 集成**: `NarrativeAgent` (叙事阶段)、`PlayerAgent`/`CompanionAgent` (行动宣告阶段)、`RefereeAgent` (判定阶段) 利用 LLM 进行生成、思考和判断，上下文由构建器提供（包含角色属性/技能信息）。
+*   **结构化自由**: 剧本管理器提供包含基础属性/技能的角色模板和 `ScenarioEvent`。`RefereeAgent` 在回合评估时判断事件触发，`GameStateManager` 在更新时检查阶段完成条件（基于 Flag）。
 *   **游戏推进逻辑 (阶段化)**:
     *   **行动宣告阶段**: 收集意图。
-    *   **判定阶段**: `RefereeAgent` 先判定行动的属性后果，再判断事件触发。
-    *   **更新阶段**: `GameStateManager` 应用属性后果，然后应用事件后果（含 Flag 设置），最后检查阶段推进。
+    *   **判定阶段**: `RefereeAgent` 先利用角色属性/技能判定行动的属性后果，再判断事件触发。
+    *   **更新阶段**: `GameStateManager` 应用属性后果（含属性/技能修改），然后应用事件后果（含 Flag 设置和可能的属性/技能修改），最后检查阶段推进。
     *   **叙事阶段**: `NarrativeAgent` (如果需要) 负责开场叙事。
 
 ## 4. 设计原则
