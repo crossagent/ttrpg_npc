@@ -16,6 +16,7 @@ from src.engine.scenario_manager import ScenarioManager
 from src.engine.round_manager import RoundManager
 from src.models.message_models import Message, MessageType
 from src.utils.display_utils import format_message_display_parts # Import the new util function
+from src.io.input_handler import UserInputHandler # Import UserInputHandler
 
 from src.config.color_utils import (
     format_dm_message, format_player_message, format_observation,
@@ -60,7 +61,8 @@ class GameEngine:
     def __init__(self,
                  max_rounds: int = DEFAULT_MAX_ROUNDS,
                  record_handler: Optional[Callable[[Message, TextIO], None]] = None,
-                 record_file_handle: Optional[TextIO] = None):
+                 record_file_handle: Optional[TextIO] = None,
+                 input_handler: Optional[UserInputHandler] = None): # Add input_handler parameter
         """
         初始化游戏引擎
 
@@ -68,12 +70,14 @@ class GameEngine:
             max_rounds: 最大回合数，默认为配置中的DEFAULT_MAX_ROUNDS
             record_handler: (可选) 用于记录游戏消息的处理器函数。
             record_file_handle: (可选) 传递给记录处理器的文件句柄。
+            input_handler: (可选) 用于处理用户输入的处理器。
         """
         self.max_rounds = max_rounds # Store max_rounds
         self.round_manager = None
         self.message_dispatcher = None
         self._record_handler = record_handler
         self._record_file_handle = record_file_handle
+        self._input_handler = input_handler # Store input_handler
 
     async def run_game(self) -> None:
         """
@@ -172,7 +176,8 @@ class GameEngine:
                 game_state_manager = game_state_manager,
                 message_dispatcher = message_dispatcher,
                 agent_manager = agent_manager,
-                scenario_manager = scenario_manager)
+                scenario_manager = scenario_manager,
+                input_handler = self._input_handler) # Pass input_handler
 
             # 保存回合管理器的引用，以便CLI可以访问
             self.round_manager = round_manager

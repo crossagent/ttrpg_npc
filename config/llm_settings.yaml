@@ -1,6 +1,6 @@
 # OpenAI配置
 openai_api_key: "sk-d95700a50e384ede873b10befc2f0633"  # 请在此处填入您的OpenAI API密钥
-model: "qwen-plus"  # 使用的模型
+model: "qwen-omni-turbo"  # 使用的模型
 temperature: 0.7  # 生成的随机性，值越高越随机
 base_url: "https://dashscope.aliyuncs.com/compatible-mode/v1"  # API基础URL
 

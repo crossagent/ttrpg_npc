@@ -1,7 +1,7 @@
 # src/engine/round_phases/base_phase.py
 from abc import ABC, abstractmethod
 import logging
-from typing import TYPE_CHECKING # Keep TYPE_CHECKING for GameState hint if needed
+from typing import TYPE_CHECKING, Optional # Keep TYPE_CHECKING for GameState hint if needed
 
 from pydantic import BaseModel, Field
 
@@ -11,6 +11,7 @@ from src.engine.agent_manager import AgentManager
 from src.communication.message_dispatcher import MessageDispatcher
 from src.engine.scenario_manager import ScenarioManager
 from src.agents.referee_agent import RefereeAgent
+from src.io.input_handler import UserInputHandler # Import UserInputHandler
 # Import GameState only if needed for type hints outside PhaseContext
 if TYPE_CHECKING:
     from src.models.game_state_models import GameState
@@ -26,6 +27,7 @@ class PhaseContext(BaseModel):
     scenario_manager: ScenarioManager = Field(...) # Direct type hint
     referee_agent: RefereeAgent = Field(...) # Direct type hint
     current_round_id: int = Field(...)
+    input_handler: Optional[UserInputHandler] = Field(None, description="处理器，用于获取用户输入") # Add input_handler
     # 可以根据需要添加更多字段，例如当前的 GameState 快照
 
     class Config:

@@ -4,7 +4,7 @@ from datetime import datetime
 from typing import List, Optional
 
 from src.engine.round_phases.base_phase import BaseRoundPhase, PhaseContext
-from src.models.action_models import PlayerAction, ActionType
+from src.models.action_models import PlayerAction, ActionType, ActionOption # Import ActionOption
 from src.models.message_models import Message, MessageType, MessageVisibility
 from src.engine.agent_manager import PlayerAgent, CompanionAgent # Import specific agent types
 
@@ -45,21 +45,36 @@ class ActionDeclarationPhase(BaseRoundPhase):
                     options = await agent.generate_action_options(game_state, character_info)
 
                     # --- UI 交互占位符 ---
-                    self.logger.warning(f"--- 需要玩家为 {character_id} ({agent.agent_name}) 选择行动 ---")
-                    print(f"--- 需要玩家为 {character_id} ({agent.agent_name}) 选择行动 ---")
-                    for idx, option in enumerate(options):
-                        print(f"  {idx + 1}. [{option.action_type.name}] {option.content} (目标: {option.target})")
-                        self.logger.warning(f"  {idx + 1}. [{option.action_type.name}] {option.content} (目标: {option.target})")
+                    # --- 获取玩家选择 ---
+                    chosen_option: Optional[ActionOption] = None
+                    input_handler = self.context.input_handler # 从 context 获取 input_handler
 
-                    # !!! 关键: 这里需要替换为实际的 UI 交互逻辑来获取玩家选择 !!!
-                    # 目前暂时自动选择第一个选项作为占位符
-                    chosen_option_index = 0 # 假设玩家选了第一个
-                    chosen_option = options[chosen_option_index] if options else None
-                    self.logger.warning(f"!!! 占位符: 自动选择选项 {chosen_option_index + 1}: {chosen_option}")
-                    print(f"!!! 占位符: 自动选择选项 {chosen_option_index + 1}: {chosen_option}")
-                    # --- UI 交互占位符结束 ---
+                    if input_handler:
+                        self.logger.info(f"使用 Input Handler ({type(input_handler).__name__}) 获取角色 {character_id} 的选择...")
+                        try:
+                            # 调用 input_handler 获取选择
+                            chosen_option = await input_handler.get_player_choice(
+                                options=options,
+                                character_name=character_info.name,
+                                character_id=character_id
+                            )
+                        except Exception as input_err:
+                            self.logger.error(f"从 Input Handler 获取角色 {character_id} 选择时出错: {input_err}")
+                            # 出错时可以考虑默认行为，例如选择第一个或等待
+                            chosen_option = options[0] if options else None # 暂时选择第一个作为备选
+                            self.logger.warning(f"Input Handler 出错，自动选择第一个选项: {chosen_option}")
 
+                    else:
+                        # 如果没有配置 input_handler，执行备选逻辑（例如自动选择第一个）
+                        self.logger.warning(f"未配置 Input Handler，将自动为角色 {character_id} 选择第一个选项。")
+                        chosen_option = options[0] if options else None
+                        # 可以在这里打印提示信息给开发者
+                        print(f"警告：未配置 Input Handler，自动为角色 {character_id} 选择第一个选项。")
+
+
+                    # --- 根据选择创建 PlayerAction ---
                     if chosen_option:
+                        self.logger.info(f"角色 {character_id} 选择了行动: [{chosen_option.action_type.name}] {chosen_option.content}")
                         player_action = PlayerAction(
                             character_id=character_id,
                             action_type=chosen_option.action_type,

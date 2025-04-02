@@ -11,6 +11,7 @@ from src.engine.game_engine import GameEngine
 from src.models.message_models import Message, MessageType # Added Message, MessageType
 from src.config.color_utils import gray_text, yellow_text # Import color utils if needed for commands
 from src.utils.display_utils import format_message_display_parts # Import the new util function
+from src.io.input_handler import CliInputHandler # Import CliInputHandler
 
 # --- Game Record Handler ---
 # This function remains the same, defining the desired log format.
@@ -77,12 +78,17 @@ async def main() -> None:
         logging.info(f"游戏记录文件已打开: {record_filename}")
         # --- End Game Record Setup ---
 
-        # --- Create Game Engine and Pass Handler ---
-        # Pass the handler function and the file handle to the engine
+        # --- Create Input Handler ---
+        cli_input_handler = CliInputHandler()
+        # --- End Input Handler Creation ---
+
+        # --- Create Game Engine and Pass Handlers ---
+        # Pass the record handler, file handle, and input handler to the engine
         engine = GameEngine(
             max_rounds=5,
             record_handler=game_record_handler,
-            record_file_handle=log_file
+            record_file_handle=log_file,
+            input_handler=cli_input_handler # Pass the input handler
         )
         # --- End Engine Creation ---
 

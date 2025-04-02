@@ -35,6 +35,7 @@ from src.engine.agent_manager import AgentManager # Keep AgentManager import
 # PlayerAgent, CompanionAgent imports likely no longer needed directly here
 from src.engine.scenario_manager import ScenarioManager
 from src.agents import RefereeAgent # Keep RefereeAgent import
+from src.io.input_handler import UserInputHandler # Import UserInputHandler
 
 # Import phase handlers and context
 from src.engine.round_phases.base_phase import PhaseContext
@@ -52,7 +53,8 @@ class RoundManager:
     def __init__(self, game_state_manager: GameStateManager = None,
                  message_dispatcher: MessageDispatcher = None,
                  agent_manager: AgentManager = None,
-                 scenario_manager: ScenarioManager = None):
+                 scenario_manager: ScenarioManager = None,
+                 input_handler: Optional[UserInputHandler] = None): # Add input_handler
         """
         初始化回合管理器
 
@@ -61,11 +63,13 @@ class RoundManager:
             message_dispatcher: 消息分发器
             agent_manager: Agent系统
             scenario_manager: 剧本管理器
+            input_handler: (可选) 用户输入处理器
         """
         self.game_state_manager = game_state_manager
         self.message_dispatcher = message_dispatcher
         self.agent_manager = agent_manager
         self.scenario_manager = scenario_manager
+        self._input_handler = input_handler # Store input_handler
         self.referee_agent: RefereeAgent = self.agent_manager.get_referee_agent() # 获取 RefereeAgent 实例
         if not self.referee_agent:
             raise ValueError("AgentManager未能提供RefereeAgent实例")
@@ -135,7 +139,8 @@ class RoundManager:
                 message_dispatcher=self.message_dispatcher,
                 scenario_manager=self.scenario_manager,
                 referee_agent=self.referee_agent,
-                current_round_id=self.current_round_id
+                current_round_id=self.current_round_id,
+                input_handler=self._input_handler # Pass input_handler to context
             )
 
             # 3. 执行叙事阶段
