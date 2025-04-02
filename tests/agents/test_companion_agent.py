@@ -10,7 +10,7 @@ from src.models.scenario_models import Scenario, ScenarioCharacterInfo
 
 from src.models.game_state_models import GameState, MessageStatus # Import MessageStatus
 from src.models.action_models import PlayerAction, ActionType # Import ActionType
-from src.agents.player_agent import PlayerAgent
+from agents.companion_agent import CompanionAgent
 
 # --- Fixtures ---
 # llm_model_client, loaded_scenario, initial_game_state, round_1_ended_game_state
@@ -20,16 +20,16 @@ from src.agents.player_agent import PlayerAgent
 PLAYER_CHAR_ID = "char_001"
 
 @pytest.fixture
-def player_agent_instance(llm_model_client: Optional[Any]) -> PlayerAgent:
-    """Fixture to initialize the PlayerAgent for tests, using shared LLM client."""
+def companion_agent_instance(llm_model_client: Optional[Any]) -> CompanionAgent:
+    """Fixture to initialize the CompanionAgent for tests, using shared LLM client."""
     # llm_model_client is automatically injected from conftest.py
-    agent = PlayerAgent(
+    agent = CompanionAgent(
         agent_id="player_agent_test_instance",
         agent_name="HeroAgent",
         character_id=PLAYER_CHAR_ID, # Use the ID from the loaded scenario
         model_client=llm_model_client
     )
-    print(f"PlayerAgent instance created for character '{PLAYER_CHAR_ID}'.")
+    print(f"CompanionAgent instance created for character '{PLAYER_CHAR_ID}'.")
     return agent
 
 # Removed player_agent_with_memory fixture, memory setup will be done in the test function
@@ -40,24 +40,24 @@ def player_agent_instance(llm_model_client: Optional[Any]) -> PlayerAgent:
 # --- Test Functions ---
 
 @pytest.mark.asyncio
-async def test_player_decide_action(
-    player_agent_instance: PlayerAgent, # Use the agent instance fixture
+async def test_companion_decide_action(
+    companion_agent_instance: CompanionAgent, # Use the agent instance fixture
     round_1_ended_game_state: GameState # Use the game state from conftest
 ):
     """
-    测试 PlayerAgent 的行动决策功能 (player_decide_action),
+    测试 CompanionAgent 的行动决策功能 (player_decide_action),
     使用从 conftest.py 加载并模拟到第一回合结束的游戏状态。
     """
-    print("\n--- Running test_player_decide_action ---")
-    agent = player_agent_instance
+    print("\n--- Running test_companion_decide_action ---")
+    agent = companion_agent_instance
     game_state = round_1_ended_game_state
     scenario = game_state.scenario
 
     # The llm_model_client fixture in conftest handles skipping if client is None
     if not agent.model_client:
-         pytest.skip("LLM model client not available for PlayerAgent.")
+         pytest.skip("LLM model client not available for CompanionAgent.")
 
-    # Get the character info for the player agent from the loaded scenario
+    # Get the character info for the companion agent from the loaded scenario
     player_char_info = scenario.characters.get(PLAYER_CHAR_ID)
     assert player_char_info is not None, f"Character info not found for ID {PLAYER_CHAR_ID} in loaded scenario"
 
@@ -88,11 +88,14 @@ async def test_player_decide_action(
 
     try:
         # The method internally gets unread messages based on agent's memory
+        # NOTE: The method name 'player_decide_action' remains the same in CompanionAgent
+        # as per the user's previous update. We are only changing the test function name
+        # and fixture name here.
         action: PlayerAction = await agent.player_decide_action(
             game_state=game_state,
             charaInfo=player_char_info
         )
-        print("\n--- Generated Player Action (Test) ---")
+        print("\n--- Generated Companion Action (Test) ---")
         # Use model_dump_json for better readability of Pydantic object
         print(action.model_dump_json(indent=2))
         print("-------------------------------------")
@@ -112,9 +115,9 @@ async def test_player_decide_action(
              assert agent.message_memory.history_messages[unread_message_id].read_status is True, f"消息 {unread_message_id} 应该被标记为已读"
 
     except Exception as e:
-        print(f"Error during player action generation test: {e}")
+        print(f"Error during companion action generation test: {e}")
         print(traceback.format_exc()) # Print traceback for debugging
-        pytest.fail(f"Player action generation test failed: {e}")
+        pytest.fail(f"Companion action generation test failed: {e}")
 
 # Add more tests, e.g., test_get_unread_messages, test_update_context, test_mark_message_as_read
 # These tests might need simpler game states or specific memory setups.

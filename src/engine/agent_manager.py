@@ -6,7 +6,8 @@ from src.models.game_state_models import GameState
 from src.models.scenario_models import Scenario
 from src.models.action_models import PlayerAction, ActionResult
 from src.agents.dm_agent import DMAgent
-from src.agents.player_agent import PlayerAgent
+from src.agents.companion_agent import CompanionAgent
+from src.agents.player_agent import PlayerAgent # 导入 PlayerAgent
 from src.agents.base_agent import BaseAgent
 from src.agents import RefereeAgent # 导入 RefereeAgent
 from autogen_ext.models.openai import OpenAIChatCompletionClient
@@ -26,7 +27,8 @@ class AgentManager:
             game_state: 游戏状态
         """
         self.dm_agent: Optional[DMAgent] = None
-        self.player_agents: Dict[str, PlayerAgent] = {}  # 改为字典，键为角色ID
+        # 这个字典现在会存储 PlayerAgent 和 CompanionAgent 实例
+        self.player_agents: Dict[str, Union[PlayerAgent, CompanionAgent]] = {}
         self.referee_agent: Optional[RefereeAgent] = None # 添加 referee_agent 属性
         self.game_state = game_state
         self.all_agents: Dict[str, BaseAgent] = {}  # 存储所有Agent实例，键为agent_id
@@ -51,14 +53,23 @@ class AgentManager:
     
     def initialize_agents_from_characters(self, scenario: Scenario):
         """
-        从游戏角色初始化代理。为所有角色创建代理，无论是否已分配给玩家。
-        
+        根据剧本信息和玩家选择初始化代理。
+        - 为玩家选择的角色创建 PlayerAgent。
+        - 为其他 is_playable=True 的角色创建 CompanionAgent。
+        - 初始化 DM 和 Referee Agent。
+
         Args:
             scenario: 剧本对象
         """
         if not self.game_state:
-            raise ValueError("游戏状态未初始化")
-        
+            raise ValueError("游戏状态未初始化 (Game state not initialized)")
+        if not self.game_state.player_character_id:
+             raise ValueError("玩家角色ID未在游戏状态中设置 (Player character ID not set in game state)")
+
+        print("Initializing agents...")
+        self.player_agents.clear()
+        self.all_agents.clear()
+
         # 初始化DM代理
         self.dm_agent = DMAgent(
             agent_id="dm",
@@ -74,36 +85,46 @@ class AgentManager:
             model_client=self.model_client
         )
         self.all_agents["referee"] = self.referee_agent # 添加到 all_agents
+        print(f"  Initialized Referee Agent: {self.referee_agent.agent_id}")
 
-        # 为所有角色创建代理，无论是否已分配给玩家
-        for character_id, character_ref in self.game_state.characters.items():
-            # 检查角色是否已分配给玩家
-            player_id = None
-            is_player_controlled = False
-            
-            # 如果未分配给玩家，使用临时ID
-            if not player_id:
-                player_id = f"npc_{character_id}"
-            
-            # 创建角色代理
-            player_agent = PlayerAgent(
-                agent_id=player_id,
-                agent_name=character_ref.name,
-                character_id=character_id,
-                model_client=self.model_client
-            )
-            
-            # 设置是否由玩家控制的标志
-            player_agent.is_player_controlled = is_player_controlled
-            
-            # 添加到代理列表
-            self.player_agents[character_id] = player_agent # 键是角色ID
-            self.all_agents[character_id] = player_agent # 键是 agent_id (player_id 或 npc_id)
+        # 遍历剧本中的静态角色信息来创建 Agent
+        for character_id, char_info in scenario.characters.items():
+            agent_instance: Optional[Union[PlayerAgent, CompanionAgent]] = None
+            agent_id = character_id # 使用角色ID作为Agent ID
 
-            # 更新角色的控制状态
-            if character_ref:
-                character_ref.player_controlled = is_player_controlled
-    
+            if character_id == self.game_state.player_character_id:
+                # 创建玩家控制的 Agent
+                print(f"  Creating PlayerAgent for selected character: {character_id} ({char_info.name})")
+                agent_instance = PlayerAgent(
+                    agent_id=agent_id,
+                    agent_name=char_info.name,
+                    character_id=character_id,
+                    model_client=self.model_client
+                )
+            elif char_info.is_playable:
+                # 创建 AI 控制的陪玩 Agent
+                print(f"  Creating CompanionAgent for playable character: {character_id} ({char_info.name})")
+                agent_instance = CompanionAgent(
+                    agent_id=agent_id,
+                    agent_name=char_info.name,
+                    character_id=character_id,
+                    model_client=self.model_client
+                )
+            else:
+                # 非玩家角色，不创建 Agent 实例
+                print(f"  Skipping Agent creation for non-playable character: {character_id} ({char_info.name})")
+                continue # 跳到下一个角色
+
+            # 存储创建的 Agent
+            if agent_instance:
+                self.player_agents[character_id] = agent_instance
+                self.all_agents[agent_id] = agent_instance # 使用 character_id 作为 agent_id
+                print(f"    Stored Agent: {agent_id} ({type(agent_instance).__name__})")
+
+        print(f"Agent initialization complete. Total agents in all_agents: {len(self.all_agents)}")
+        print(f"Playable/Companion agents in player_agents: {list(self.player_agents.keys())}")
+
+
     def register_agent(self, agent_id: str, agent_type: str, agent_instance: BaseAgent) -> bool:
         """
         注册代理
@@ -145,17 +166,17 @@ class AgentManager:
         """
         return self.referee_agent
 
-    def get_player_agent(self, character_id: str) -> Optional[PlayerAgent]: # 参数改为 character_id
+    def get_player_agent(self, character_id: str) -> Optional[Union[PlayerAgent, CompanionAgent]]:
         """
-        获取玩家代理实例
-        
+        获取与指定角色ID关联的玩家或陪玩代理实例。
+
         Args:
             character_id: 角色ID
 
         Returns:
-            Optional[PlayerAgent]: 玩家代理实例，如果不存在则为None
+            Optional[Union[PlayerAgent, CompanionAgent]]: 代理实例，如果不存在则为None
         """
-        return self.player_agents.get(character_id) # 使用 character_id 获取
+        return self.player_agents.get(character_id)
 
     def get_agent(self, agent_id: str) -> Optional[BaseAgent]:
         """

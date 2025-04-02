@@ -14,9 +14,9 @@ from src.models.context_models import StateUpdateRequest # May need adjustment l
 from src.engine.game_state_manager import GameStateManager
 from src.communication.message_dispatcher import MessageDispatcher
 from src.models.scenario_models import Scenario, ScenarioEvent, EventOutcome # Ensure Scenario models are imported
-from src.engine.agent_manager import AgentManager
+from src.engine.agent_manager import AgentManager, PlayerAgent, CompanionAgent # Import PlayerAgent and CompanionAgent
 from src.engine.scenario_manager import ScenarioManager
-from src.models.action_models import ActionType
+from src.models.action_models import ActionType, PlayerAction # Ensure PlayerAction is imported
 from src.agents import RefereeAgent # 导入 RefereeAgent
 
 class RoundManager:
@@ -120,66 +120,111 @@ class RoundManager:
         Returns:
             List[PlayerAction]: 玩家行动列表
         """
-        player_ids = self.agent_manager.get_all_player_ids()
-        player_tasks = []
-        player_id_to_index = {}
+        player_actions: List[PlayerAction] = []
+        # player_messages list is removed as messages are broadcasted inside the loop
+        game_state = self.game_state_manager.get_state() # Get state once
 
-        for i, player_id in enumerate(player_ids):
-            player_agent = self.agent_manager.get_player_agent(player_id)
-            if not player_agent:
-                continue
-            character_info = self.scenario_manager.get_character_info(player_agent.character_id) if self.scenario_manager else None
-            task = player_agent.player_decide_action(self.game_state_manager.get_state(), character_info)
-            player_tasks.append(task)
-            player_id_to_index[player_id] = i
+        # Iterate through agents managed by AgentManager
+        # agent_manager.player_agents now holds both PlayerAgent and CompanionAgent instances
+        for character_id, agent in self.agent_manager.player_agents.items():
+            self.logger.info(f"Processing turn for character: {character_id} (Agent Type: {type(agent).__name__})")
+            player_action: Optional[PlayerAction] = None
+            character_info = self.scenario_manager.get_character_info(character_id) if self.scenario_manager else None
+            if not character_info:
+                 self.logger.warning(f"无法获取角色 {character_id} 的信息，跳过此回合。")
+                 continue
 
-        try:
-            action_results_from_players = await asyncio.gather(*player_tasks)
-            player_actions = []
-            player_messages = []
+            try:
+                if isinstance(agent, PlayerAgent):
+                    # --- Player Agent: Generate options and wait for choice (Placeholder) ---
+                    self.logger.debug(f"Agent {agent.agent_id} is PlayerAgent. Generating options...")
+                    options = await agent.generate_action_options(game_state, character_info)
 
-            for i, player_id in enumerate(list(player_id_to_index.keys())):
-                player_action = action_results_from_players[i]
-                if player_action is None:
-                    self.logger.warning(f"玩家 {player_id} 未能决定行动。")
-                    continue
-                player_actions.append(player_action)
+                    # --- Placeholder for UI Interaction ---
+                    self.logger.warning(f"--- Player Input Needed for {character_id} ({agent.agent_name}) ---")
+                    print(f"--- Player Input Needed for {character_id} ({agent.agent_name}) ---")
+                    for idx, option in enumerate(options):
+                        print(f"  {idx + 1}. [{option.action_type.name}] {option.content} (Target: {option.target})")
+                        self.logger.warning(f"  {idx + 1}. [{option.action_type.name}] {option.content} (Target: {option.target})")
 
-                # 获取角色名称 (player_id is character_id)
-                game_state = self.game_state_manager.get_state()
-                character_state = game_state.characters.get(player_id)
-                if character_state and character_state.name:
-                    character_name = character_state.name
+                    # !!! CRITICAL: Replace this placeholder with actual UI interaction logic !!!
+                    # For now, automatically select the first option.
+                    chosen_option = options[0] if options else None
+                    self.logger.warning(f"!!! Placeholder: Automatically selecting option 1: {chosen_option}")
+                    print(f"!!! Placeholder: Automatically selecting option 1: {chosen_option}")
+                    # --- End Placeholder ---
+
+                    if chosen_option:
+                        # Convert chosen option to PlayerAction
+                        player_action = PlayerAction(
+                            character_id=character_id,
+                            action_type=chosen_option.action_type,
+                            content=chosen_option.content,
+                            target=chosen_option.target,
+                            # PlayerAgent doesn't generate internal thoughts in this flow
+                            internal_thoughts="行动由玩家选择。",
+                            timestamp=datetime.now().isoformat()
+                        )
+                    else:
+                         self.logger.error(f"PlayerAgent {character_id} 未能生成有效选项或接收选择。")
+                         # Create a default WAIT action
+                         player_action = PlayerAction(
+                             character_id=character_id,
+                             action_type=ActionType.WAIT,
+                             content="...",
+                             target="environment",
+                             internal_thoughts="未能选择行动。",
+                             timestamp=datetime.now().isoformat()
+                         )
+
+                elif isinstance(agent, CompanionAgent):
+                    # --- Companion Agent: Decide action autonomously ---
+                    self.logger.debug(f"Agent {agent.agent_id} is CompanionAgent. Deciding action...")
+                    # Note: CompanionAgent still uses the method named 'player_decide_action'
+                    player_action = await agent.player_decide_action(game_state, character_info)
                 else:
-                    self.logger.warning(f"无法在游戏状态中找到角色 {player_id} 的名称，将使用 ID 作为消息来源。")
-                    character_name = player_id # Fallback to ID if name not found
+                    self.logger.warning(f"未知的 Agent 类型: {type(agent).__name__} for character {character_id}")
+                    continue # Skip this agent
 
-                message_id = str(uuid.uuid4())
-                timestamp = datetime.now().isoformat()
-                player_message = Message(
-                    message_id=message_id,
-                    type=MessageType.PLAYER if player_action.action_type == ActionType.TALK else MessageType.ACTION,
-                    source=character_name, # 使用 character_name 作为 source
-                    source_id=player_id, # 使用 player_id (character_id) 作为 source_id
-                    content=player_action.content,
-                    timestamp=timestamp,
-                    visibility=MessageVisibility.PUBLIC,
-                    recipients=self.agent_manager.get_all_agent_ids(),
-                    round_id=self.current_round_id,
-                    # 根据 action_type 设置 subtype
-                    message_subtype="dialogue" if player_action.action_type == ActionType.TALK else "action_description"
-                )
-                player_messages.append(player_message)
+                # --- Process the decided action (either from player choice or companion AI) ---
+                if player_action:
+                    player_actions.append(player_action)
+                    # Create and broadcast message for the action immediately
+                    character_state = game_state.characters.get(character_id)
+                    character_name = character_state.name if character_state else character_id
+                    message_id = str(uuid.uuid4())
+                    timestamp = datetime.now().isoformat()
+                    message_type = MessageType.PLAYER if player_action.action_type == ActionType.TALK else MessageType.ACTION
+                    message_subtype = "dialogue" if player_action.action_type == ActionType.TALK else "action_description"
 
-            for message in player_messages:
-                self.message_dispatcher.broadcast_message(message)
+                    player_message = Message(
+                        message_id=message_id,
+                        type=message_type,
+                        source=character_name,
+                        source_id=character_id,
+                        content=player_action.content,
+                        timestamp=timestamp,
+                        visibility=MessageVisibility.PUBLIC,
+                        recipients=self.agent_manager.get_all_agent_ids(),
+                        round_id=self.current_round_id,
+                        message_subtype=message_subtype
+                    )
+                    # Broadcast the message immediately
+                    try:
+                        self.message_dispatcher.broadcast_message(player_message)
+                        self.logger.debug(f"Broadcasted action message for {character_id}: {player_message.content[:50]}...")
+                    except Exception as broadcast_error:
+                        self.logger.error(f"广播玩家 {character_id} 行动消息时出错: {broadcast_error}")
 
-            self.logger.info(f"所有玩家行动已完成并广播，共 {len(player_actions)} 个")
-            return player_actions
+            except Exception as e:
+                 # Log error for this specific agent's turn
+                 self.logger.exception(f"处理角色 {character_id} ({type(agent).__name__}) 行动时出错: {e}")
+                 # Optionally create a default WAIT action if needed, or just skip
 
-        except Exception as e:
-            self.logger.exception(f"处理玩家行动时出错: {str(e)}")
-            return []
+        # Return the collected actions after processing all agents
+        self.logger.info(f"完成处理所有玩家/陪玩回合，共收集 {len(player_actions)} 个行动。")
+        return player_actions
+
 
     async def resolve_actions(self, actions: List[PlayerAction]) -> List[ActionResult]:
         """

@@ -4,13 +4,13 @@ Agent模块初始化文件
 """
 
 from .base_agent import BaseAgent
-from .player_agent import PlayerAgent
+from .companion_agent import CompanionAgent
 from .dm_agent import DMAgent
 from .referee_agent import RefereeAgent # 添加 RefereeAgent 导入
 
 __all__ = [
     "BaseAgent",
-    "PlayerAgent",
+    "CompanionAgent",
     "DMAgent",
     "RefereeAgent" # 将 RefereeAgent 添加到 __all__
 ]

@@ -1,225 +1,195 @@
-from autogen_agentchat.messages import TextMessage, ChatMessage
-from autogen_core import CancellationToken
-from typing import List, Dict, Any, Optional, Union
-import json
+# src/agents/player_agent.py
+from typing import List, Dict, Any, Optional
 from datetime import datetime
-from src.models.scenario_models import ScenarioCharacterInfo
-from src.models.game_state_models import GameState, MessageReadMemory
-from src.models.action_models import PlayerAction
+from pydantic import BaseModel, Field
+import json
+import traceback
+
 from src.agents.base_agent import BaseAgent
+from src.models.scenario_models import ScenarioCharacterInfo, LocationInfo # Import LocationInfo
+from src.models.game_state_models import GameState
 from src.models.action_models import ActionType
 from src.models.llm_validation import create_validator_for, LLMOutputError
-from src.models.context_models import PlayerActionLLMOutput
-from src.models.message_models import Message, MessageStatus
-from src.context.player_context_builder import (
-    build_decision_system_prompt,
-    build_decision_user_prompt
-)
-import uuid
+from src.models.context_models import ActionOptionsLLMOutput # Assuming a new model for options output
+
+# Placeholder for the structure of an action option returned by LLM
+# We might reuse PlayerAction or define a simpler structure if needed
+class ActionOption(BaseModel):
+    action_type: ActionType = Field(..., description="行动类型 (TALK, ACTION, WAIT)")
+    content: str = Field(..., description="行动内容描述")
+    target: Optional[str] = Field(None, description="行动目标 (角色ID, 'environment', 'all', etc.)")
+    # internal_thoughts: Optional[str] = Field(None, description="生成此选项时的内部思考 (可选)") # Maybe add later
 
 class PlayerAgent(BaseAgent):
     """
-    玩家Agent类，负责生成玩家的观察、状态、思考和行动
+    代表人类玩家控制的角色 (PC) 的 Agent。
+    主要职责是根据当前游戏状态为玩家生成可选的行动。
+    实际的行动由玩家从选项中选择，并通过外部机制（如UI）传递给裁判。
     """
-    
-    def __init__(self, agent_id: str, agent_name: str, character_id:str, model_client=None):
+    def __init__(self, agent_id: str, agent_name: str, character_id: str, model_client=None):
         """
-        初始化玩家Agent
-        
+        初始化玩家 Agent
         Args:
-            agent_id: Agent唯一标识符
-            agent_name: Agent名称
-            character_id: 角色ID
+            agent_id: Agent 唯一标识符
+            agent_name: Agent 名称
+            character_id: 对应的角色 ID
             model_client: 模型客户端
         """
-        # 初始化BaseAgent
         super().__init__(agent_id=agent_id, agent_name=agent_name, model_client=model_client)
-
         self.character_id = character_id
-        
-        # 初始化消息记忆
-        self.message_memory: MessageReadMemory = MessageReadMemory(
-            player_id=agent_id,
-            history_messages={}
-        )
-    
-    def update_context(self, message: Message) -> None:
-        """
-        更新Agent的上下文，处理新接收的消息
-        
-        Args:
-            message: 接收到的消息对象
-        """
-        # 创建消息状态
-        message_status = MessageStatus(
-            message_id=message.message_id,
-            read_status=False
-        )
-        
-        # 更新消息记录
-        self.message_memory.history_messages[message.message_id] = message_status
-    
-    def get_unread_messages(self, game_state: GameState) -> List[Message]:
-        """
-        获取所有未读消息
-        
-        Args:
-            game_state: 游戏状态，包含消息历史
-            
-        Returns:
-            List[Message]: 未读消息列表
-        """
-        # 直接从game_state获取消息历史
-        all_messages = game_state.chat_history
-        
-        # 过滤出自己可见且未读的消息
-        unread_messages = []
-        for message in all_messages:
-            # Check if message exists in memory AND is marked as unread AND is visible
-            if (message.message_id in self.message_memory.history_messages and
-                not self.message_memory.history_messages[message.message_id].read_status and
-                self.filter_message(message)): # filter_message is inherited from BaseAgent
-                unread_messages.append(message)
-                
-        # 标记为已读 (Important: Mark as read *after* identifying all unread messages for this turn)
-        for message in unread_messages:
-            self.mark_message_as_read(message.message_id)
-            
-        return unread_messages
-    
-    def mark_message_as_read(self, message_id: str) -> bool:
-        """
-        将消息标记为已读
-        
-        Args:
-            message_id: 消息ID
-            
-        Returns:
-            bool: 是否成功标记
-        """
-        if message_id not in self.message_memory.history_messages:
-             # If the message isn't even in memory, we can't mark it.
-             # This might happen if update_context wasn't called for this message.
-             # Consider logging a warning here.
-             print(f"Warning: Attempted to mark message '{message_id}' as read, but it was not found in memory for agent {self.agent_id}.")
-             return False
-            
-        # 更新消息状态
-        message_status = self.message_memory.history_messages[message_id]
-        if not message_status.read_status: # Only update timestamp if it wasn't already read
-            message_status.read_status = True
-            message_status.read_timestamp = datetime.now()
-            return True
-        return False # Return False if it was already marked as read
-    
-    def get_unread_messages_count(self) -> int:
-        """
-        获取未读消息数量
-        
-        Returns:
-            int: 未读消息数量
-        """
-        # 统计未读消息
-        unread_count = 0
-        for message_status in self.message_memory.history_messages.values():
-            if not message_status.read_status:
-                unread_count += 1
-                
-        return unread_count
+        # PlayerAgent might not need complex message memory like CompanionAgent,
+        # but basic context handling might still be useful.
 
-    
-    async def player_decide_action(self, game_state: GameState, charaInfo: ScenarioCharacterInfo) -> PlayerAction:
+    async def generate_action_options(self, game_state: GameState, chara_info: ScenarioCharacterInfo) -> List[ActionOption]:
         """
-        玩家决策行动
-        
+        根据当前游戏状态和角色信息，生成供玩家选择的行动选项。
+
         Args:
-            game_state: 游戏状态，包含消息历史
-            charaInfo: 当前玩家角色的剧本信息
-            
+            game_state: 当前游戏状态
+            chara_info: 当前玩家角色的静态信息
+
         Returns:
-            PlayerAction: 玩家行动
+            List[ActionOption]: 包含多个行动选项的列表 (例如 3 个)
         """
-        # 获取未读消息 (This also marks them as read in memory)
-        unread_messages = self.get_unread_messages(game_state)
-        
-        # 生成系统消息
-        system_message = build_decision_system_prompt(charaInfo)
-        
-        # 直接创建新的AssistantAgent实例
-        from autogen_agentchat.agents import AssistantAgent
-        assistant = AssistantAgent(
-            name=self.agent_name, # Use unique name per call
-            model_client=self.model_client,
-            system_message=system_message
-        )
-        
-        # 构建用户消息
-        user_message_content = build_decision_user_prompt(game_state, unread_messages, self.character_id)
-        user_message = TextMessage(
-            content=user_message_content,
-            source="DM" # Source is DM providing context
-        )
-        
-        response_content = "" # Initialize response content
+        print(f"PlayerAgent ({self.agent_name}) generating action options for {self.character_id}...")
+
+        # --- 1. 构建 Prompt (需要新的 Context Builder 或调整) ---
+        # TODO: Implement dedicated context builders for option generation
+        # system_prompt = build_options_system_prompt(chara_info, game_state)
+        # user_prompt = build_options_user_prompt(game_state, self.character_id)
+
+        # Placeholder prompts for now
+        # Extract relevant game state info for the prompt
+        current_location_id = game_state.characters[self.character_id].location_id
+        current_location_desc = game_state.scenario.locations.get(current_location_id, LocationInfo(description="未知地点")).description if game_state.scenario.locations else "未知地点"
+        visible_characters = [
+            f"{char.name} ({char.public_identity})"
+            for char_id, char in game_state.characters.items()
+            if char.location_id == current_location_id and char_id != self.character_id
+        ]
+        visible_chars_str = ", ".join(visible_characters) if visible_characters else "无"
+        recent_events = "\n".join([f"- {msg.content}" for msg in game_state.chat_history[-5:]]) # Last 5 messages as recent events
+
+        system_prompt = f"""你是角色 {chara_info.name} ({chara_info.public_identity})。你的目标是: {chara_info.secret_goal}。
+你当前的背景是: {chara_info.background or '无'}
+你的特殊能力: {chara_info.special_ability or '无'}
+你的弱点: {chara_info.weakness or '无'}
+
+根据以下情境，为玩家生成 3 个清晰、具体、可执行的行动选项。
+选项必须符合你的角色个性和目标。
+选项格式必须是 JSON 列表，每个对象包含 'action_type' (必须是 'TALK', 'ACTION', 或 'WAIT' 之一), 'content' (行动的简短描述), 'target' (行动目标的角色ID, 'environment', 'all', 或物品ID)。
+
+当前情境:
+你在 {current_location_desc}。
+附近可见角色: {visible_chars_str}。
+最近发生的事件或对话:
+{recent_events}
+
+你的当前状态: {game_state.characters[self.character_id].status}
+你的物品栏: {game_state.characters[self.character_id].inventory}
+
+请严格按照 JSON 列表格式返回 3 个选项:
+[
+  {{"action_type": "...", "content": "...", "target": "..."}},
+  {{"action_type": "...", "content": "...", "target": "..."}},
+  {{"action_type": "...", "content": "...", "target": "..."}}
+]
+"""
+        user_prompt = "请根据以上信息生成行动选项。" # User prompt might be simple if context is in system prompt
+
+        # --- 2. 调用 LLM ---
+        response_content = ""
+        parsed_options: List[ActionOption] = []
         try:
-            # 使用新创建的assistant的on_messages方法
-            response = await assistant.on_messages([user_message], CancellationToken())
-            if response and response.chat_message and response.chat_message.content:
-                response_content = response.chat_message.content
-                
-                # 使用验证器验证LLM输出
-                try:
-                    # 创建验证器
-                    validator = create_validator_for(PlayerActionLLMOutput)
-                    
-                    # 验证响应
-                    validated_data: PlayerActionLLMOutput = validator.validate_response(response_content)
-                    
-                    # 创建行动对象
-                    return PlayerAction(
-                        character_id=self.character_id,
-                        interal_thoughts=validated_data.internal_thoughts, # Corrected attribute name
-                        action_type=validated_data.action_type,
-                        content=validated_data.action,
-                        target=validated_data.target,
-                        timestamp=datetime.now().isoformat()
-                    )
-                except LLMOutputError as e:
-                    # 处理验证错误，使用默认值
-                    print(f"LLM output validation error for PlayerAgent {self.agent_id}: {e.message}. Raw output: {e.raw_output[:200]}...") # Log raw output snippet
-                    # 尝试从原始响应中提取有用信息
-                    import re
-                    # 尝试提取action
-                    action_match = re.search(r'"action"\s*:\s*"([^"]+)"', e.raw_output, re.IGNORECASE)
-                    action_content = action_match.group(1) if action_match else "未能决定行动 (解析错误)"
-                    
-                    # 创建默认行动对象
-                    return PlayerAction(
-                        character_id=self.character_id,
-                        internal_thoughts="未能生成内心活动 (验证失败)", # Corrected attribute name
-                        action_type=ActionType.TALK, # Default to TALK on error
-                        content=action_content,
-                        target="all", # Default target
-                        timestamp=datetime.now().isoformat()
-                    )
-            else:
-                 print(f"Warning: PlayerAgent {self.agent_id} received no valid response from LLM assistant.")
-                 # Fallback action if LLM fails completely
-                 return PlayerAction(
-                        character_id=self.character_id,
-                        internal_thoughts="未能生成内心活动 (LLM无响应)",
-                        action_type=ActionType.ACTION, # Default to ACTION (e.g., wait/observe)
-                        content="...", # Indicate waiting or observing
-                        target="environment",
-                        timestamp=datetime.now().isoformat()
-                    )
+            if not self.model_client:
+                 raise ValueError("LLM model client is not configured for PlayerAgent.")
 
-                    
+            # Use a generic call method if available, or adapt as needed
+            # Assuming a method like `generate_text` exists
+            # response = await self.model_client.generate_text(system_prompt + "\n" + user_prompt) # Combine prompts if needed
+            # response_content = response if isinstance(response, str) else str(response) # Adjust based on actual return type
+
+            # --- Placeholder LLM Response (REMOVE IN ACTUAL IMPLEMENTATION) ---
+            print("  WARNING: Using placeholder LLM response for action options!")
+            response_content = json.dumps([
+                {"action_type": "TALK", "content": f"与 {visible_characters[0].split(' ')[0] if visible_characters else '某人'} 交谈，试探其口风。", "target": visible_characters[0].split(' ')[0] if visible_characters else "char_002"},
+                {"action_type": "ACTION", "content": "仔细观察周围环境，寻找线索。", "target": "environment"},
+                {"action_type": "WAIT", "content": "保持低调，继续观察。", "target": "environment"}
+            ], ensure_ascii=False)
+            # --- End Placeholder ---
+
+            # --- 3. 解析和验证 LLM 输出 ---
+            # Attempt to parse the JSON response
+            try:
+                options_data = json.loads(response_content)
+                if not isinstance(options_data, list):
+                    raise ValueError("LLM response is not a JSON list.")
+
+                # Validate each option using Pydantic
+                validator = create_validator_for(ActionOption) # Validator for individual options
+                for option_dict in options_data:
+                     if len(parsed_options) >= 3: # Limit to 3 options
+                         break
+                     try:
+                         # Validate dict against ActionOption model
+                         validated_option = validator.validate_response(json.dumps(option_dict)) # Validate each dict
+                         parsed_options.append(validated_option)
+                     except LLMOutputError as val_err:
+                         print(f"  Warning: Skipping invalid action option from LLM: {val_err.message}. Data: {option_dict}")
+                     except Exception as inner_e:
+                          print(f"  Warning: Error validating option {option_dict}: {inner_e}")
+
+
+            except json.JSONDecodeError:
+                print(f"  Error: Failed to decode LLM JSON response for options: {response_content[:200]}...")
+                # Fallback: Try to extract options using regex or return default options
+                parsed_options = self._get_default_options(game_state)
+            except ValueError as ve:
+                 print(f"  Error: Invalid JSON structure from LLM: {ve}. Response: {response_content[:200]}...")
+                 parsed_options = self._get_default_options(game_state)
+
+
         except Exception as e:
-            # Log the full error and the response content if available
-            import traceback
-            print(f"Error during PlayerAgent {self.agent_id} action decision: {str(e)}")
-            print(f"LLM Response Content (if any): {response_content[:200]}...")
-            traceback.print_exc()
-            # Raise a more specific exception or return a default action
-            raise Exception(f"Assistant生成行动失败 for agent {self.agent_id}: {str(e)}")
+            print(f"Error during PlayerAgent {self.agent_id} option generation: {str(e)}")
+            print(traceback.format_exc())
+            # Fallback to default options on any major error
+            parsed_options = self._get_default_options(game_state)
+
+        # Ensure we always return a list, even if empty or default
+        if not parsed_options:
+             print("  Warning: No valid options generated or parsed, returning default options.")
+             parsed_options = self._get_default_options(game_state)
+
+        # Limit to exactly 3 options if more were somehow generated
+        return parsed_options[:3]
+
+    def _get_default_options(self, game_state: GameState) -> List[ActionOption]:
+        """Provides default fallback action options."""
+        # Try to find another character to talk to
+        target_char_id = "environment"
+        for char_id, char in game_state.characters.items():
+            if char_id != self.character_id and char.location_id == game_state.characters[self.character_id].location_id:
+                target_char_id = char_id
+                break
+
+        return [
+            ActionOption(action_type=ActionType.TALK, content="尝试与人交谈。", target=target_char_id if target_char_id != "environment" else "all"),
+            ActionOption(action_type=ActionType.ACTION, content="观察周围环境。", target="environment"),
+            ActionOption(action_type=ActionType.WAIT, content="保持警惕，等待时机。", target="environment"),
+        ]
+
+    def _parse_llm_options(self, response_content: str) -> List[ActionOption]:
+        """
+        (Helper function - needs implementation)
+        Parses the LLM response string (expected to be JSON) into a list of ActionOption objects.
+        Includes validation.
+        """
+        # TODO: Implement robust JSON parsing and validation using Pydantic models
+        # Example (basic):
+        try:
+            options_list = json.loads(response_content)
+            validated_options = [ActionOption(**opt) for opt in options_list if isinstance(opt, dict)]
+            return validated_options[:3] # Return max 3 options
+        except Exception as e:
+            print(f"Error parsing LLM options: {e}. Response: {response_content[:100]}...")
+            return [] # Return empty list on error

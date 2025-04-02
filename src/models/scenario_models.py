@@ -13,6 +13,7 @@ class ScenarioCharacterInfo(BaseModel):
     background: Optional[str] = Field(None, description="角色的背景故事")
     special_ability: Optional[str] = Field(None, description="角色的特殊能力")
     weakness: Optional[str] = Field(None, description="角色的弱点")
+    is_playable: bool = Field(False, description="是否可供玩家选择或作为陪玩角色")
 
 class EventOutcome(BaseModel):
     """事件结局模型"""

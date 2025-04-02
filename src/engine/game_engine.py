@@ -8,7 +8,7 @@ import uuid
 # 导入我们的数据模型和Agent
 from src.models.schema import AgentConfig
 from src.models.game_state_models import GameState
-from src.agents.player_agent import PlayerAgent
+from agents.companion_agent import CompanionAgent
 from src.communication.message_dispatcher import MessageDispatcher
 from src.engine.agent_manager import AgentManager
 from src.engine.game_state_manager import GameStateManager
@@ -90,12 +90,49 @@ class GameEngine:
             scenario_manager = ScenarioManager()
             scenario = scenario_manager.load_scenario("default")
 
+            # --- 角色选择 ---
+            playable_characters = {
+                char_id: char_info
+                for char_id, char_info in scenario.characters.items()
+                if char_info.is_playable
+            }
+
+            if not playable_characters:
+                print(red_text("错误：剧本中没有可供选择的角色！"))
+                return # 或者抛出异常
+
+            print(green_text("\n请选择你的角色:"))
+            playable_list = list(playable_characters.items())
+            for i, (char_id, char_info) in enumerate(playable_list):
+                print(f"  {i + 1}. {char_info.name} ({char_info.public_identity})")
+
+            chosen_id = None
+            while not chosen_id:
+                try:
+                    choice = input(f"输入选择的角色编号 (1-{len(playable_list)}): ")
+                    choice_index = int(choice) - 1
+                    if 0 <= choice_index < len(playable_list):
+                        chosen_id = playable_list[choice_index][0]
+                        chosen_name = playable_list[choice_index][1].name
+                        print(green_text(f"你选择了: {chosen_name} ({chosen_id})"))
+                    else:
+                        print(yellow_text("无效的选择，请输入列表中的编号。"))
+                except ValueError:
+                    print(yellow_text("无效的输入，请输入数字编号。"))
+            # --- 角色选择结束 ---
+
+
             # 初始化游戏状态，传入 scenario_manager
             game_state_manager = GameStateManager(scenario_manager=scenario_manager)
             # initialize_game_state 现在不再需要 scenario 参数，因为它会从 scenario_manager 获取
             game_state = game_state_manager.initialize_game_state()
 
-            # 创建代理管理器
+            # !!! 设置玩家选择的角色ID到游戏状态中 !!!
+            game_state.player_character_id = chosen_id
+            print(f"游戏状态已设置玩家角色ID: {game_state.player_character_id}")
+
+
+            # 创建代理管理器 (必须在 game_state.player_character_id 设置之后)
             agent_manager = AgentManager(
                 game_state=game_state
             )
