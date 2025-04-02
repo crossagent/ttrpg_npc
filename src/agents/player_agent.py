@@ -4,6 +4,7 @@ from datetime import datetime
 from pydantic import BaseModel, Field
 import json
 import traceback
+import logging # Import logging
 
 from src.agents.base_agent import BaseAgent
 from src.models.scenario_models import ScenarioCharacterInfo, LocationInfo # Import LocationInfo
@@ -15,6 +16,9 @@ from src.models.context_models import ActionOptionsLLMOutput # Now this should w
 from autogen_agentchat.agents import AssistantAgent
 from autogen_agentchat.messages import TextMessage
 from autogen_core import CancellationToken
+
+# Assume BaseAgent initializes self.logger or get logger here
+logger = logging.getLogger(__name__) # Or use self.logger if available from BaseAgent
 
 class PlayerAgent(BaseAgent):
     """
@@ -35,6 +39,10 @@ class PlayerAgent(BaseAgent):
         self.character_id = character_id
         # PlayerAgent might not need complex message memory like CompanionAgent,
         # but basic context handling might still be useful.
+        # Ensure logger is available (assuming BaseAgent provides it)
+        # If not, initialize it here or use the module-level logger
+        self.logger = getattr(self, 'logger', logger)
+
 
     async def generate_action_options(self, game_state: GameState, chara_info: ScenarioCharacterInfo) -> List[ActionOption]:
         """
@@ -47,7 +55,7 @@ class PlayerAgent(BaseAgent):
         Returns:
             List[ActionOption]: 包含多个行动选项的列表 (例如 3 个)
         """
-        print(f"PlayerAgent ({self.agent_name}) generating action options for {self.character_id}...")
+        self.logger.info(f"PlayerAgent ({self.agent_name}) generating action options for {self.character_id}...") # Use logger
 
         # --- 1. 构建 Prompt (需要新的 Context Builder 或调整) ---
         # TODO: Implement dedicated context builders for option generation
@@ -109,9 +117,7 @@ class PlayerAgent(BaseAgent):
                  raise ValueError("LLM model client is not configured for PlayerAgent.")
 
             # 采用与 dm_agent 类似的模式：创建临时 AssistantAgent
-            from autogen_agentchat.agents import AssistantAgent
-            from autogen_agentchat.messages import TextMessage
-            from autogen_core import CancellationToken
+            # Imports moved to top
 
             # 创建临时助手
             assistant = AssistantAgent(
@@ -135,7 +141,7 @@ class PlayerAgent(BaseAgent):
             else:
                 self.logger.error("LLM did not return a valid response structure via AssistantAgent.")
                 response_content = ""
-            print(f"  LLM Raw Response for options: {response_content[:300]}...") # Log raw response
+            # self.logger.debug(f"LLM Raw Response for options: {response_content[:300]}...") # Removed print, use logger.debug if needed
 
             # --- 3. 解析和验证 LLM 输出 ---
             # 使用之前创建的 validator 进行验证
@@ -147,23 +153,23 @@ class PlayerAgent(BaseAgent):
                      self.logger.warning(f"LLM 返回了超过 3 个选项，将只取前 3 个。")
                      parsed_options = parsed_options[:3]
             except LLMOutputError as val_err:
-                 print(f"  Error: LLM options output validation failed: {val_err.message}. Raw: {response_content[:200]}...")
+                 self.logger.error(f"LLM options output validation failed: {val_err.message}. Raw: {response_content[:200]}...") # Use logger
                  # 注意：这里不再尝试 json.loads，因为 validate_response 内部会处理提取和解析
                  parsed_options = self._get_default_options(game_state)
             except Exception as inner_e: # Catch other potential errors during validation
-                 print(f"  Warning: Error during options validation: {inner_e}")
-                 print(traceback.format_exc()) # Print traceback for unexpected errors
+                 self.logger.warning(f"Error during options validation: {inner_e}") # Use logger
+                 self.logger.exception(inner_e) # Log traceback if needed
                  parsed_options = self._get_default_options(game_state)
 
         except Exception as e:
-            print(f"Error during PlayerAgent {self.agent_id} option generation (LLM call or validation): {str(e)}")
-            print(traceback.format_exc())
+            self.logger.error(f"Error during PlayerAgent {self.agent_id} option generation (LLM call or validation): {str(e)}") # Use logger
+            self.logger.exception(e) # Log traceback if needed
             # Fallback to default options on any major error
             parsed_options = self._get_default_options(game_state)
 
         # Ensure we always return a list, even if empty or default
         if not parsed_options:
-             print("  Warning: No valid options generated or parsed, returning default options.")
+             self.logger.warning("No valid options generated or parsed, returning default options.") # Use logger
              parsed_options = self._get_default_options(game_state)
 
         # Limit to exactly 3 options if more were somehow generated
@@ -198,5 +204,5 @@ class PlayerAgent(BaseAgent):
             validated_options = [ActionOption(**opt) for opt in options_list if isinstance(opt, dict)]
             return validated_options[:3] # Return max 3 options
         except Exception as e:
-            print(f"Error parsing LLM options: {e}. Response: {response_content[:100]}...")
+            self.logger.error(f"Error parsing LLM options: {e}. Response: {response_content[:100]}...") # Use logger
             return [] # Return empty list on error
