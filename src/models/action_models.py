@@ -52,7 +52,15 @@ class ActionType(str, Enum):
     """玩家行动类型枚举"""
     TALK = "讨论沟通"       # 用于描述玩家之间的讨论和沟通
     ACTION = "主要行动"     # 表示会对环境或剧情产生实质性影响的主要行动
-    SPECTATE = "继续旁观"    # 表示玩家选择持续旁观而不进行干预
+    WAIT = "继续旁观"    # 表示玩家选择持续旁观而不进行干预
+
+
+# 新增：定义行动选项的模型
+class ActionOption(BaseModel):
+    """代表一个可供玩家选择的行动选项"""
+    action_type: ActionType = Field(..., description="行动类型 (TALK, ACTION, WAIT)")
+    content: str = Field(..., description="行动内容描述")
+    target: Optional[str] = Field(None, description="行动目标 (角色ID, 'environment', 'all', etc.)")
 
 
 class PlayerAction(BaseModel):

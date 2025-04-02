@@ -3,7 +3,7 @@ from typing import List, Dict, Any, Optional, Union
 from datetime import datetime
 from src.models.action_models import ActionType
 from src.models.message_models import Message
-from src.models.action_models import InternalThoughts
+from src.models.action_models import InternalThoughts, ActionOption # Import ActionOption
 
 class PlayerActionLLMOutput(BaseModel):
     """LLM输出的玩家行动模型"""
@@ -78,3 +78,9 @@ class ActionResolutionLLMOutput(BaseModel):
     success: bool = Field(..., description="行动是否成功")
     narrative: str = Field(..., description="行动结果的详细描述")
     state_changes: Dict[str, Any] = Field(default_factory=dict, description="行动导致的游戏状态变化")
+
+
+# 新增：用于验证 LLM 返回的行动选项列表的模型
+class ActionOptionsLLMOutput(BaseModel):
+    """LLM 输出的行动选项列表模型"""
+    options: List[ActionOption] = Field(..., description="包含多个行动选项的列表")

@@ -8,17 +8,9 @@ import traceback
 from src.agents.base_agent import BaseAgent
 from src.models.scenario_models import ScenarioCharacterInfo, LocationInfo # Import LocationInfo
 from src.models.game_state_models import GameState
-from src.models.action_models import ActionType
+from src.models.action_models import ActionType, ActionOption # Import ActionOption from action_models
 from src.models.llm_validation import create_validator_for, LLMOutputError
-from src.models.context_models import ActionOptionsLLMOutput # Assuming a new model for options output
-
-# Placeholder for the structure of an action option returned by LLM
-# We might reuse PlayerAction or define a simpler structure if needed
-class ActionOption(BaseModel):
-    action_type: ActionType = Field(..., description="行动类型 (TALK, ACTION, WAIT)")
-    content: str = Field(..., description="行动内容描述")
-    target: Optional[str] = Field(None, description="行动目标 (角色ID, 'environment', 'all', etc.)")
-    # internal_thoughts: Optional[str] = Field(None, description="生成此选项时的内部思考 (可选)") # Maybe add later
+from src.models.context_models import ActionOptionsLLMOutput # Now this should work
 
 class PlayerAgent(BaseAgent):
     """
@@ -125,22 +117,37 @@ class PlayerAgent(BaseAgent):
                 if not isinstance(options_data, list):
                     raise ValueError("LLM response is not a JSON list.")
 
-                # Validate each option using Pydantic
-                validator = create_validator_for(ActionOption) # Validator for individual options
-                for option_dict in options_data:
-                     if len(parsed_options) >= 3: # Limit to 3 options
-                         break
-                     try:
-                         # Validate dict against ActionOption model
-                         validated_option = validator.validate_response(json.dumps(option_dict)) # Validate each dict
-                         parsed_options.append(validated_option)
-                     except LLMOutputError as val_err:
-                         print(f"  Warning: Skipping invalid action option from LLM: {val_err.message}. Data: {option_dict}")
-                     except Exception as inner_e:
-                          print(f"  Warning: Error validating option {option_dict}: {inner_e}")
+                # Validate the entire list structure using ActionOptionsLLMOutput
+                validator = create_validator_for(ActionOptionsLLMOutput)
+                try:
+                    validated_output: ActionOptionsLLMOutput = validator.validate_response(response_content)
+                    parsed_options = validated_output.options
+                    # Limit to 3 options if LLM returns more
+                    if len(parsed_options) > 3:
+                         self.logger.warning(f"LLM 返回了超过 3 个选项，将只取前 3 个。")
+                         parsed_options = parsed_options[:3]
+                except LLMOutputError as val_err:
+                     print(f"  Error: LLM options output validation failed: {val_err.message}. Raw: {response_content[:200]}...")
+                     parsed_options = self._get_default_options(game_state)
+                except Exception as inner_e:
+                     print(f"  Warning: Error validating options structure: {inner_e}")
+                     parsed_options = self._get_default_options(game_state)
 
+                # Old validation logic removed:
+                # validator = create_validator_for(ActionOption) # Validator for individual options
+                # for option_dict in options_data:
+                #      if len(parsed_options) >= 3: # Limit to 3 options
+                 #         break
+                 #     try:
+                 #         # Validate dict against ActionOption model
+                 #         validated_option = validator.validate_response(json.dumps(option_dict)) # Validate each dict
+                 #         parsed_options.append(validated_option)
+                 #     except LLMOutputError as val_err:
+                 #         print(f"  Warning: Skipping invalid action option from LLM: {val_err.message}. Data: {option_dict}")
+                 #     except Exception as inner_e:
+                 #          print(f"  Warning: Error validating option {option_dict}: {inner_e}")
 
-            except json.JSONDecodeError:
+            except json.JSONDecodeError: # Keep this for initial JSON parsing failure
                 print(f"  Error: Failed to decode LLM JSON response for options: {response_content[:200]}...")
                 # Fallback: Try to extract options using regex or return default options
                 parsed_options = self._get_default_options(game_state)

@@ -8,7 +8,7 @@ import uuid
 # 导入我们的数据模型和Agent
 from src.models.schema import AgentConfig
 from src.models.game_state_models import GameState
-from agents.companion_agent import CompanionAgent
+from src.agents.companion_agent import CompanionAgent
 from src.communication.message_dispatcher import MessageDispatcher
 from src.engine.agent_manager import AgentManager
 from src.engine.game_state_manager import GameStateManager
