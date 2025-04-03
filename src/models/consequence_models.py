@@ -16,7 +16,8 @@ class ConsequenceType(Enum):
     # +++ Add new types for character attributes/skills +++
     UPDATE_CHARACTER_ATTRIBUTE = "update_character_attribute" # Update a specific attribute of a character instance
     UPDATE_CHARACTER_SKILL = "update_character_skill"      # Update a specific skill of a character instance
-    # Add more types as needed, e.g., CHANGE_LOCATION, LEARN_INFO, APPLY_STATUS_EFFECT
+    CHANGE_LOCATION = "change_location"            # Change the location of a character instance
+    # Add more types as needed, e.g., LEARN_INFO, APPLY_STATUS_EFFECT
 
 class Consequence(BaseModel):
     """Represents a single structured consequence of an action or event."""

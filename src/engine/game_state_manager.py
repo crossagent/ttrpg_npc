@@ -392,6 +392,7 @@ class GameStateManager:
             # +++ Add handlers for new types +++
             ConsequenceType.UPDATE_CHARACTER_ATTRIBUTE: self._apply_update_character_attribute,
             ConsequenceType.UPDATE_CHARACTER_SKILL: self._apply_update_character_skill,
+            ConsequenceType.CHANGE_LOCATION: self._apply_change_location, # +++ Add handler for location change +++
             # Add handlers for other types here
         }
         return handlers.get(consequence_type)
@@ -652,6 +653,47 @@ class GameStateManager:
             return description
         except Exception as e:
             self.logger.exception(f"更新角色技能 '{cons.skill_name}' 时出错：{e}")
+            return None
+
+    async def _apply_change_location(self, game_state: GameState, cons: Consequence) -> Optional[str]:
+        """处理 CHANGE_LOCATION 后果。"""
+        if not cons.target_entity_id or not cons.value or not isinstance(cons.value, str):
+            self.logger.warning(f"无效的 CHANGE_LOCATION 后果：缺少 target_entity_id 或 value 不是字符串。 {cons}")
+            return None
+
+        character_instance = game_state.characters.get(cons.target_entity_id)
+        if not character_instance:
+            self.logger.warning(f"CHANGE_LOCATION 失败：未找到角色 ID '{cons.target_entity_id}'。")
+            return None
+
+        new_location_id = cons.value
+        # Optional: Validate if new_location_id exists in game_state.location_states
+        if new_location_id not in game_state.location_states:
+             self.logger.warning(f"CHANGE_LOCATION 警告：目标地点 ID '{new_location_id}' 不存在于 location_states 中。")
+             # Decide whether to proceed or fail. Let's proceed for now.
+
+        try:
+            old_location = character_instance.location
+            character_instance.location = new_location_id
+            description = f"角色位置更新：角色 '{cons.target_entity_id}' ({character_instance.name}) 的位置从 '{old_location}' 更新为 '{new_location_id}'。"
+            self.logger.info(description)
+
+            # --- 更新旧地点和新地点的 present_characters ---
+            # Remove from old location
+            if old_location and old_location in game_state.location_states:
+                if cons.target_entity_id in game_state.location_states[old_location].present_characters:
+                    game_state.location_states[old_location].present_characters.remove(cons.target_entity_id)
+                    self.logger.debug(f"已将角色 '{cons.target_entity_id}' 从地点 '{old_location}' 的 present_characters 移除。")
+            # Add to new location
+            if new_location_id in game_state.location_states:
+                if cons.target_entity_id not in game_state.location_states[new_location_id].present_characters:
+                    game_state.location_states[new_location_id].present_characters.append(cons.target_entity_id)
+                    self.logger.debug(f"已将角色 '{cons.target_entity_id}' 添加到地点 '{new_location_id}' 的 present_characters。")
+            # --- 结束更新 present_characters ---
+
+            return description
+        except Exception as e:
+            self.logger.exception(f"更新角色 '{cons.target_entity_id}' 位置时出错：{e}")
             return None
 
     # --- 移除旧的 update_state 方法 ---
