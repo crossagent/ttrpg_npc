@@ -5,11 +5,28 @@ from datetime import datetime
 from typing import List, Optional, Tuple, Union
 
 from src.engine.round_phases.base_phase import BaseRoundPhase, PhaseContext
-from src.models.action_models import PlayerAction, ActionType, ActionOption
+# Import InternalThoughts
+from src.models.action_models import PlayerAction, ActionType, ActionOption, InternalThoughts, PlayerAssessment
 from src.models.message_models import Message, MessageType, MessageVisibility
 from src.engine.agent_manager import PlayerAgent, CompanionAgent, BaseAgent # Import BaseAgent for type hint
 from src.models.game_state_models import GameState
 from src.models.scenario_models import ScenarioCharacterInfo
+
+
+# Helper function to create default InternalThoughts
+def create_default_thoughts(reason: str = "无可用思考内容", round_id: int = 0) -> InternalThoughts:
+    """创建一个符合 InternalThoughts 结构的默认对象"""
+    return InternalThoughts(
+        short_term_goals=[],
+        primary_emotion="中立",
+        psychological_state="正常",
+        narrative_analysis=reason,
+        other_players_assessment={}, # Empty dict for default
+        perceived_risks=[],
+        perceived_opportunities=[],
+        last_updated=datetime.now(), # Use datetime object directly
+        last_updated_round=round_id # Pass round_id if available
+    )
 
 class ActionDeclarationPhase(BaseRoundPhase):
     """
@@ -61,8 +78,9 @@ class ActionDeclarationPhase(BaseRoundPhase):
                 action_type=chosen_option.action_type,
                 content=chosen_option.content,
                 target=chosen_option.target,
-                internal_thoughts="行动由玩家选择。",
-                timestamp=datetime.now().isoformat()
+                # Use helper function for default thoughts
+                internal_thoughts=create_default_thoughts(reason="行动由玩家选择。", round_id=self.current_round_id),
+                timestamp=datetime.now().isoformat() # Keep timestamp as ISO string for PlayerAction model if needed, or adjust model
             )
         else:
             self.logger.error(f"玩家代理 {character_id} 未能生成有效选项或接收选择。创建默认等待行动。")
@@ -71,7 +89,8 @@ class ActionDeclarationPhase(BaseRoundPhase):
                 action_type=ActionType.WAIT,
                 content="...",
                 target="environment",
-                internal_thoughts="未能选择行动。",
+                 # Use helper function for default thoughts
+                internal_thoughts=create_default_thoughts(reason="未能选择行动。", round_id=self.current_round_id),
                 timestamp=datetime.now().isoformat()
             )
 
@@ -97,7 +116,8 @@ class ActionDeclarationPhase(BaseRoundPhase):
                 action_type=ActionType.WAIT,
                 content="...",
                 target="environment",
-                internal_thoughts="决定行动时出错。",
+                # Use helper function for default thoughts
+                internal_thoughts=create_default_thoughts(reason=f"决定行动时出错: {decide_err}", round_id=self.current_round_id),
                 timestamp=datetime.now().isoformat()
             )
 
@@ -157,7 +177,8 @@ class ActionDeclarationPhase(BaseRoundPhase):
                     action_type=ActionType.WAIT,
                     content="...",
                     target="environment",
-                    internal_thoughts=f"行动任务执行出错: {result}",
+                    # Use helper function for default thoughts
+                    internal_thoughts=create_default_thoughts(reason=f"行动任务执行出错: {result}", round_id=self.current_round_id),
                     timestamp=datetime.now().isoformat()
                 )
                 processed_action = default_action # Assign default action
@@ -173,7 +194,8 @@ class ActionDeclarationPhase(BaseRoundPhase):
                     action_type=ActionType.WAIT,
                     content="...",
                     target="environment",
-                    internal_thoughts="行动任务返回 None。",
+                    # Use helper function for default thoughts
+                    internal_thoughts=create_default_thoughts(reason="行动任务返回 None。", round_id=self.current_round_id),
                     timestamp=datetime.now().isoformat()
                  )
                  processed_action = default_action # Assign default action
@@ -181,11 +203,16 @@ class ActionDeclarationPhase(BaseRoundPhase):
             else:
                 self.logger.error(f"角色 {character_id_from_task} 的行动任务返回未知类型: {type(result)}")
                 # 也可以创建一个默认行动
-                processed_action = PlayerAction(
-                    character_id=character_id_from_task, action_type=ActionType.WAIT, content="...", target="environment",
-                    internal_thoughts=f"行动任务返回未知类型: {type(result)}", timestamp=datetime.now().isoformat()
+                # Create default action using helper function
+                default_action = PlayerAction(
+                    character_id=character_id_from_task,
+                    action_type=ActionType.WAIT,
+                    content="...",
+                    target="environment",
+                    internal_thoughts=create_default_thoughts(reason=f"行动任务返回未知类型: {type(result)}", round_id=self.current_round_id),
+                    timestamp=datetime.now().isoformat()
                  )
-                processed_action = default_action # Assign default action # Corrected indentation
+                processed_action = default_action # Assign default action
 
             if processed_action:
                 # 【新增】立刻广播这个行动意图
