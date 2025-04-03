@@ -6,7 +6,7 @@ from typing import List, Dict, Any, Optional, Tuple, Union
 
 from src.engine.round_phases.base_phase import BaseRoundPhase, PhaseContext
 from src.models.action_models import PlayerAction, ActionResult, ActionType
-from src.models.message_models import Message, MessageType, MessageVisibility
+from src.models.message_models import Message, MessageType, MessageVisibility, SenderRole # Import SenderRole
 from src.models.scenario_models import Scenario # Ensure Scenario is imported for type hinting
 from src.models.consequence_models import ConsequenceType # Import ConsequenceType
 # Avoid direct GameState import if possible, use Any or TYPE_CHECKING
@@ -170,7 +170,8 @@ class JudgementPhase(BaseRoundPhase):
                 timestamp_effect = datetime.now().isoformat()
                 system_effect_message = Message(
                     message_id=message_id_effect,
-                    type=MessageType.SYSTEM_ACTION_RESULT,
+                    sender_role=SenderRole.REFEREE, # 设置 sender_role
+                    type=MessageType.ACTION_RESULT_SYSTEM, # 设置新的 message_type
                     source="裁判",
                     source_id=system_source_id,
                     content=effect_description,
@@ -187,7 +188,8 @@ class JudgementPhase(BaseRoundPhase):
                     timestamp_narrative = datetime.now().isoformat()
                     result_message = Message(
                         message_id=message_id_narrative,
-                        type=MessageType.RESULT,
+                        sender_role=SenderRole.NARRATOR, # 设置 sender_role (DM 代理扮演叙述者)
+                        type=MessageType.ACTION_RESULT_NARRATIVE, # 设置新的 message_type
                         source=dm_source_name, # 使用 DM 代理名称
                         source_id=dm_source_id, # 使用 DM 代理 ID
                         content=action_result.narrative,

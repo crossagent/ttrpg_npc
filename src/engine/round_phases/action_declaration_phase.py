@@ -7,7 +7,7 @@ from typing import List, Optional, Tuple, Union
 from src.engine.round_phases.base_phase import BaseRoundPhase, PhaseContext
 # Import InternalThoughts
 from src.models.action_models import PlayerAction, ActionType, ActionOption, InternalThoughts, PlayerAssessment
-from src.models.message_models import Message, MessageType, MessageVisibility
+from src.models.message_models import Message, MessageType, MessageVisibility, SenderRole # Import SenderRole
 from src.engine.agent_manager import PlayerAgent, CompanionAgent, BaseAgent # Import BaseAgent for type hint
 from src.models.game_state_models import GameState
 from src.models.scenario_models import ScenarioCharacterInfo
@@ -221,13 +221,32 @@ class ActionDeclarationPhase(BaseRoundPhase):
                 character_name = character_state.name if character_state else processed_action.character_id
                 message_id = str(uuid.uuid4())
                 timestamp = datetime.now().isoformat() # 或者使用 processed_action.timestamp? 考虑一致性. Let's use a new timestamp for broadcast time.
-                message_type = MessageType.PLAYER if processed_action.action_type == ActionType.TALK else MessageType.ACTION
-                message_subtype = "dialogue" if processed_action.action_type == ActionType.TALK else "action_description"
+
+                # --- 设置 sender_role 和新的 message_type ---
+                sender_role = SenderRole.PLAYER_CHARACTER # 无论是 PlayerAgent 还是 CompanionAgent，角色都是 PLAYER_CHARACTER
+
+                if processed_action.action_type == ActionType.TALK:
+                    message_type = MessageType.DIALOGUE
+                elif processed_action.action_type == ActionType.ACTION:
+                    message_type = MessageType.ACTION_DECLARATION
+                elif processed_action.action_type == ActionType.WAIT:
+                    message_type = MessageType.WAIT_NOTIFICATION
+                else:
+                    # 处理未知 ActionType 的情况
+                    message_type = MessageType.SYSTEM_INFO # 默认为 SYSTEM_INFO
+                    self.logger.warning(f"未知的 ActionType '{processed_action.action_type}'，消息类型设为 SYSTEM_INFO。")
 
                 action_message = Message(
-                    message_id=message_id, type=message_type, source=character_name, source_id=processed_action.character_id,
-                    content=processed_action.content, timestamp=timestamp, visibility=MessageVisibility.PUBLIC,
-                    recipients=all_agent_ids, round_id=self.current_round_id, message_subtype=message_subtype
+                    message_id=message_id,
+                    sender_role=sender_role, # 设置 sender_role
+                    type=message_type,       # 设置新的 message_type
+                    source=character_name,
+                    source_id=processed_action.character_id,
+                    content=processed_action.content,
+                    timestamp=timestamp,
+                    visibility=MessageVisibility.PUBLIC,
+                    recipients=all_agent_ids,
+                    round_id=self.current_round_id
                 )
                 try:
                     self.message_dispatcher.broadcast_message(action_message)

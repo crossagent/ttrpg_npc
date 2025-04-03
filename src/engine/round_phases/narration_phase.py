@@ -4,7 +4,7 @@ from datetime import datetime
 from typing import List, Optional
 
 from src.engine.round_phases.base_phase import BaseRoundPhase, PhaseContext
-from src.models.message_models import Message, MessageType, MessageVisibility
+from src.models.message_models import Message, MessageType, MessageVisibility, SenderRole # Import SenderRole
 
 # 常量定义 (可以考虑移到配置中)
 DM_NARRATION_THRESHOLD = 3
@@ -77,7 +77,8 @@ class NarrationPhase(BaseRoundPhase):
 
         dm_message = Message(
             message_id=message_id,
-            type=MessageType.DM,
+            sender_role=SenderRole.NARRATOR, # 设置 sender_role
+            type=MessageType.NARRATION,     # 设置新的 message_type
             source=dm_source_name,
             source_id=dm_source_id,
             content=dm_narrative,

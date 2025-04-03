@@ -4,17 +4,27 @@ from enum import Enum
 from datetime import datetime
 from autogen_agentchat.messages import BaseChatMessage
 
+# --- 新增 SenderRole 枚举 ---
+class SenderRole(str, Enum):
+    """消息发送者角色枚举"""
+    PLAYER_CHARACTER = "player_character" # 玩家或陪玩角色代理
+    NARRATOR = "narrator"             # 叙事代理 (DM)
+    REFEREE = "referee"               # 裁判代理
+    SYSTEM = "system"                 # 游戏引擎或其他系统组件
+
+# --- 重定义 MessageType 枚举 (仅关注内容性质) ---
 class MessageType(str, Enum):
-    """消息类型枚举"""
-    DM = "dm"
-    PLAYER = "player"
-    SYSTEM = "system"
-    ACTION = "action"
-    RESULT = "result"
-    DICE = "dice"
-    PRIVATE = "private"
-    SYSTEM_ACTION_RESULT = "system_action_result"  # 新增：系统产生的行动结果
-    SYSTEM_EVENT = "system_event"              # 新增：系统触发的事件
+    """消息类型枚举 (仅关注内容性质)"""
+    NARRATION = "narration"                 # DM 的叙述性文本
+    DIALOGUE = "dialogue"                   # 角色的对话
+    ACTION_DECLARATION = "action_declaration" # 角色宣告行动
+    WAIT_NOTIFICATION = "wait_notification"   # 角色宣告等待/观察
+    ACTION_RESULT_NARRATIVE = "action_result_narrative" # 行动结果的叙述描述 (来自 DM)
+    ACTION_RESULT_SYSTEM = "action_result_system"     # 行动结果的系统摘要 (来自裁判)
+    EVENT_NOTIFICATION = "event_notification"       # 事件触发的系统通知 (来自裁判/系统)
+    DICE_ROLL = "dice_roll"                   # 掷骰信息 (如果需要)
+    SYSTEM_INFO = "system_info"               # 其他系统消息
+    # 移除了 DM, PLAYER, SYSTEM, ACTION, RESULT, SYSTEM_ACTION_RESULT, SYSTEM_EVENT, PRIVATE
 
 class MessageVisibility(str, Enum):
     """消息可见性枚举"""
@@ -24,14 +34,15 @@ class MessageVisibility(str, Enum):
 class Message(BaseChatMessage):
     """消息模型，表示游戏中的消息，扩展自ChatMessage"""
     message_id: str = Field(..., description="消息ID")
-    content: str = Field(..., description="消息内容") 
-    type: MessageType = Field(..., description="消息类型")
+    content: str = Field(..., description="消息内容")
+    sender_role: SenderRole = Field(..., description="消息发送者角色") # --- 新增 sender_role 字段 ---
+    type: MessageType = Field(..., description="消息类型 (内容性质)") # --- 修改 type 字段描述 ---
     timestamp: str = Field(..., description="时间戳")
     visibility: MessageVisibility = Field(MessageVisibility.PUBLIC, description="消息可见性：广播或私聊")
     recipients: List[str] = Field(..., description="接收者列表，包含可接收此消息的玩家ID列表")
     round_id: int = Field(..., description="回合ID")
     source_id: Optional[str] = Field(None, description="消息来源的唯一ID (例如, agent_id), 如果适用") # 新增 source_id
-    message_subtype: Optional[str] = Field(None, description="消息子类型 (例如, 'dialogue', 'action_description')") # 新增 subtype
+    # message_subtype 字段已移除
     # ChatMessage已经包含metadata字段，我们可以继承使用，不需要重复定义
 
 

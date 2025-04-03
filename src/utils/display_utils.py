@@ -29,9 +29,23 @@ def format_message_display_parts(message: Message) -> Tuple[str, str]:
         elif is_referee_source:
              source_display = "裁判" # Keep source as "裁判" without ID
 
-    # 2. Determine prefix (e.g., "(行动) ")
+    # 2. Determine prefix based on the new MessageType
     prefix = ""
-    if hasattr(message, 'message_subtype') and message.message_subtype == "action_description":
+    # Assuming MessageType and SenderRole are imported or available in scope
+    from src.models.message_models import MessageType, SenderRole # Ensure both are available
+
+    if message.type == MessageType.ACTION_DECLARATION:
         prefix = "(行动) "
+    elif message.type == MessageType.DIALOGUE:
+        prefix = "(对话) "
+    elif message.type == MessageType.WAIT_NOTIFICATION:
+        prefix = "(等待) "
+    # Add prefixes for other types if desired, e.g.:
+    # elif message.type == MessageType.ACTION_RESULT_NARRATIVE:
+    #     prefix = "(结果) "
+    # elif message.type == MessageType.EVENT_NOTIFICATION:
+    #     prefix = "(事件) "
+
+    # No prefix for NARRATION, ACTION_RESULT_SYSTEM, SYSTEM_INFO, DICE_ROLL by default
 
     return source_display, prefix

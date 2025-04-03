@@ -7,7 +7,7 @@ from src.engine.round_phases.base_phase import BaseRoundPhase, PhaseContext
 from src.engine.round_phases.judgement_phase import JudgementOutput # Import the new type alias
 from src.models.action_models import ActionResult, PlayerAction, ActionType # Need PlayerAction for last_active_round check
 from src.models.consequence_models import Consequence, ConsequenceType # Import ConsequenceType for potential filtering if needed
-from src.models.message_models import Message, MessageType, MessageVisibility
+from src.models.message_models import Message, MessageType, MessageVisibility, SenderRole # Import SenderRole
 from src.models.scenario_models import Scenario, EventOutcome # Need Scenario models for consequence extraction
 # Avoid direct GameState import if possible, use Any or TYPE_CHECKING
 from typing import TYPE_CHECKING
@@ -114,8 +114,9 @@ class UpdatePhase(BaseRoundPhase):
             for description in all_change_descriptions:
                 state_update_message = Message(
                     message_id=str(uuid.uuid4()),
-                    type=MessageType.SYSTEM_EVENT,
-                    source="裁判",
+                    sender_role=SenderRole.REFEREE, # 状态更新由裁判/系统触发
+                    type=MessageType.EVENT_NOTIFICATION, # 使用新的类型
+                    source="裁判", # 来源保持为裁判
                     source_id=system_source_id,
                     content=description,
                     timestamp=datetime.now().isoformat(),
