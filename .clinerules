@@ -8,5 +8,4 @@ always answer in chinese.
 -Maintain parameter annotations and return value annotations for Python functions.
 
 ## debug
--log file in logs folder,文件名包含时间
-
+-日志文件在logs\目录下,以debug_YYDDMM_HHMMSS的形式来保存

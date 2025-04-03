@@ -139,13 +139,15 @@ class ActionDeclarationPhase(BaseRoundPhase):
         # 2. 并发执行所有任务并收集结果
         self.logger.info(f"并发执行 {len(tasks)} 个行动决定任务...")
         results: List[Union[PlayerAction, Exception, None]] = await asyncio.gather(*tasks, return_exceptions=True)
-        self.logger.info("所有行动决定任务已完成。")
+        self.logger.info("所有行动决定任务已完成。开始处理并立刻广播结果...")
 
-        # 3. 处理结果并收集有效行动
+        # 3. 处理结果并收集有效行动，【同时立刻广播】
         player_actions: List[PlayerAction] = []
+        all_agent_ids = self.agent_manager.get_all_agent_ids() # 获取一次接收者列表
         for i, result in enumerate(results):
             task_name = tasks[i].get_name() # 获取任务名称以识别角色
             character_id_from_task = task_name.split('_')[-1] # 从任务名提取 character_id
+            processed_action: Optional[PlayerAction] = None # 用于存储处理后的有效行动或默认行动
 
             if isinstance(result, Exception):
                 self.logger.error(f"角色 {character_id_from_task} 的行动任务失败: {result}")
@@ -158,8 +160,10 @@ class ActionDeclarationPhase(BaseRoundPhase):
                     internal_thoughts=f"行动任务执行出错: {result}",
                     timestamp=datetime.now().isoformat()
                 )
+                processed_action = default_action # Assign default action
                 player_actions.append(default_action)
             elif isinstance(result, PlayerAction):
+                processed_action = result # Assign the valid action
                 player_actions.append(result)
             elif result is None:
                  self.logger.warning(f"角色 {character_id_from_task} 的行动任务返回 None。")
@@ -172,38 +176,39 @@ class ActionDeclarationPhase(BaseRoundPhase):
                     internal_thoughts="行动任务返回 None。",
                     timestamp=datetime.now().isoformat()
                  )
+                 processed_action = default_action # Assign default action
                  player_actions.append(default_action)
             else:
                 self.logger.error(f"角色 {character_id_from_task} 的行动任务返回未知类型: {type(result)}")
+                # 也可以创建一个默认行动
+                processed_action = PlayerAction(
+                    character_id=character_id_from_task, action_type=ActionType.WAIT, content="...", target="environment",
+                    internal_thoughts=f"行动任务返回未知类型: {type(result)}", timestamp=datetime.now().isoformat()
+                 )
+                processed_action = default_action # Assign default action # Corrected indentation
 
+            if processed_action:
+                # 【新增】立刻广播这个行动意图
+                # Note: player_actions.append(processed_action) was removed from here as it's already added above.
+                character_state = game_state.characters.get(processed_action.character_id) # game_state is available from outer scope
+                character_name = character_state.name if character_state else processed_action.character_id
+                message_id = str(uuid.uuid4())
+                timestamp = datetime.now().isoformat() # 或者使用 processed_action.timestamp? 考虑一致性. Let's use a new timestamp for broadcast time.
+                message_type = MessageType.PLAYER if processed_action.action_type == ActionType.TALK else MessageType.ACTION
+                message_subtype = "dialogue" if processed_action.action_type == ActionType.TALK else "action_description"
 
-        # 4. 统一广播所有收集到的行动宣告消息
-        self.logger.info(f"收集到 {len(player_actions)} 个行动意图，开始广播...")
-        for player_action in player_actions:
-            character_state = game_state.characters.get(player_action.character_id)
-            character_name = character_state.name if character_state else player_action.character_id
-            message_id = str(uuid.uuid4())
-            timestamp = datetime.now().isoformat() # 使用统一的时间戳或行动各自的时间戳？这里用新的
-            message_type = MessageType.PLAYER if player_action.action_type == ActionType.TALK else MessageType.ACTION
-            message_subtype = "dialogue" if player_action.action_type == ActionType.TALK else "action_description"
+                action_message = Message(
+                    message_id=message_id, type=message_type, source=character_name, source_id=processed_action.character_id,
+                    content=processed_action.content, timestamp=timestamp, visibility=MessageVisibility.PUBLIC,
+                    recipients=all_agent_ids, round_id=self.current_round_id, message_subtype=message_subtype
+                )
+                try:
+                    self.message_dispatcher.broadcast_message(action_message)
+                    self.logger.debug(f"【立刻广播】了角色 {processed_action.character_id} 的行动宣告: {action_message.content[:50]}...")
+                except Exception as broadcast_error:
+                    self.logger.error(f"【立刻广播】角色 {processed_action.character_id} 行动宣告消息时出错: {broadcast_error}")
 
-            action_message = Message(
-                message_id=message_id,
-                type=message_type,
-                source=character_name,
-                source_id=player_action.character_id,
-                content=player_action.content,
-                timestamp=timestamp,
-                visibility=MessageVisibility.PUBLIC,
-                recipients=all_agent_ids,
-                round_id=self.current_round_id,
-                message_subtype=message_subtype
-            )
-            try:
-                self.message_dispatcher.broadcast_message(action_message)
-                self.logger.debug(f"广播了角色 {player_action.character_id} 的行动宣告: {action_message.content[:50]}...")
-            except Exception as broadcast_error:
-                self.logger.error(f"广播角色 {player_action.character_id} 行动宣告消息时出错: {broadcast_error}")
+        # 4. 【移除】原有的统一广播逻辑
 
-        self.logger.info(f"--- 结束行动宣告阶段 (并行)，共处理 {len(player_actions)} 个行动意图 ---")
+        self.logger.info(f"--- 结束行动宣告阶段 (立刻广播)，共处理 {len(player_actions)} 个行动意图 ---")
         return player_actions

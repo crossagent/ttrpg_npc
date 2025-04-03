@@ -66,10 +66,10 @@ class ActionOption(BaseModel):
 class PlayerAction(BaseModel):
     """玩家行动模型，表示玩家在回合中采取的行动"""
     character_id: str = Field(..., description="玩家ID")
-    interal_thoughts: Optional[InternalThoughts] = Field(None, description="行动背后的内心活动")
+    internal_thoughts: Optional[InternalThoughts] = Field(None, description="行动背后的内心活动") # 修正拼写错误
     action_type: ActionType = Field(..., description="行动类型")
     content: str = Field(..., description="行动内容")
-    target: Union[str, List[str]] = Field(..., description="行动目标，可以是单个角色ID或多个角色ID列表")
+    target: Optional[Union[str, List[str]]] = Field(None, description="行动目标，可以是单个角色ID、多个角色ID列表或None") # 允许None并设为可选
 
 
 
