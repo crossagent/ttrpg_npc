@@ -9,10 +9,7 @@ from src.models.action_models import ActionResult, PlayerAction, ActionType # Ne
 from src.models.consequence_models import Consequence, ConsequenceType # Import ConsequenceType for potential filtering if needed
 from src.models.message_models import Message, MessageType, MessageVisibility, SenderRole # Import SenderRole
 from src.models.scenario_models import Scenario, EventOutcome # Need Scenario models for consequence extraction
-# Avoid direct GameState import if possible, use Any or TYPE_CHECKING
-from typing import TYPE_CHECKING
-if TYPE_CHECKING:
-    from src.models.game_state_models import GameState
+from src.models.game_state_models import GameState
 
 
 class UpdatePhase(BaseRoundPhase):

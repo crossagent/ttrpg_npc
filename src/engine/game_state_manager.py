@@ -1,10 +1,6 @@
+import json # Import json for saving/loading
+import os   # Import os for path
 from typing import List, Dict, Any, Optional
-from datetime import datetime
-import uuid
-import logging # Add logging import
-from operator import add, sub, mul, truediv # For attribute updates
-
-from typing import List, Dict, Any, Optional, TYPE_CHECKING # Import TYPE_CHECKING
 from datetime import datetime
 import uuid
 import logging # Add logging import
@@ -13,20 +9,16 @@ from operator import add, sub, mul, truediv # For attribute updates
 from src.models.game_state_models import (
     GameState, CharacterInstance,
     EnvironmentStatus, EventInstance, ProgressStatus,
-    LocationStatus, ItemStatus, ItemInstance # Add ItemInstance
+    LocationStatus, ItemInstance # Add ItemInstance
 )
 from src.models.scenario_models import Scenario, StoryStage # Import StoryStage
-from src.models.context_models import StateChanges, Inconsistency, StateUpdateRequest
-from src.models.action_models import ItemQuery, ItemResult
+from src.models.context_models import StateChanges, Inconsistency
+from src.models.action_models import ItemResult
 from src.models.consequence_models import Consequence, ConsequenceType # Import Consequence models
-from src.communication.message_dispatcher import MessageDispatcher # Import MessageDispatcher
-from src.models.message_models import Message, MessageType, MessageVisibility # Import Message models for broadcasting
 import uuid # Import uuid for message IDs
 from datetime import datetime # Import datetime for timestamps
 
-# Use TYPE_CHECKING to avoid circular imports at runtime
-if TYPE_CHECKING:
-    from src.engine.scenario_manager import ScenarioManager
+from src.engine.scenario_manager import ScenarioManager
 
 
 class GameStateManager:
@@ -106,7 +98,7 @@ class GameStateManager:
         game_state = GameState(
             game_id=game_id,
             scenario_id=scenario.story_info.id,
-            scenario=scenario, # Keep scenario reference for now, though ideally accessed via manager
+            # scenario=scenario, # Removed direct scenario reference
             environment=environment,
             progress=progress
         )
@@ -204,7 +196,8 @@ class GameStateManager:
             if available_item_ids and isinstance(available_item_ids, list):
                 for item_id in available_item_ids:
                     if isinstance(item_id, str): # Ensure it's a string ID
-                        item_definition = game_state.scenario.items.get(item_id) if game_state.scenario and game_state.scenario.items else None
+                        # Use ScenarioManager to get item definition
+                        item_definition = self.scenario_manager.get_item_info(item_id)
                         if item_definition:
                             # Assuming default quantity 1 for items initially present in locations
                             item_instances.append(ItemInstance(item_id=item_id, name=item_definition.name, quantity=1))
@@ -466,8 +459,8 @@ class GameStateManager:
                 self.logger.info(description)
                 return description # Return the description string
             else:
-                # Check if item definition exists in scenario (optional but good practice)
-                item_def = game_state.scenario.items.get(cons.item_id) if game_state.scenario and game_state.scenario.items else None
+                # Check if item definition exists in scenario using ScenarioManager
+                item_def = self.scenario_manager.get_item_info(cons.item_id)
                 if not item_def:
                      self.logger.warning(f"ADD_ITEM 警告：尝试添加未在剧本中定义的物品 '{cons.item_id}' 到角色 '{cons.target_entity_id}' ({character_instance.name})。")
                      # Decide whether to proceed or fail. Let's proceed for now.
@@ -487,7 +480,8 @@ class GameStateManager:
                 existing_item.quantity += quantity
                 self.logger.info(f"物品更新：地点 '{cons.target_entity_id}' 的物品 '{cons.item_id}' 数量增加 {quantity}，当前数量: {existing_item.quantity}。")
             else:
-                item_def = game_state.scenario.items.get(cons.item_id) if game_state.scenario and game_state.scenario.items else None
+                # Use ScenarioManager to get item definition
+                item_def = self.scenario_manager.get_item_info(cons.item_id)
                 if not item_def:
                      self.logger.warning(f"ADD_ITEM 警告：尝试添加未在剧本中定义的物品 '{cons.item_id}' 到地点 '{cons.target_entity_id}'。")
 
@@ -814,8 +808,10 @@ class GameStateManager:
         根据当前阶段更新活动事件列表 (game_state.active_event_ids)。
         事件的激活通常由其 `activation_stage_id` 决定。
         """
-        if not self.game_state or not self.game_state.scenario or not self.game_state.scenario.events:
-            self.logger.warning("无法更新活动事件：游戏状态或剧本事件列表缺失。")
+        # Get scenario from ScenarioManager
+        scenario = self.scenario_manager.get_current_scenario()
+        if not self.game_state or not scenario or not scenario.events:
+            self.logger.warning("无法更新活动事件：游戏状态或剧本/事件列表缺失。")
             if self.game_state: self.game_state.active_event_ids = [] # Clear active events if state exists but scenario doesn't
             return
 
@@ -823,7 +819,8 @@ class GameStateManager:
         new_active_event_ids = []
 
         self.logger.debug(f"开始根据当前阶段 '{current_stage_id}' 更新活动事件...")
-        for event in self.game_state.scenario.events:
+        # Iterate through events from the scenario obtained from the manager
+        for event in scenario.events:
             # 检查事件是否应该在当前阶段激活
             # 假设事件模型有一个 'activation_stage_id' 字段
             activation_stage = getattr(event, 'activation_stage_id', None)
@@ -865,3 +862,66 @@ class GameStateManager:
             return []
         return [char_id for char_id, char_instance in self.game_state.characters.items()
                 if char_instance.location == location_id]
+
+    # +++ 新增保存和加载状态的方法 +++
+    def save_state(self, file_path: str):
+        """
+        将当前游戏状态（不含聊天记录）保存到 JSON 文件。
+
+        Args:
+            file_path: 保存文件的路径。
+        """
+        if not self.game_state:
+            self.logger.error("无法保存状态：游戏状态未初始化。")
+            return
+
+        try:
+            # 确保目录存在
+            os.makedirs(os.path.dirname(file_path), exist_ok=True)
+            # 使用 Pydantic 的 model_dump_json 进行序列化
+            state_json = self.game_state.model_dump_json(indent=4)
+            with open(file_path, 'w', encoding='utf-8') as f:
+                f.write(state_json)
+            self.logger.info(f"游戏状态已保存到: {file_path}")
+        except Exception as e:
+            self.logger.exception(f"保存游戏状态到 '{file_path}' 时出错: {e}")
+
+    def load_state(self, file_path: str) -> bool:
+        """
+        从 JSON 文件加载游戏状态（不含聊天记录）。
+
+        Args:
+            file_path: 加载文件的路径。
+
+        Returns:
+            bool: 如果加载成功则返回 True，否则返回 False。
+        """
+        if not os.path.exists(file_path):
+            self.logger.error(f"加载状态失败：文件未找到 '{file_path}'。")
+            return False
+
+        try:
+            with open(file_path, 'r', encoding='utf-8') as f:
+                state_json = f.read()
+            # 使用 Pydantic 的 model_validate_json 进行反序列化和验证
+            loaded_state = GameState.model_validate_json(state_json)
+            
+            # 验证加载的 scenario_id 是否与 ScenarioManager 中的一致
+            current_scenario = self.scenario_manager.get_current_scenario()
+            if not current_scenario or loaded_state.scenario_id != current_scenario.story_info.id:
+                 self.logger.warning(f"加载状态警告：加载的剧本ID '{loaded_state.scenario_id}' 与 ScenarioManager 当前加载的剧本ID '{current_scenario.story_info.id if current_scenario else 'None'}' 不匹配。请确保加载了正确的剧本。")
+                 # 可以选择在这里停止加载或继续，取决于设计决策
+                 # return False # Example: Stop loading if scenario mismatch
+
+            self.game_state = loaded_state
+            self.logger.info(f"游戏状态已从 '{file_path}' 加载。")
+            # 加载后可能需要重新初始化某些运行时状态或检查一致性
+            # 例如，重新计算活动事件
+            self.update_active_events()
+            return True
+        except json.JSONDecodeError:
+            self.logger.error(f"加载状态失败：文件 '{file_path}' 格式错误。")
+            return False
+        except Exception as e: # Catch Pydantic validation errors and others
+            self.logger.exception(f"加载游戏状态从 '{file_path}' 时发生错误: {e}")
+            return False

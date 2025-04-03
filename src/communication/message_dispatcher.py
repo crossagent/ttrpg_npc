@@ -1,8 +1,13 @@
 from typing import List, Dict, Any, Optional
 from datetime import datetime
 import uuid
+import logging # Import logging
 
 from src.models.message_models import Message, MessageVisibility
+# Direct imports instead of TYPE_CHECKING
+from src.engine.game_state_manager import GameStateManager
+from src.engine.agent_manager import AgentManager
+from src.engine.chat_history_manager import ChatHistoryManager
 
 
 class MessageDispatcher:
@@ -10,17 +15,23 @@ class MessageDispatcher:
     消息分发器类，负责处理游戏中的所有消息分发，确保消息按照可见性正确传递。
     """
     
-    def __init__(self, game_state=None, agent_manager=None):
+    def __init__(self, 
+                 game_state_manager: GameStateManager, # Remove quotes
+                 agent_manager: AgentManager,       # Remove quotes
+                 chat_history_manager: ChatHistoryManager): # Remove quotes
         """
         初始化消息分发器
         
         Args:
-            game_state: 游戏状态，用于存储全局消息历史
-            agent_manager: Agent管理器，用于获取Agent实例
+            game_state_manager: 游戏状态管理器实例
+            agent_manager: Agent管理器实例
+            chat_history_manager: 聊天记录管理器实例
         """
-        self.game_state = game_state
+        self.game_state_manager = game_state_manager
         self.agent_manager = agent_manager
+        self.chat_history_manager = chat_history_manager
         self.message_handlers = {}  # 消息处理器字典，键为消息类型
+        self.logger = logging.getLogger(__name__) # Add logger
     
     def broadcast_message(self, message: Message) -> List[str]:
         """
@@ -36,9 +47,9 @@ class MessageDispatcher:
         if not message.message_id:
             message.message_id = self.create_message_id()
             
-        # 将消息添加到全局历史
-        if self.game_state:
-            self.game_state.chat_history.append(message)
+        # --- 移除将消息添加到 game_state.chat_history ---
+        # if self.game_state:
+        #     self.game_state.chat_history.append(message)
             
         successful_recipients = []
         
@@ -64,8 +75,18 @@ class MessageDispatcher:
         # 调用相应的消息处理器
         if message.type in self.message_handlers:
             for handler in self.message_handlers[message.type]:
-                handler(message)
-                    
+                try:
+                    handler(message)
+                except Exception as e:
+                    self.logger.exception(f"执行消息处理器 {handler.__name__} 时出错: {e}")
+
+        # --- 添加消息到 ChatHistoryManager ---
+        try:
+            current_round = self.game_state_manager.get_state().round_number
+            self.chat_history_manager.add_message(current_round, message)
+        except Exception as e:
+            self.logger.exception(f"添加消息到 ChatHistoryManager 时出错: {e}")
+            
         return successful_recipients
     
     def send_private_message(self, message: Message, recipient_id: str) -> bool:
@@ -109,13 +130,13 @@ class MessageDispatcher:
         Returns:
             List[Message]: 消息历史列表
         """
-        if not self.game_state or not self.game_state.chat_history:
+        # --- 从 ChatHistoryManager 获取所有消息 ---
+        history = self.chat_history_manager.get_all_messages()
+        
+        if not history:
             return []
             
-        # 获取全局消息历史
-        history = self.game_state.chat_history
-        
-        # 如果指定了Agent ID，过滤出该Agent可见的消息
+        # 如果指定了Agent ID，过滤出该Agent可见的消息 (过滤逻辑保持不变)
         if agent_id and self.agent_manager:
             agent = self.agent_manager.get_agent(agent_id)
             if agent:

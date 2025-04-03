@@ -14,6 +14,7 @@ from src.engine.agent_manager import AgentManager
 from src.engine.game_state_manager import GameStateManager
 from src.engine.scenario_manager import ScenarioManager
 from src.engine.round_manager import RoundManager
+from src.engine.chat_history_manager import ChatHistoryManager # Import ChatHistoryManager
 from src.models.message_models import Message, MessageType
 from src.utils.display_utils import format_message_display_parts # Import the new util function
 from src.io.input_handler import UserInputHandler # Import UserInputHandler
@@ -138,14 +139,19 @@ class GameEngine:
 
             # 创建代理管理器 (必须在 game_state.player_character_id 设置之后)
             agent_manager = AgentManager(
-                game_state=game_state
+                game_state=game_state,
+                scenario_manager=scenario_manager # Pass scenario_manager here
             )
             agent_manager.initialize_agents_from_characters(scenario)
 
-            # 初始化通信组件
+            # 初始化聊天记录管理器 (可以考虑添加保存路径)
+            chat_history_manager = ChatHistoryManager() # Instantiate ChatHistoryManager
+
+            # 初始化通信组件 (传入 game_state_manager 和 chat_history_manager)
             message_dispatcher = MessageDispatcher(
-                game_state=game_state,
-                agent_manager=agent_manager
+                game_state_manager=game_state_manager, # Pass manager
+                agent_manager=agent_manager,
+                chat_history_manager=chat_history_manager # Pass chat history manager
             )
             self.message_dispatcher = message_dispatcher # Store reference
 
@@ -297,16 +303,15 @@ class GameEngine:
         显示全局聊天历史
         """
         # Assuming self.round_manager.game_state_manager.get_state() provides state
-        # Or better, access via self.round_manager.message_dispatcher if it stores history
-        # Let's assume dispatcher holds the full history for now
-        if not self.message_dispatcher:
-             no_history_msg = "全局聊天历史不可用 (无分发器)"
+        # Access history via the ChatHistoryManager stored in the dispatcher
+        if not self.message_dispatcher or not hasattr(self.message_dispatcher, 'chat_history_manager'):
+             no_history_msg = "全局聊天历史不可用 (无聊天记录管理器)"
              print(yellow_text(no_history_msg))
              # Removed log writing
              return
 
-        # Assuming get_message_history without player_id returns all messages
-        all_messages = self.message_dispatcher.get_message_history()
+        # Get all messages directly from the ChatHistoryManager
+        all_messages = self.message_dispatcher.chat_history_manager.get_all_messages()
 
         if not all_messages:
             no_history_msg = "全局聊天历史不可用或为空"

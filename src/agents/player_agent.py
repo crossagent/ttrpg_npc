@@ -16,6 +16,7 @@ from src.models.context_models import ActionOptionsLLMOutput # Now this should w
 from autogen_agentchat.agents import AssistantAgent
 from autogen_agentchat.messages import TextMessage
 from autogen_core import CancellationToken
+from src.engine.scenario_manager import ScenarioManager # Import ScenarioManager
 
 # Assume BaseAgent initializes self.logger or get logger here
 logger = logging.getLogger(__name__) # Or use self.logger if available from BaseAgent
@@ -26,17 +27,19 @@ class PlayerAgent(BaseAgent):
     主要职责是根据当前游戏状态为玩家生成可选的行动。
     实际的行动由玩家从选项中选择，并通过外部机制（如UI）传递给裁判。
     """
-    def __init__(self, agent_id: str, agent_name: str, character_id: str, model_client=None):
+    def __init__(self, agent_id: str, agent_name: str, character_id: str, scenario_manager: ScenarioManager, model_client=None): # Add scenario_manager
         """
         初始化玩家 Agent
         Args:
             agent_id: Agent 唯一标识符
             agent_name: Agent 名称
             character_id: 对应的角色 ID
+            scenario_manager: ScenarioManager 实例 # Add scenario_manager doc
             model_client: 模型客户端
         """
         super().__init__(agent_id=agent_id, agent_name=agent_name, model_client=model_client)
         self.character_id = character_id
+        self.scenario_manager = scenario_manager # Store scenario_manager
         # PlayerAgent might not need complex message memory like CompanionAgent,
         # but basic context handling might still be useful.
         # Ensure logger is available (assuming BaseAgent provides it)
@@ -66,7 +69,9 @@ class PlayerAgent(BaseAgent):
         # Extract relevant game state info for the prompt
         # Correctly get location from characters
         current_location_id = game_state.characters[self.character_id].location
-        current_location_desc = game_state.scenario.locations.get(current_location_id, LocationInfo(description="未知地点")).description if game_state.scenario.locations else "未知地点"
+        # Use ScenarioManager to get location description
+        location_info = self.scenario_manager.get_location_info(current_location_id)
+        current_location_desc = location_info.description if location_info else "未知地点"
         # Correctly check location in characters for visible characters
         visible_characters = [
             f"{char_instance.name} ({char_instance.public_identity})" # Use char_instance from game_state.characters

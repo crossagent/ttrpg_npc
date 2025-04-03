@@ -9,10 +9,8 @@ from src.models.action_models import PlayerAction, ActionResult, ActionType
 from src.models.message_models import Message, MessageType, MessageVisibility, SenderRole # Import SenderRole
 from src.models.scenario_models import Scenario # Ensure Scenario is imported for type hinting
 from src.models.consequence_models import ConsequenceType # Import ConsequenceType
-# Avoid direct GameState import if possible, use Any or TYPE_CHECKING
-from typing import TYPE_CHECKING
-if TYPE_CHECKING:
-    from src.models.game_state_models import GameState
+
+from src.models.game_state_models import GameState
 
 
 # Define a type alias for the return value of execute

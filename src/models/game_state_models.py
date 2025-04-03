@@ -11,23 +11,8 @@ class MessageReadMemory(BaseModel):
     player_id: str = Field(..., description="玩家ID")
     history_messages: Dict[str, MessageStatus] = Field(default_factory=dict, description="可见的消息状态，键为消息ID")
 
-# --- 移除 CharacterStatus ---
-# class CharacterStatus(BaseModel):
-#     """角色状态模型，表示角色的当前状态"""
-#     character_id: str = Field(..., description="角色ID")
-#     location: str = Field(..., description="当前位置")
-#     health: int = Field(100, description="健康值")
-#     items: List['ItemInstance'] = Field(default_factory=list, description="拥有的物品实例列表") # Updated type hint
-#     known_information: Optional[List[str]] = Field(default_factory=list, description="已知信息，None表示未确定")
 
-class LocationStatus(BaseModel):
-    """角色状态模型，表示角色的当前状态"""
-    character_id: str = Field(..., description="角色ID")
-    location: str = Field(..., description="当前位置")
-    health: int = Field(100, description="健康值")
-    items: List['ItemInstance'] = Field(default_factory=list, description="拥有的物品实例列表") # Updated type hint
-    known_information: Optional[List[str]] = Field(default_factory=list, description="已知信息，None表示未确定")
-
+# 正确的 LocationStatus 定义
 class LocationStatus(BaseModel):
     """位置状态模型，跟踪地点当前状态"""
     location_id: str = Field(..., description="地点ID")
@@ -46,13 +31,7 @@ class ItemInstance(BaseModel):
     # durability: Optional[int] = None
     # effects: List[str] = Field(default_factory=list)
 
-class ItemStatus(BaseModel):
-    """物品状态模型，跟踪物品当前状态"""
-    item_id: str = Field(..., description="物品ID")
-    current_location: str = Field(..., description="当前位置(可以是地点ID或角色ID)")
-    is_hidden: bool = Field(True, description="是否隐藏")
-    condition: str = Field("完好", description="物品状态")
-    discovered_by: Optional[List[str]] = Field(default_factory=list, description="已被哪些角色发现，None表示未确定")
+# --- 移除 ItemStatus ---
 
 class EventInstance(BaseModel):
     """事件实例模型，表示游戏中的运行时事件实例"""
@@ -98,8 +77,7 @@ class CharacterInstance(BaseModel):
     public_identity: str = Field(..., description="对应剧本角色ID")
     name: str = Field(..., description="角色名称")
     player_controlled: bool = Field(False, description="是否由玩家控制")
-    # status: CharacterStatus = Field(..., description="角色状态") # --- 移除 status ---
-    # +++ 添加新字段 +++
+    # +++ 角色核心状态直接在此定义 +++
     attributes: AttributeSet = Field(..., description="角色属性")
     skills: SkillSet = Field(..., description="角色技能")
     health: int = Field(100, description="健康值")
@@ -110,7 +88,7 @@ class CharacterInstance(BaseModel):
 class GameState(BaseModel):
     """完整游戏状态模型，表示游戏的当前状态"""
     game_id: str = Field(..., description="游戏实例ID")
-    scenario_id: str = Field(..., description="使用的剧本ID")
+    # scenario_id: str = Field(..., description="使用的剧本ID") # 移除旧的，保留下面新增的
     player_character_id: Optional[str] = Field(None, description="玩家选择控制的角色ID") # 新增字段
     round_number: int = Field(0, description="当前回合数")
     max_rounds: int = Field(10, description="最大回合数")
@@ -126,18 +104,18 @@ class GameState(BaseModel):
     environment: EnvironmentStatus = Field(..., description="环境状态")
     
     # 游戏实例状态 - 所有元素都是实例状态，而非模板
-    scenario: Optional[Scenario] = Field(None, description="使用的剧本实例")
+    # scenario: Optional[Scenario] = Field(None, description="使用的剧本实例") # 改为 scenario_id
+    scenario_id: str = Field(..., description="使用的剧本ID (用于加载完整剧本)") # 新增字段
     characters: Dict[str, CharacterInstance] = Field(default_factory=dict, description="角色引用字典，键为角色ID")
-    # character_states: Dict[str, CharacterStatus] = Field(default_factory=dict, description="角色状态字典，键为角色ID") # --- 移除 character_states ---
     location_states: Dict[str, LocationStatus] = Field(default_factory=dict, description="位置状态字典，键为位置ID")
-    item_states: Dict[str, ItemStatus] = Field(default_factory=dict, description="物品状态字典，键为物品ID")
+    # item_states: Dict[str, ItemStatus] = Field(default_factory=dict, description="物品状态字典，键为物品ID") # --- 移除 item_states ---
     event_instances: Dict[str, EventInstance] = Field(default_factory=dict, description="事件实例字典，键为实例ID")
     active_event_ids: List[str] = Field(default_factory=list, description="当前激活的、等待玩家或环境触发的事件ID列表")
     
     # 叙事 Flags
     flags: Dict[str, bool] = Field(default_factory=dict, description="Stores the boolean state of narrative flags.")
 
-    # 游戏交互历史
-    chat_history: List[Message] = Field(default_factory=list, description="完整消息历史记录列表")
+    # 游戏交互历史 (已移除，将由独立机制管理)
+    # chat_history: List[Message] = Field(default_factory=list, description="完整消息历史记录列表")
     revealed_secrets: List[str] = Field(default_factory=list, description="已揭示的秘密")
     character_internal_thoughts: Dict[str, InternalThoughts] = Field(default_factory=dict, description="角色的心理活动记录，键为角色ID")

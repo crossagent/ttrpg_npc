@@ -19,13 +19,16 @@
         *   **RefereeAgent (裁判代理)**: 负责判定 Agent 行动的直接**属性后果**（将利用 `CharacterInstance` 中的属性/技能进行更细致的判定），并在回合评估阶段根据剧本和当前状态判断**活跃事件**是否触发。**不直接设置 Flag**，Flag 只能由事件后果设置。由 `AgentManager` 在初始化时创建。
         *   **普通 NPC**: 对应剧本中 `is_playable=False` 的角色。没有对应的 Agent 实例。其行为由 `NarrativeAgent` 描述或由 `RefereeAgent` 在处理后果时触发。
 *   **游戏状态管理器 (Game State Manager)**:
-    *   **职责**: 存储和管理游戏世界状态（通过包含运行时属性/技能的 `CharacterInstance` 模型管理角色状态、环境、物品、事件进展、叙事 Flags 等），应用结构化后果（包括对角色属性/技能的修改），并处理游戏阶段的检查与推进（基于 Flags）。
+    *   **职责**: 存储和管理核心游戏世界状态（角色实例、环境、物品、事件实例、进度、Flags 等，**不包含**完整的剧本对象和聊天记录）。提供状态的保存和加载接口。应用结构化后果。处理阶段检查与推进。
     *   **模式**: 单一事实来源 (Single Source of Truth)，数据库模式。确保状态更新的原子性。
 *   **剧本管理器 (Scenario Manager)**:
-    *   **职责**: 管理结构化剧本内容（主线、支线、事件、场景、包含基础属性/技能的 NPC 模板等）。实现“结构化的自由叙事”。
-    *   **模式**: 内容管理系统 (CMS) / 剧本引擎。包含阶段推进 (`completion_criteria`) 和事件后果 (`consequence`) 的结构化定义。
+    *   **职责**: 加载、存储和提供对当前游戏剧本（`Scenario` 对象）及其内部结构（角色模板、地点、物品、事件定义、故事结构等）的访问。
+    *   **模式**: 内容管理系统 (CMS) / 剧本引擎。
+*   **聊天记录管理器 (Chat History Manager)**: (新增模块)
+    *   **职责**: 独立于 `GameState`，按回合 (`round_number`) 存储和检索所有游戏消息 (`Message`)。提供历史记录的保存和加载接口。
+    *   **模式**: 历史记录存储。
 *   **消息分发器 (Message Dispatcher)**:
-    *   **职责**: 路由和分发消息，处理可见性过滤，连接逻辑层与展现层，管理消息历史。
+    *   **职责**: 路由和分发消息给对应的 Agent，处理可见性过滤。**将已分发的消息记录到 `ChatHistoryManager`**。
     *   **模式**: 发布/订阅模式 (Publish/Subscribe)，消息队列。
 *   **上下文构建器 (Context Builders)**:
     *   **职责**: 将结构化数据格式化为自然语言 或 LLM Prompt。
@@ -48,10 +51,12 @@
         *   **应用事件后果**: `GameStateManager` 根据触发事件的结局，应用其后果（**这是唯一设置 Flag 的地方**，也可能包含属性/技能修改）。
         *   **检查阶段推进**: `GameStateManager` 检查 `GameState.flags` 是否满足当前阶段的完成条件。
         *   广播状态变更消息。(`update_phase.py`)
-*   **状态驱动**: Agent 的行动宣告、裁判的判定（基于 `CharacterInstance` 的属性/技能）、以及状态更新都基于当前游戏状态 (`GameState`，包含 `flags` 和更新后的 `CharacterInstance`)。
-*   **消息驱动**: 模块间通过消息分发器进行通信，广播行动宣告、判定结果（区分属性和事件）、状态更新等信息。
-*   **LLM 集成**: `NarrativeAgent` (叙事阶段)、`PlayerAgent`/`CompanionAgent` (行动宣告阶段)、`RefereeAgent` (判定阶段) 利用 LLM 进行生成、思考和判断，上下文由构建器提供（包含角色属性/技能信息）。
-*   **结构化自由**: 剧本管理器提供包含基础属性/技能的角色模板和 `ScenarioEvent`。`RefereeAgent` 在回合评估时判断事件触发，`GameStateManager` 在更新时检查阶段完成条件（基于 Flag）。
+*   **状态驱动**: Agent 的行动宣告、裁判的判定、以及状态更新都基于当前核心游戏状态 (`GameState`)。
+*   **剧本访问**: 需要剧本静态信息（如地点描述、物品定义）的组件（如 Context Builders, GameStateManager）通过 `ScenarioManager` 获取，使用 `GameState.scenario_id` 作为索引。
+*   **消息驱动**: 模块间通过 `MessageDispatcher` 进行通信。`MessageDispatcher` 将消息分发给相关 Agent，并调用 `ChatHistoryManager` 按回合记录消息。
+*   **聊天记录访问**: 需要历史消息（如用于 LLM 上下文）的组件通过 `ChatHistoryManager` 按需获取指定回合范围的消息。
+*   **LLM 集成**: 各 Agent 利用 LLM 进行生成、思考和判断，上下文由构建器提供（包含角色属性/技能信息，以及从 `ChatHistoryManager` 获取的相关历史消息）。
+*   **结构化自由**: `ScenarioManager` 提供结构化剧本内容。`RefereeAgent` 判断事件触发，`GameStateManager` 检查阶段完成条件。
 *   **游戏推进逻辑 (阶段化)**:
     *   **行动宣告阶段**: 收集意图。
     *   **判定阶段**: `RefereeAgent` 先利用角色属性/技能判定行动的属性后果，再判断事件触发。

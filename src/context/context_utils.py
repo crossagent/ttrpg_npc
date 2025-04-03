@@ -5,6 +5,8 @@ from typing import List, Dict, Any
 from src.models.message_models import Message
 from src.models.game_state_models import CharacterInstance, GameState
 
+from src.engine.scenario_manager import ScenarioManager
+
 def format_messages(messages: List[Message]) -> str:
     """
     格式化消息列表为文本
@@ -50,7 +52,7 @@ def format_location_list(locations: Dict[str, Any]) -> str:
     
     return ", ".join(locations.keys())
 
-def format_environment_info(game_state:GameState) -> str:
+def format_environment_info(game_state: GameState, scenario_manager: 'ScenarioManager') -> str:
     """
     格式化当前环境信息为文本
     
@@ -68,10 +70,10 @@ def format_environment_info(game_state:GameState) -> str:
     
     # 获取当前位置信息
     location_description = "未知位置"
-    if game_state.scenario and game_state.scenario.locations and current_location_id in game_state.scenario.locations:
-        location_info = game_state.scenario.locations.get(current_location_id)
-        if location_info:
-            location_description = location_info.description
+    # Use ScenarioManager to get location info
+    location_info = scenario_manager.get_location_info(current_location_id)
+    if location_info:
+        location_description = location_info.description
         
         # 如果有位置状态变化，添加到描述中
         location_obj = game_state.location_states.get(current_location_id)
@@ -86,7 +88,7 @@ def format_environment_info(game_state:GameState) -> str:
            f"氛围: {env.atmosphere}\n" \
            f"光照: {env.lighting}"
 
-def format_current_stage_summary(game_state:GameState) -> str:
+def format_current_stage_summary(game_state: GameState, scenario_manager: 'ScenarioManager') -> str:
     """
     格式化当前章节剧情大纲为文本
     
@@ -96,11 +98,12 @@ def format_current_stage_summary(game_state:GameState) -> str:
     Returns:
         str: 格式化后的章节剧情大纲文本
     """
-    if not game_state or not game_state.progress or not game_state.scenario or not game_state.scenario.story_structure:
+    scenario = scenario_manager.get_current_scenario()
+    if not game_state or not game_state.progress or not scenario or not scenario.story_structure:
         return "章节信息不可用"
     
     progress = game_state.progress
-    story_structure = game_state.scenario.story_structure
+    story_structure = scenario.story_structure # Get from scenario object via manager
     
     current_chapter_id = progress.current_chapter_id
     current_section_id = progress.current_section_id
@@ -131,11 +134,11 @@ def format_current_stage_summary(game_state:GameState) -> str:
     summary = f"章节: {current_chapter.name} - {current_chapter.description}\n" \
               f"小节: {current_section.name} - {current_section.description}\n" \
               f"阶段: {current_stage.name} - {current_stage.description}\n" \
-              f"目标: {current_stage.objective}"
+               f"目标: {current_stage.objective}"
     
     return summary
 
-def format_current_stage_characters(game_state:GameState) -> str:
+def format_current_stage_characters(game_state: GameState, scenario_manager: 'ScenarioManager') -> str:
     """
     格式化当前阶段相关角色的公开信息为文本
     
@@ -145,12 +148,13 @@ def format_current_stage_characters(game_state:GameState) -> str:
     Returns:
         str: 格式化后的角色公开信息文本
     """
-    if not game_state or not game_state.progress or not game_state.scenario or not game_state.scenario.story_structure:
+    scenario = scenario_manager.get_current_scenario()
+    if not game_state or not game_state.progress or not scenario or not scenario.story_structure:
         return "角色信息不可用"
     
     # 获取当前阶段
     progress = game_state.progress
-    story_structure = game_state.scenario.story_structure
+    story_structure = scenario.story_structure # Get from scenario object via manager
     
     current_chapter_id = progress.current_chapter_id
     current_section_id = progress.current_section_id
@@ -185,12 +189,11 @@ def format_current_stage_characters(game_state:GameState) -> str:
         
         # 直接访问location属性而不是通过status
         if hasattr(char_instance, 'location') and char_instance.location:
-            # 获取位置名称
+            # 获取位置名称 using ScenarioManager
             location_name = char_instance.location
-            if game_state.scenario.locations and char_instance.location in game_state.scenario.locations:
-                location_obj = game_state.scenario.locations.get(char_instance.location)
-                if location_obj and hasattr(location_obj, 'name'):
-                    location_name = location_obj.name
+            location_obj = scenario_manager.get_location_info(char_instance.location)
+            if location_obj and hasattr(location_obj, 'name'):
+                location_name = location_obj.name
             
             char_info += f"  当前位置: {location_name}\n"
         
@@ -205,7 +208,7 @@ def format_current_stage_characters(game_state:GameState) -> str:
     
     return "\n".join(character_info_list)
 
-def format_current_stage_locations(game_state:GameState) -> str:
+def format_current_stage_locations(game_state: GameState, scenario_manager: 'ScenarioManager') -> str:
     """
     格式化当前阶段关联的地点信息为文本
     
@@ -215,11 +218,12 @@ def format_current_stage_locations(game_state:GameState) -> str:
     Returns:
         str: 格式化后的地点信息文本
     """
-    if not game_state or not game_state.progress or not game_state.scenario:
+    scenario = scenario_manager.get_current_scenario()
+    if not game_state or not game_state.progress or not scenario or not scenario.story_structure:
         return "地点信息不可用"
     
     progress = game_state.progress
-    story_structure = game_state.scenario.story_structure
+    story_structure = scenario.story_structure # Get from scenario object via manager
     
     # 查找当前阶段
     current_chapter_id = progress.current_chapter_id
@@ -245,9 +249,8 @@ def format_current_stage_locations(game_state:GameState) -> str:
     # 获取地点详细信息
     location_details = []
     for loc_id in current_stage.locations:
-        location_info = None
-        if game_state.scenario.locations and loc_id in game_state.scenario.locations:
-            location_info = game_state.scenario.locations.get(loc_id)
+        # Use ScenarioManager to get location info
+        location_info = scenario_manager.get_location_info(loc_id)
         
         # 获取位置状态信息
         location_state = ""
@@ -269,7 +272,7 @@ def format_current_stage_locations(game_state:GameState) -> str:
     return "\n".join(location_details)
 
 
-def format_trigger_condition(conditions: List[Dict[str, Any]], game_state) -> str:
+def format_trigger_condition(conditions: List[Dict[str, Any]], game_state: GameState, scenario_manager: 'ScenarioManager') -> str:
     """
     将结构化的触发条件列表转换为自然语言描述。
 
@@ -308,13 +311,13 @@ def format_trigger_condition(conditions: List[Dict[str, Any]], game_state) -> st
                     return "玩家" # Fallback
             elif game_state.characters and ent_id in game_state.characters:
                 return f"角色'{game_state.characters[ent_id].name}'({ent_id})"
-            elif game_state.items and ent_id in game_state.items:
-                 # Assuming items have a 'name' attribute in scenario.items
-                 item_info = game_state.scenario.items.get(ent_id) if game_state.scenario else None
+            # Use ScenarioManager to get item info
+            elif scenario_manager.get_item_info(ent_id):
+                 item_info = scenario_manager.get_item_info(ent_id)
                  return f"物品'{getattr(item_info, 'name', ent_id)}'({ent_id})"
-            elif game_state.locations and ent_id in game_state.locations:
-                 # Assuming locations have a 'name' attribute in scenario.locations
-                 loc_info = game_state.scenario.locations.get(ent_id) if game_state.scenario else None
+            # Use ScenarioManager to get location info
+            elif scenario_manager.get_location_info(ent_id):
+                 loc_info = scenario_manager.get_location_info(ent_id)
                  return f"地点'{getattr(loc_info, 'name', ent_id)}'({ent_id})"
             return ent_id # Fallback to ID
 

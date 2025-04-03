@@ -1,7 +1,7 @@
 # src/engine/round_phases/base_phase.py
 from abc import ABC, abstractmethod
 import logging
-from typing import TYPE_CHECKING, Optional # Keep TYPE_CHECKING for GameState hint if needed
+from typing import Optional
 
 from pydantic import BaseModel, Field
 
@@ -13,8 +13,8 @@ from src.engine.scenario_manager import ScenarioManager
 from src.agents.referee_agent import RefereeAgent
 from src.io.input_handler import UserInputHandler # Import UserInputHandler
 # Import GameState only if needed for type hints outside PhaseContext
-if TYPE_CHECKING:
-    from src.models.game_state_models import GameState
+
+from src.models.game_state_models import GameState
 
 
 class PhaseContext(BaseModel):

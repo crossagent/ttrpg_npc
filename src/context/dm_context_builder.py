@@ -4,6 +4,9 @@ DM上下文构建模块，负责构建DM所需的各类上下文文本。
 from typing import List, Dict, Any, Optional
 from src.models.scenario_models import Scenario
 from src.models.game_state_models import GameState
+from typing import List, Dict, Any, Optional, TYPE_CHECKING
+from src.models.scenario_models import Scenario
+from src.models.game_state_models import GameState
 from src.models.message_models import Message
 from src.models.action_models import PlayerAction
 from src.context.context_utils import (format_messages, format_character_list, format_location_list, 
@@ -11,6 +14,8 @@ from src.context.context_utils import (format_messages, format_character_list, f
                                        format_current_stage_characters, format_current_stage_locations)
 from src.models.context_models import DMNarrativeSystemContext, DMNarrativeUserContext
 from src.models.message_models import Message # Ensure Message is imported for type hint
+
+from src.engine.scenario_manager import ScenarioManager
 
 def build_narrative_system_prompt(scenario: Optional[Scenario]) -> str:
     """构建DM叙述生成的系统提示"""
@@ -40,9 +45,10 @@ def build_narrative_system_prompt(scenario: Optional[Scenario]) -> str:
 """
 
 def build_narrative_user_prompt(
-    game_state: GameState, 
+    game_state: GameState,
+    scenario_manager: ScenarioManager, # Add scenario_manager parameter
     relevant_messages: List[Message], # Changed parameter name from unread_messages
-    scenario: Scenario
+    scenario: Scenario # Keep scenario for now, might be removable later if all utils use manager
 ) -> str:
     """构建DM叙述生成的用户提示"""
     # Format the relevant historical messages
@@ -51,10 +57,10 @@ def build_narrative_user_prompt(
     # Create the context object (consider if DMNarrativeUserContext needs update)
     narrative_user_prompt = DMNarrativeUserContext(
         recent_messages=formatted_messages, # Use formatted relevant messages
-        stage_decribertion=format_current_stage_summary(game_state),
-        characters_description=format_current_stage_characters(game_state),
-        environment_description=format_environment_info(game_state),
-        location_description=format_current_stage_locations(game_state)
+        stage_decribertion=format_current_stage_summary(game_state, scenario_manager), # Pass manager
+        characters_description=format_current_stage_characters(game_state, scenario_manager), # Pass manager
+        environment_description=format_environment_info(game_state, scenario_manager), # Pass manager
+        location_description=format_current_stage_locations(game_state, scenario_manager) # Pass manager
     )
     
     # No need to format again, already done above

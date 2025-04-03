@@ -8,6 +8,7 @@ from src.models.game_state_models import GameState
 from src.models.action_models import PlayerAction, ActionResult
 from src.models.message_models import Message # Added import for Message
 from src.agents.base_agent import BaseAgent
+from src.engine.scenario_manager import ScenarioManager # Import ScenarioManager
 from src.context.dm_context_builder import (
     build_narrative_system_prompt,
     build_narrative_user_prompt,
@@ -20,17 +21,19 @@ class DMAgent(BaseAgent):
     DM Agent类，负责生成游戏叙述和处理玩家行动
     """
     
-    def __init__(self, agent_id: str, agent_name: str, model_client=None):
+    def __init__(self, agent_id: str, agent_name: str, scenario_manager: ScenarioManager, model_client=None): # Add scenario_manager
         """
         初始化DMAgent
         
         Args:
             agent_id: Agent唯一标识符
             agent_name: Agent名称
+            scenario_manager: ScenarioManager 实例 # Add doc
             model_client: 模型客户端
         """
         # 初始化BaseAgent
         super().__init__(agent_id=agent_id, agent_name=agent_name, model_client=model_client) # Corrected indentation
+        self.scenario_manager = scenario_manager # Store scenario_manager
 
 
     async def dm_generate_narrative(self, game_state: GameState, scenario: Scenario, historical_messages: Optional[List[Message]] = None) -> str: # Add historical_messages parameter
@@ -58,7 +61,7 @@ class DMAgent(BaseAgent):
         
         # 构建用户消息 - 使用 historical_messages 替换 unread_messages
         # 注意：需要确保 build_narrative_user_prompt 接口已更新
-        user_message_content = build_narrative_user_prompt(game_state, historical_messages or [], scenario) # Pass historical_messages, default to empty list if None
+        user_message_content = build_narrative_user_prompt(game_state, self.scenario_manager, historical_messages or [], scenario) # Pass self.scenario_manager
         user_message = TextMessage(
             content=user_message_content,
             source="system"

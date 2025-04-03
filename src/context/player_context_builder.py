@@ -4,6 +4,7 @@
 from typing import List, Dict, Any, Optional
 from src.models.game_state_models import GameState
 from src.models.message_models import Message
+from src.engine.scenario_manager import ScenarioManager # Import ScenarioManager
 from src.context.context_utils import format_messages
 from src.models.context_models import PlayerActionLLMOutput
 from src.models.llm_validation import create_validator_for
@@ -69,7 +70,8 @@ def build_decision_system_prompt(charaInfo: ScenarioCharacterInfo) -> str:
 """
 
 def build_decision_user_prompt(
-    game_state: GameState, 
+    game_state: GameState,
+    scenario_manager: ScenarioManager, # Add scenario_manager parameter
     unread_messages: List[Message],
     character_id: str
 ) -> str:
@@ -94,13 +96,11 @@ def build_decision_user_prompt(
         
     current_location_id = character_instance.location
     
-    # 从scenario获取位置信息
-    current_location = None
+    # 从 ScenarioManager 获取位置信息
     location_desc = "无描述"
-    if game_state.scenario and game_state.scenario.locations:
-        current_location = game_state.scenario.locations.get(current_location_id)
-        if current_location:
-            location_desc = current_location.description
+    current_location = scenario_manager.get_location_info(current_location_id)
+    if current_location:
+        location_desc = current_location.description
     
     # 获取同一位置的其他角色
     other_characters = []

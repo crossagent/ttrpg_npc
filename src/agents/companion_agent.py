@@ -15,14 +15,14 @@ from src.context.player_context_builder import (
     build_decision_system_prompt,
     build_decision_user_prompt
 )
-import uuid
+from src.engine.scenario_manager import ScenarioManager # Import ScenarioManager
 
 class CompanionAgent(BaseAgent):
     """
     玩家Agent类，负责生成玩家的观察、状态、思考和行动
     """
     
-    def __init__(self, agent_id: str, agent_name: str, character_id:str, model_client=None):
+    def __init__(self, agent_id: str, agent_name: str, character_id:str, scenario_manager: ScenarioManager, model_client=None):
         """
         初始化玩家Agent
         
@@ -36,6 +36,8 @@ class CompanionAgent(BaseAgent):
         super().__init__(agent_id=agent_id, agent_name=agent_name, model_client=model_client)
 
         self.character_id = character_id
+
+        self.scenario_manager = scenario_manager # Store scenario_manager
         
         # 初始化消息记忆
         self.message_memory: MessageReadMemory = MessageReadMemory(
