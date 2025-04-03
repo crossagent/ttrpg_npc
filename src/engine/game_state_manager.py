@@ -455,23 +455,25 @@ class GameStateManager:
         quantity = cons.value if isinstance(cons.value, int) and cons.value > 0 else 1
 
         # Add to character inventory
-        if cons.target_entity_id in game_state.character_states:
-            character_state = game_state.character_states[cons.target_entity_id]
-            # Find if item already exists
-            existing_item: Optional[ItemInstance] = next((item for item in character_state.items if item.item_id == cons.item_id), None)
+        if cons.target_entity_id in game_state.characters: # Use game_state.characters
+            character_instance = game_state.characters[cons.target_entity_id] # Get CharacterInstance
+            # Find if item already exists in CharacterInstance.items
+            existing_item: Optional[ItemInstance] = next((item for item in character_instance.items if item.item_id == cons.item_id), None)
             if existing_item:
                 existing_item.quantity += quantity
-                self.logger.info(f"物品更新：角色 '{cons.target_entity_id}' 的物品 '{cons.item_id}' 数量增加 {quantity}，当前数量: {existing_item.quantity}。")
+                description = f"物品更新：角色 '{cons.target_entity_id}' ({character_instance.name}) 的物品 '{cons.item_id}' 数量增加 {quantity}，当前数量: {existing_item.quantity}。"
+                self.logger.info(description)
+                return description # Return the description string
             else:
                 # Check if item definition exists in scenario (optional but good practice)
                 item_def = game_state.scenario.items.get(cons.item_id) if game_state.scenario and game_state.scenario.items else None
                 if not item_def:
-                     self.logger.warning(f"ADD_ITEM 警告：尝试添加未在剧本中定义的物品 '{cons.item_id}' 到角色 '{cons.target_entity_id}'。")
+                     self.logger.warning(f"ADD_ITEM 警告：尝试添加未在剧本中定义的物品 '{cons.item_id}' 到角色 '{cons.target_entity_id}' ({character_instance.name})。")
                      # Decide whether to proceed or fail. Let's proceed for now.
 
                 new_item = ItemInstance(item_id=cons.item_id, quantity=quantity, name=item_def.name if item_def else cons.item_id)
-                character_state.items.append(new_item)
-                description = f"物品添加：向角色 '{cons.target_entity_id}' 添加了 {quantity} 个物品 '{cons.item_id}'。"
+                character_instance.items.append(new_item) # Add to CharacterInstance.items
+                description = f"物品添加：向角色 '{cons.target_entity_id}' ({character_instance.name}) 添加了 {quantity} 个物品 '{cons.item_id}'。"
                 self.logger.info(description)
                 return description # Return the description string
 

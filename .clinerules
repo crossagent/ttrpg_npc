@@ -8,4 +8,5 @@ always answer in chinese.
 -Maintain parameter annotations and return value annotations for Python functions.
 
 ## debug
--日志文件在logs\目录下,以debug_YYDDMM_HHMMSS的形式来保存
+-日志文件在logs目录下,以debug_YYDDMM_HHMMSS的形式来保存
+-游戏的实际体验在game_records目录下，以record_YYDDMM_HHMMSS的形式来保存

@@ -196,7 +196,7 @@ class GameEngine:
                 print(cmd_prompt, end="") # Print prompt without newline
                 # Removed log_file.write
 
-                cmd = input().strip()
+                cmd = (await asyncio.to_thread(input)).strip()
                 # Removed log_file.write
 
                 if cmd.startswith("/"):
