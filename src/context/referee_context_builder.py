@@ -11,6 +11,7 @@ from src.models.scenario_models import Scenario, ScenarioEvent
 from src.models.game_state_models import GameState
 from src.models.action_models import PlayerAction, ActionResult
 from src.models.consequence_models import ConsequenceType # Import ConsequenceType
+from src.engine.scenario_manager import ScenarioManager # Import ScenarioManager
 from src.context.context_utils import (
     format_messages,
     format_character_list,
@@ -88,13 +89,13 @@ JSON 输出格式示例：
 
     return base_prompt
 
-def build_action_resolve_user_prompt(game_state: GameState, action: PlayerAction) -> str:
+def build_action_resolve_user_prompt(game_state: GameState, action: PlayerAction, scenario_manager: ScenarioManager) -> str: # Add scenario_manager
     """
     构建用于裁判代理判断【单个行动的直接属性后果】的用户 Prompt。
     """
     # 格式化基础信息 - 提供足够判断属性后果的上下文
-    environment_info = format_environment_info(game_state)
-    stage_summary = format_current_stage_summary(game_state)
+    environment_info = format_environment_info(game_state, scenario_manager) # Pass manager
+    stage_summary = format_current_stage_summary(game_state, scenario_manager) # Pass manager
     # +++ 获取行动者的 CharacterInstance 信息 +++
     actor_instance = game_state.characters.get(action.character_id)
     if actor_instance:
@@ -115,8 +116,8 @@ def build_action_resolve_user_prompt(game_state: GameState, action: PlayerAction
 {stage_summary}
 当前回合: {game_state.round_number}
 {actor_status_text}
-{format_current_stage_characters(game_state)}
-{format_current_stage_locations(game_state)}
+{format_current_stage_characters(game_state, scenario_manager)} 
+{format_current_stage_locations(game_state, scenario_manager)}
 
 ## 待判断的玩家行动
 玩家: {action.character_id}
@@ -177,12 +178,12 @@ JSON 输出格式示例：
     return prompt.strip()
 
 
-def build_event_trigger_and_outcome_user_prompt(game_state: GameState, action_results: List[ActionResult], scenario: Scenario) -> str:
+def build_event_trigger_and_outcome_user_prompt(game_state: GameState, action_results: List[ActionResult], scenario: Scenario, scenario_manager: ScenarioManager) -> str: # Add scenario_manager
     """
     构建用于裁判代理判断【活跃 ScenarioEvent 触发】和【选择结局】的用户 Prompt。
     """
-    environment_info = format_environment_info(game_state)
-    stage_summary = format_current_stage_summary(game_state)
+    environment_info = format_environment_info(game_state, scenario_manager) # Pass manager
+    stage_summary = format_current_stage_summary(game_state, scenario_manager) # Pass manager
 
     # Format action results summary (focus on attribute consequences)
     action_summary_lines = []
@@ -237,8 +238,8 @@ def build_event_trigger_and_outcome_user_prompt(game_state: GameState, action_re
 {environment_info}
 {stage_summary}
 当前回合: {game_state.round_number}
-{format_current_stage_characters(game_state)}
-{format_current_stage_locations(game_state)}
+{format_current_stage_characters(game_state, scenario_manager)} 
+{format_current_stage_locations(game_state, scenario_manager)}
 {format_character_list(game_state.characters)}
 
 ## 本回合行动的属性后果摘要

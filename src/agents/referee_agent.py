@@ -14,6 +14,7 @@ from src.models.game_state_models import GameState
 from src.models.action_models import PlayerAction, ActionResult
 from src.models.consequence_models import Consequence, ConsequenceType # Import Consequence and ConsequenceType
 from src.agents.base_agent import BaseAgent
+from src.engine.scenario_manager import ScenarioManager # Import ScenarioManager
 # Import prompt builders from the new referee context builder
 from src.context.referee_context_builder import (
     build_action_resolve_system_prompt, # Will be simplified
@@ -32,16 +33,18 @@ class RefereeAgent(BaseAgent):
     使用LLM进行判断。包括行动直接结果判定和事件触发判定。
     """
 
-    def __init__(self, agent_id: str, agent_name: str, model_client=None):
+    def __init__(self, agent_id: str, agent_name: str, scenario_manager: ScenarioManager, model_client=None): # Add scenario_manager
         """
         初始化 RefereeAgent
 
         Args:
             agent_id (str): Agent唯一标识符
             agent_name (str): Agent名称
+            scenario_manager: ScenarioManager 实例 # Add doc
             model_client: 模型客户端
         """
         super().__init__(agent_id=agent_id, agent_name=agent_name, model_client=model_client)
+        self.scenario_manager = scenario_manager # Store scenario_manager
         # Setup logger for this agent
         self.logger = logging.getLogger(f"RefereeAgent_{agent_name}")
         # Configure logging level if needed, e.g., self.logger.setLevel(logging.DEBUG)
@@ -73,9 +76,9 @@ class RefereeAgent(BaseAgent):
             system_message=system_message_content
         )
 
-        # 构建用户消息 (需要简化 Prompt)
+        # 构建用户消息 (需要简化 Prompt, 并传递 scenario_manager)
         # TODO: Update build_action_resolve_user_prompt
-        user_message_content: str = build_action_resolve_user_prompt(game_state, action) # Placeholder, needs update
+        user_message_content: str = build_action_resolve_user_prompt(game_state, action, self.scenario_manager) # Pass scenario_manager
         user_message = TextMessage(
             content=user_message_content,
             source="system" # 源头标记为系统，表示这是内部调用
@@ -186,7 +189,7 @@ class RefereeAgent(BaseAgent):
         # TODO: Update build_event_trigger_and_outcome_system_prompt and build_event_trigger_and_outcome_user_prompt
         #       to correctly use action_results and game_state.flags
         system_message_content = build_event_trigger_and_outcome_system_prompt(scenario) # Placeholder, needs update
-        user_message_content = build_event_trigger_and_outcome_user_prompt(game_state, action_results, scenario) # Placeholder, needs update
+        user_message_content = build_event_trigger_and_outcome_user_prompt(game_state, action_results, scenario, self.scenario_manager) # Pass scenario_manager
 
         # 创建临时 Agent
         assistant_name = f"{self.agent_name}_event_trigger_helper_{uuid.uuid4().hex}"

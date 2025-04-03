@@ -17,6 +17,7 @@ from autogen_agentchat.agents import AssistantAgent
 from autogen_agentchat.messages import TextMessage
 from autogen_core import CancellationToken
 from src.engine.scenario_manager import ScenarioManager # Import ScenarioManager
+from src.engine.chat_history_manager import ChatHistoryManager # Import ChatHistoryManager
 
 # Assume BaseAgent initializes self.logger or get logger here
 logger = logging.getLogger(__name__) # Or use self.logger if available from BaseAgent
@@ -27,19 +28,21 @@ class PlayerAgent(BaseAgent):
     主要职责是根据当前游戏状态为玩家生成可选的行动。
     实际的行动由玩家从选项中选择，并通过外部机制（如UI）传递给裁判。
     """
-    def __init__(self, agent_id: str, agent_name: str, character_id: str, scenario_manager: ScenarioManager, model_client=None): # Add scenario_manager
+    def __init__(self, agent_id: str, agent_name: str, character_id: str, scenario_manager: ScenarioManager, chat_history_manager: ChatHistoryManager, model_client=None): # Add chat_history_manager
         """
         初始化玩家 Agent
         Args:
             agent_id: Agent 唯一标识符
             agent_name: Agent 名称
             character_id: 对应的角色 ID
-            scenario_manager: ScenarioManager 实例 # Add scenario_manager doc
+            scenario_manager: ScenarioManager 实例
+            chat_history_manager: ChatHistoryManager 实例 # Add doc
             model_client: 模型客户端
         """
         super().__init__(agent_id=agent_id, agent_name=agent_name, model_client=model_client)
         self.character_id = character_id
         self.scenario_manager = scenario_manager # Store scenario_manager
+        self.chat_history_manager = chat_history_manager # Store chat_history_manager
         # PlayerAgent might not need complex message memory like CompanionAgent,
         # but basic context handling might still be useful.
         # Ensure logger is available (assuming BaseAgent provides it)
@@ -79,7 +82,9 @@ class PlayerAgent(BaseAgent):
             if char_instance.location == current_location_id and char_id != self.character_id
         ]
         visible_chars_str = ", ".join(visible_characters) if visible_characters else "无"
-        recent_events = "\n".join([f"- {msg.content}" for msg in game_state.chat_history[-5:]]) # Last 5 messages as recent events
+        # Get recent messages from ChatHistoryManager
+        all_history = self.chat_history_manager.get_all_messages()
+        recent_events = "\n".join([f"- {msg.content}" for msg in all_history[-5:]]) # Last 5 messages as recent events
 
         # Get current character status and inventory correctly from characters
         current_char = game_state.characters[self.character_id]

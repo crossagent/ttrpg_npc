@@ -16,28 +16,31 @@ from src.context.player_context_builder import (
     build_decision_user_prompt
 )
 from src.engine.scenario_manager import ScenarioManager # Import ScenarioManager
+from src.engine.chat_history_manager import ChatHistoryManager # Import ChatHistoryManager
 
 class CompanionAgent(BaseAgent):
     """
-    玩家Agent类，负责生成玩家的观察、状态、思考和行动
+    AI控制的陪玩角色Agent类，负责生成角色的观察、状态、思考和行动
     """
     
-    def __init__(self, agent_id: str, agent_name: str, character_id:str, scenario_manager: ScenarioManager, model_client=None):
+    def __init__(self, agent_id: str, agent_name: str, character_id:str, scenario_manager: ScenarioManager, chat_history_manager: ChatHistoryManager, model_client=None): # Add chat_history_manager
         """
-        初始化玩家Agent
+        初始化陪玩Agent
         
         Args:
             agent_id: Agent唯一标识符
             agent_name: Agent名称
             character_id: 角色ID
+            scenario_manager: ScenarioManager 实例
+            chat_history_manager: ChatHistoryManager 实例 # Add doc
             model_client: 模型客户端
         """
         # 初始化BaseAgent
         super().__init__(agent_id=agent_id, agent_name=agent_name, model_client=model_client)
 
         self.character_id = character_id
-
         self.scenario_manager = scenario_manager # Store scenario_manager
+        self.chat_history_manager = chat_history_manager # Store chat_history_manager
         
         # 初始化消息记忆
         self.message_memory: MessageReadMemory = MessageReadMemory(
@@ -71,8 +74,8 @@ class CompanionAgent(BaseAgent):
         Returns:
             List[Message]: 未读消息列表
         """
-        # 直接从game_state获取消息历史
-        all_messages = game_state.chat_history
+        # 从 ChatHistoryManager 获取所有消息历史
+        all_messages = self.chat_history_manager.get_all_messages()
         
         # 过滤出自己可见且未读的消息
         unread_messages = []
@@ -155,8 +158,8 @@ class CompanionAgent(BaseAgent):
             system_message=system_message
         )
         
-        # 构建用户消息
-        user_message_content = build_decision_user_prompt(game_state, unread_messages, self.character_id)
+        # 构建用户消息 (需要传递 scenario_manager)
+        user_message_content = build_decision_user_prompt(game_state, self.scenario_manager, unread_messages, self.character_id)
         user_message = TextMessage(
             content=user_message_content,
             source="DM" # Source is DM providing context

@@ -136,16 +136,16 @@ class GameEngine:
             game_state.player_character_id = chosen_id
             print(f"游戏状态已设置玩家角色ID: {game_state.player_character_id}")
 
+            # 初始化聊天记录管理器 (必须在 AgentManager 和 MessageDispatcher 之前)
+            chat_history_manager = ChatHistoryManager() # Instantiate ChatHistoryManager
 
-            # 创建代理管理器 (必须在 game_state.player_character_id 设置之后)
+            # 创建代理管理器 (现在可以传递 chat_history_manager)
             agent_manager = AgentManager(
                 game_state=game_state,
-                scenario_manager=scenario_manager # Pass scenario_manager here
+                scenario_manager=scenario_manager,
+                chat_history_manager=chat_history_manager # Pass chat_history_manager instance
             )
             agent_manager.initialize_agents_from_characters(scenario)
-
-            # 初始化聊天记录管理器 (可以考虑添加保存路径)
-            chat_history_manager = ChatHistoryManager() # Instantiate ChatHistoryManager
 
             # 初始化通信组件 (传入 game_state_manager 和 chat_history_manager)
             message_dispatcher = MessageDispatcher(
