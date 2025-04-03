@@ -81,6 +81,7 @@ class AgentManager:
             agent_id="dm",
             agent_name="DM",
             scenario_manager=self.scenario_manager, # Pass scenario_manager
+            chat_history_manager=self.chat_history_manager, # Pass chat_history_manager
             model_client=self.model_client
         )
         self.all_agents["dm"] = self.dm_agent # 使用 "dm" 作为 agent_id
@@ -90,6 +91,7 @@ class AgentManager:
             agent_id="referee",
             agent_name="Referee",
             scenario_manager=self.scenario_manager, # Pass scenario_manager
+            chat_history_manager=self.chat_history_manager, # Pass chat_history_manager
             model_client=self.model_client
         )
         self.all_agents["referee"] = self.referee_agent # 添加到 all_agents

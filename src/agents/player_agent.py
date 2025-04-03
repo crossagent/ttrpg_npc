@@ -39,7 +39,7 @@ class PlayerAgent(BaseAgent):
             chat_history_manager: ChatHistoryManager 实例 # Add doc
             model_client: 模型客户端
         """
-        super().__init__(agent_id=agent_id, agent_name=agent_name, model_client=model_client)
+        super().__init__(agent_id=agent_id, agent_name=agent_name, chat_history_manager=chat_history_manager, model_client=model_client) # Pass chat_history_manager
         self.character_id = character_id
         self.scenario_manager = scenario_manager # Store scenario_manager
         self.chat_history_manager = chat_history_manager # Store chat_history_manager

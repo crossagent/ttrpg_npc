@@ -34,6 +34,7 @@ from src.models.scenario_models import Scenario, ScenarioEvent, EventOutcome # K
 from src.engine.agent_manager import AgentManager # Keep AgentManager import
 # PlayerAgent, CompanionAgent imports likely no longer needed directly here
 from src.engine.scenario_manager import ScenarioManager
+from src.engine.chat_history_manager import ChatHistoryManager # Import ChatHistoryManager
 from src.agents import RefereeAgent # Keep RefereeAgent import
 from src.io.input_handler import UserInputHandler # Import UserInputHandler
 
@@ -54,6 +55,7 @@ class RoundManager:
                  message_dispatcher: MessageDispatcher = None,
                  agent_manager: AgentManager = None,
                  scenario_manager: ScenarioManager = None,
+                 chat_history_manager: ChatHistoryManager = None, # Add chat_history_manager
                  input_handler: Optional[UserInputHandler] = None): # Add input_handler
         """
         初始化回合管理器
@@ -69,6 +71,7 @@ class RoundManager:
         self.message_dispatcher = message_dispatcher
         self.agent_manager = agent_manager
         self.scenario_manager = scenario_manager
+        self.chat_history_manager = chat_history_manager # Store chat_history_manager
         self._input_handler = input_handler # Store input_handler
         self.referee_agent: RefereeAgent = self.agent_manager.get_referee_agent() # 获取 RefereeAgent 实例
         if not self.referee_agent:
@@ -139,6 +142,7 @@ class RoundManager:
                 message_dispatcher=self.message_dispatcher,
                 scenario_manager=self.scenario_manager,
                 referee_agent=self.referee_agent,
+                chat_history_manager=self.chat_history_manager, # Pass chat_history_manager
                 current_round_id=self.current_round_id,
                 input_handler=self._input_handler # Pass input_handler to context
             )

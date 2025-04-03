@@ -15,6 +15,7 @@ from src.models.action_models import PlayerAction, ActionResult
 from src.models.consequence_models import Consequence, ConsequenceType # Import Consequence and ConsequenceType
 from src.agents.base_agent import BaseAgent
 from src.engine.scenario_manager import ScenarioManager # Import ScenarioManager
+from src.engine.chat_history_manager import ChatHistoryManager # Import ChatHistoryManager
 # Import prompt builders from the new referee context builder
 from src.context.referee_context_builder import (
     build_action_resolve_system_prompt, # Will be simplified
@@ -33,7 +34,7 @@ class RefereeAgent(BaseAgent):
     使用LLM进行判断。包括行动直接结果判定和事件触发判定。
     """
 
-    def __init__(self, agent_id: str, agent_name: str, scenario_manager: ScenarioManager, model_client=None): # Add scenario_manager
+    def __init__(self, agent_id: str, agent_name: str, scenario_manager: ScenarioManager, chat_history_manager: ChatHistoryManager, model_client=None): # Add chat_history_manager
         """
         初始化 RefereeAgent
 
@@ -41,9 +42,10 @@ class RefereeAgent(BaseAgent):
             agent_id (str): Agent唯一标识符
             agent_name (str): Agent名称
             scenario_manager: ScenarioManager 实例 # Add doc
+            chat_history_manager: ChatHistoryManager 实例 # Add doc
             model_client: 模型客户端
         """
-        super().__init__(agent_id=agent_id, agent_name=agent_name, model_client=model_client)
+        super().__init__(agent_id=agent_id, agent_name=agent_name, chat_history_manager=chat_history_manager, model_client=model_client) # Pass chat_history_manager
         self.scenario_manager = scenario_manager # Store scenario_manager
         # Setup logger for this agent
         self.logger = logging.getLogger(f"RefereeAgent_{agent_name}")

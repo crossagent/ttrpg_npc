@@ -4,7 +4,9 @@ from pydantic import BaseModel
 from autogen_agentchat.agents import AssistantAgent
 from autogen_agentchat.messages import ChatMessage
 from src.models.message_models import Message, MessageVisibility
+# Re-add GameState import for process_new_information type hint
 from src.models.game_state_models import GameState
+from src.engine.chat_history_manager import ChatHistoryManager # Import ChatHistoryManager
 from autogen_core import CancellationToken
 from autogen_agentchat.base import Response
 
@@ -14,17 +16,19 @@ class BaseAgent:
     所有具体的Agent类（如PlayerAgent、DMAgent等）都应继承此类。
     """
     
-    def __init__(self, agent_id: str, agent_name: str, model_client=None):
+    def __init__(self, agent_id: str, agent_name: str, chat_history_manager: ChatHistoryManager, model_client=None): # Add chat_history_manager
         """
         初始化基础Agent
         
         Args:
             agent_id: Agent的唯一标识符
             agent_name: Agent的名称
+            chat_history_manager: ChatHistoryManager 实例 # Add doc
             model_client: 模型客户端
         """
         # 使用组合而非继承
         self.model_client = model_client
+        self.chat_history_manager = chat_history_manager # Store chat_history_manager
                 
         self.agent_id: str = agent_id
         self.agent_name: str = agent_name  # 保存agent_name以便访问
@@ -86,18 +90,18 @@ class BaseAgent:
         
         return message
     
-    def get_visible_messages(self, game_state: GameState, limit: int = 50) -> List[Message]:
+    def get_visible_messages(self, limit: int = 50) -> List[Message]: # Remove game_state parameter
         """
         获取Agent可见的消息历史
         
         Args:
-            game_state: 游戏状态，包含消息历史
             limit: 消息数量限制
             
         Returns:
             List[Message]: 可见消息列表
         """
-        all_messages = game_state.chat_history
+        # Get messages from ChatHistoryManager
+        all_messages = self.chat_history_manager.get_all_messages()
         visible_messages = []
         
         for message in all_messages:

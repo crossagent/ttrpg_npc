@@ -9,6 +9,7 @@ from src.models.action_models import PlayerAction, ActionResult
 from src.models.message_models import Message # Added import for Message
 from src.agents.base_agent import BaseAgent
 from src.engine.scenario_manager import ScenarioManager # Import ScenarioManager
+from src.engine.chat_history_manager import ChatHistoryManager # Import ChatHistoryManager
 from src.context.dm_context_builder import (
     build_narrative_system_prompt,
     build_narrative_user_prompt,
@@ -21,7 +22,7 @@ class DMAgent(BaseAgent):
     DM Agent类，负责生成游戏叙述和处理玩家行动
     """
     
-    def __init__(self, agent_id: str, agent_name: str, scenario_manager: ScenarioManager, model_client=None): # Add scenario_manager
+    def __init__(self, agent_id: str, agent_name: str, scenario_manager: ScenarioManager, chat_history_manager: ChatHistoryManager, model_client=None): # Add chat_history_manager
         """
         初始化DMAgent
         
@@ -29,10 +30,11 @@ class DMAgent(BaseAgent):
             agent_id: Agent唯一标识符
             agent_name: Agent名称
             scenario_manager: ScenarioManager 实例 # Add doc
+            chat_history_manager: ChatHistoryManager 实例 # Add doc
             model_client: 模型客户端
         """
         # 初始化BaseAgent
-        super().__init__(agent_id=agent_id, agent_name=agent_name, model_client=model_client) # Corrected indentation
+        super().__init__(agent_id=agent_id, agent_name=agent_name, chat_history_manager=chat_history_manager, model_client=model_client) # Pass chat_history_manager
         self.scenario_manager = scenario_manager # Store scenario_manager
 
 

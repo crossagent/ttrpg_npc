@@ -183,6 +183,7 @@ class GameEngine:
                 message_dispatcher = message_dispatcher,
                 agent_manager = agent_manager,
                 scenario_manager = scenario_manager,
+                chat_history_manager = chat_history_manager, # Pass chat_history_manager
                 input_handler = self._input_handler) # Pass input_handler
 
             # 保存回合管理器的引用，以便CLI可以访问

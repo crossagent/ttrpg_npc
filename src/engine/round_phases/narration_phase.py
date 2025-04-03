@@ -16,6 +16,8 @@ class NarrationPhase(BaseRoundPhase):
     """
     def __init__(self, context: PhaseContext):
         super().__init__(context)
+        # Get chat history manager from context
+        self.chat_history_manager = context.chat_history_manager
 
     async def execute(self) -> None:
         """
@@ -54,10 +56,11 @@ class NarrationPhase(BaseRoundPhase):
         # 提取历史消息 (如果需要)
         start_round_hist = game_state.last_active_round + 1
         end_round_hist = round_id - 1
-        historical_messages = [
-            msg for msg in game_state.chat_history
-            if start_round_hist <= msg.round_id <= end_round_hist
-        ] if start_round_hist <= end_round_hist else []
+        # Use ChatHistoryManager to get messages
+        historical_messages = self.chat_history_manager.get_messages(
+            start_round=start_round_hist,
+            end_round=end_round_hist
+        ) if start_round_hist <= end_round_hist else []
 
 
         dm_narrative = await dm_agent.dm_generate_narrative(game_state, scenario, historical_messages=historical_messages)
