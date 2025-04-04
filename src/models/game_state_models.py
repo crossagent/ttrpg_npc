@@ -85,6 +85,21 @@ class CharacterInstance(BaseModel):
     items: List['ItemInstance'] = Field(default_factory=list, description="拥有的物品实例列表")
     known_information: List[str] = Field(default_factory=list, description="已知信息")
 
+    # --- NPC 核心要素扩展 ---
+    # 态度 (Attitude)
+    relationship_player: int = Field(0, description="对玩家的好感度/关系值 (-100 到 100)")
+    attitude_description: str = Field("中立", description="对玩家态度的简短描述 (例如: 警惕, 友好, 怀疑)")
+
+    # 目标 (Goals)
+    long_term_goal: Optional[str] = Field(None, description="角色的长期目标或核心动机 (来自剧本)")
+    short_term_goals: List[str] = Field(default_factory=list, description="当前情境下的短期目标列表 (可动态变化)")
+
+    # 记忆 (Memory)
+    key_memories: List[str] = Field(default_factory=list, description="关于玩家或其他关键事件的重要记忆摘要 (由 Context Builder 更新)")
+
+    # 宏观状态 (Status)
+    status: str = Field("正常", description="角色的宏观状态 (例如: 疲惫, 警觉, 受伤, 困惑)")
+
 class GameState(BaseModel):
     """完整游戏状态模型，表示游戏的当前状态"""
     game_id: str = Field(..., description="游戏实例ID")

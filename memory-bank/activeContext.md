@@ -26,26 +26,24 @@
 *   修改了 `src/agents/player_agent.py`：添加 `scenario_manager` 依赖，更新剧本访问逻辑。
 *   修改了 `src/communication/message_dispatcher.py`：添加 `chat_history_manager` 和 `game_state_manager` 依赖，更新消息记录和历史获取逻辑。
 *   修改了 `src/engine/game_engine.py`：实例化 `ChatHistoryManager` 并正确注入依赖。
+*   **修改了 `src/models/game_state_models.py`**: 为 `CharacterInstance` 添加了 `relationship_player`, `attitude_description`, `long_term_goal`, `short_term_goals`, `key_memories`, `status` 字段，以支持 NPC 核心要素（态度、目标、记忆、状态）。
 
 ## 下一步计划 (围绕 NPC 核心要素)
 
-1.  **设计 `CharacterInstance` 扩展字段:** (优先级最高)
-    *   确定并添加用于支持 NPC 目标、态度、记忆和宏观状态的字段（例如 `relationship_player: int`, `status: str`, `short_term_goals: List[str]`, `key_memories: List[str]` 等）。
-    *   定义这些字段的更新机制（硬性判定 vs. 软性建议）。
-2.  **细化 `Context Builders` 逻辑:** (优先级高)
+1.  **细化 `Context Builders` 逻辑:** (优先级最高)
     *   实现从 `ChatHistoryManager` 智能提取/总结关键近期互动信息（记忆）的策略。
     *   确保能将 NPC 的目标、态度（关系值）、状态 (`status`) 和关键记忆有效整合进 Prompt。
-3.  **设计和迭代 Agent Prompts:** (优先级高)
+2.  **设计和迭代 Agent Prompts:** (优先级高)
     *   为 `CompanionAgent` 设计核心“思考”Prompt，强调结合目标、态度、状态和记忆进行决策。
     *   为 `NarrativeAgent` 设计 Prompt，使其能基于上下文生成生动描述，并建议更新 NPC 状态。
-4.  **完善 `RefereeAgent` 和 `GameStateManager`:**
+3.  **完善 `RefereeAgent` 和 `GameStateManager`:** (优先级中)
     *   实现对新 `CharacterInstance` 字段（如关系值）的硬性更新逻辑。
     *   实现基于新字段的行动判定调整（如根据 `status` 调整难度）。
-5.  **实现完整的保存/加载流程**:
+4.  **实现完整的保存/加载流程**: (优先级中)
     *   在 `GameEngine` 中集成 `GameStateManager` 和 `ChatHistoryManager` 的保存/加载调用。
     *   确定保存时机和文件结构。
-6.  **集成测试**: 重点测试 NPC 行为是否符合其目标、态度和记忆，以及分层机制是否有效工作。
-7.  **更新 `progress.md`**: 跟踪上述任务的进展。
+5.  **集成测试**: (持续进行) 重点测试 NPC 行为是否符合其目标、态度和记忆，以及分层机制是否有效工作。
+6.  **更新 `progress.md`**: (完成此步骤后) 跟踪上述任务的进展。
 
 ## 待解决/考虑事项
 
