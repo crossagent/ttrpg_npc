@@ -31,6 +31,11 @@ class ScenarioCharacterInfo(BaseModel):
     special_ability: Optional[str] = Field(None, description="角色的特殊能力")
     weakness: Optional[str] = Field(None, description="角色的弱点")
     is_playable: bool = Field(False, description="是否可供玩家选择或作为陪玩角色")
+    # +++ 添加内在设定字段 +++
+    values: Optional[List[str]] = Field(None, description="角色的核心价值观列表")
+    likes: Optional[List[str]] = Field(None, description="角色喜欢的事物/行为列表")
+    dislikes: Optional[List[str]] = Field(None, description="角色厌恶的事物/行为列表")
+    personality_summary: Optional[str] = Field(None, description="角色性格核心总结，供LLM参考")
     # +++ 添加基础属性和技能 +++
     base_attributes: AttributeSet = Field(default_factory=AttributeSet, description="角色的基础属性")
     base_skills: SkillSet = Field(default_factory=SkillSet, description="角色的基础技能")
@@ -164,6 +169,11 @@ class Scenario(BaseModel):
                     weakness=char_data.get("weakness"),
                     # 读取 is_playable 字段，默认为 False
                     is_playable=char_data.get("is_playable", False),
+                    # +++ 读取内在设定字段 +++
+                    values=char_data.get("values"),
+                    likes=char_data.get("likes"),
+                    dislikes=char_data.get("dislikes"),
+                    personality_summary=char_data.get("personality_summary"),
                     # +++ 读取基础属性和技能，如果不存在则使用默认值 +++
                     base_attributes=AttributeSet(**char_data.get("base_attributes", {})),
                     base_skills=SkillSet(**char_data.get("base_skills", {}))

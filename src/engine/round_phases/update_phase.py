@@ -61,6 +61,28 @@ class UpdatePhase(BaseRoundPhase):
         else:
             self.logger.info("步骤 1: 无行动属性后果需要应用。")
 
+        # +++ 新增：1.5 应用 Agent 生成的后果 (例如关系变化) +++
+        agent_generated_consequences: List[Consequence] = []
+        for action in declared_actions: # Iterate through the original declared actions
+            if hasattr(action, 'generated_consequences') and isinstance(action.generated_consequences, list):
+                agent_generated_consequences.extend(action.generated_consequences)
+            # else: # Optional: Log if the field is missing, though default_factory handles it
+            #     self.logger.debug(f"行动对象缺少 'generated_consequences' 列表: {action}")
+
+        if agent_generated_consequences:
+            self.logger.info(f"步骤 1.5: 应用 {len(agent_generated_consequences)} 条 Agent 生成的后果...")
+            try:
+                # Access game_state_manager via context
+                descriptions = await self.context.game_state_manager.apply_consequences(agent_generated_consequences)
+                all_change_descriptions.extend(descriptions)
+                self.logger.info("步骤 1.5 完成: Agent 生成的后果已应用。")
+            except Exception as apply_error:
+                self.logger.exception(f"应用 Agent 生成的后果时出错: {apply_error}")
+                all_change_descriptions.append("应用 Agent 生成的后果时发生内部错误。")
+        else:
+            self.logger.info("步骤 1.5: 无 Agent 生成的后果需要应用。")
+
+
         # 2. 应用触发事件的后果 (包括 Flag 设置)
         event_consequences: List[Consequence] = []
         # Access scenario_manager via context

@@ -559,11 +559,40 @@ class GameStateManager:
             self.logger.warning(f"REMOVE_ITEM 失败：未找到目标实体 ID '{cons.target_entity_id}' (既不是角色也不是地点)。")
 
 
-    async def _apply_change_relationship(self, game_state: GameState, cons: Consequence):
+    async def _apply_change_relationship(self, game_state: GameState, cons: Consequence) -> Optional[str]:
         """处理 CHANGE_RELATIONSHIP 后果。"""
-        # TODO: Implement logic
-        self.logger.warning(f"后果类型 'CHANGE_RELATIONSHIP' 的处理程序尚未实现。")
-        pass
+        if not cons.target_entity_id or cons.secondary_entity_id is None or cons.value is None:
+            self.logger.warning(f"无效的 CHANGE_RELATIONSHIP 后果：缺少 target_entity_id, secondary_entity_id 或 value。 {cons}")
+            return None
+
+        target_char = game_state.characters.get(cons.target_entity_id)
+        secondary_char = game_state.characters.get(cons.secondary_entity_id) # Usually the player
+
+        if not target_char:
+            self.logger.warning(f"CHANGE_RELATIONSHIP 失败：未找到目标角色 ID '{cons.target_entity_id}'。")
+            return None
+        if not secondary_char:
+            self.logger.warning(f"CHANGE_RELATIONSHIP 失败：未找到次要角色 ID '{cons.secondary_entity_id}'。")
+            return None # Or maybe proceed if relationship is only one-way? Let's require both for now.
+
+        try:
+            change_value = int(cons.value) # Ensure value is an integer
+            old_relationship = target_char.relationship_player
+            new_relationship = old_relationship + change_value
+
+            # Clamp the value between -100 and 100
+            new_relationship = max(-100, min(100, new_relationship))
+
+            target_char.relationship_player = new_relationship
+            description = f"关系变化：角色 '{target_char.name}' 对 '{secondary_char.name}' 的关系值从 {old_relationship} 变为 {new_relationship} (变化: {change_value})。"
+            self.logger.info(description)
+            return description
+        except ValueError:
+            self.logger.error(f"CHANGE_RELATIONSHIP 失败：无法将 value '{cons.value}' 转换为整数。")
+            return None
+        except Exception as e:
+            self.logger.exception(f"更新角色 '{cons.target_entity_id}' 对 '{cons.secondary_entity_id}' 的关系时出错：{e}")
+            return None
 
     async def _apply_trigger_event(self, game_state: GameState, cons: Consequence):
         """处理 TRIGGER_EVENT 后果。"""

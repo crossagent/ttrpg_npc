@@ -4,6 +4,30 @@ from enum import Enum
 from datetime import datetime
 
 from src.models.consequence_models import Consequence
+# +++ 添加 Literal 导入 +++
+from typing import List, Optional, Dict, Any, Union, Literal
+
+
+# +++ 新增：关系影响评估模型 +++
+class RelationshipImpactType(str, Enum):
+    """关系影响类型【【【【【【【【【【【【【【【【【【【【【【【【【【【【【【【【【【【【【【【【【【【【枚举"""
+    POSITIVE_MATCH = "positive_match" # 行为/言论符合NPC偏好/价值观
+    NEGATIVE_CLASH = "negative_clash" # 行为/言论违背NPC偏好/价值观
+    NEUTRAL = "neutral"           # 行为/言论与NPC偏好/价值观无关或影响轻微
+
+class ImpactIntensity(str, Enum):
+    """影响强度枚举"""
+    LOW = "low"
+    MEDIUM = "medium"
+    HIGH = "high"
+
+class RelationshipImpactAssessment(BaseModel):
+    """LLM对玩家行为/对话造成的关系影响评估结果"""
+    interaction_type: RelationshipImpactType = Field(..., description="互动影响类型 (正面匹配/负面冲突/中立)")
+    intensity: ImpactIntensity = Field(..., description="影响强度 (低/中/高)")
+    reason: str = Field(..., description="评估理由 (LLM解释判断依据)")
+    suggested_change: int = Field(..., description="建议的关系值变化量 (例如: +10, -5, 0)")
+
 
 # Add this new model before InternalThoughts class
 class AttitudeType(str, Enum):
@@ -70,6 +94,7 @@ class PlayerAction(BaseModel):
     action_type: ActionType = Field(..., description="行动类型")
     content: str = Field(..., description="行动内容")
     target: Optional[Union[str, List[str]]] = Field(None, description="行动目标，可以是单个角色ID、多个角色ID列表或None") # 允许None并设为可选
+    generated_consequences: List[Consequence] = Field(default_factory=list, description="由Agent内部状态变化（如关系评估）产生的后果") # 新增字段
 
 
 

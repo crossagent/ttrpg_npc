@@ -17,22 +17,27 @@
 
 ## 进行中 / 下一步 (围绕 NPC 核心要素，按优先级)
 
-1.  **细化 `Context Builders` 逻辑 (High Priority)**:
+1.  **更新数据模型 (Models):** (优先级最高)
+    *   在 `CharacterTemplate` (`src/models/scenario_models.py`) 和 `CharacterInstance` (`src/models/game_state_models.py`) 中添加用于描述 NPC 内在设定的字段，例如 `values: List[str]`, `likes: List[str]`, `dislikes: List[str]`。
+2.  **实现基于 LLM 的关系评估 (RefereeAgent):** (优先级最高)
+    *   设计并实现 `RefereeAgent` 中的逻辑：调用 LLM 来解读玩家行动/对话与目标 NPC 内在设定 (`values`, `likes`, `dislikes` 等) 的匹配/冲突程度。
+    *   定义 LLM 的输入（玩家行为、情境、NPC 设定、当前关系值）和结构化输出（例如 `RelationshipImpactAssessment` 模型，包含影响类型、强度、原因、建议变化值）。
+    *   设计引导 LLM 进行评估的 Prompt。
+    *   确定 `RefereeAgent` 如何结合 LLM 的建议和基础规则来最终决定 `relationship_player` 的变化量。
+3.  **细化 `Context Builders` 逻辑:** (优先级高)
     *   实现从 `ChatHistoryManager` 智能提取/总结关键近期互动信息（记忆）的策略。
-    *   确保将 NPC 目标、态度（关系值）、状态 (`status`) 和关键记忆有效整合进 Prompt。
-2.  **设计和迭代 Agent Prompts (High Priority)**:
-    *   为 `CompanionAgent` 设计核心“思考”Prompt，强调结合目标、态度、状态和记忆进行决策。
+    *   确保能将 NPC 的目标、态度（关系值、内在设定）、状态 (`status`) 和关键记忆有效整合进给 Agent 的 Prompt。
+4.  **设计和迭代 Agent Prompts:** (优先级高)
+    *   为 `CompanionAgent` 设计核心“思考”Prompt，强调结合目标、态度（包含关系值和内在设定）、状态和记忆进行决策。
     *   为 `NarrativeAgent` 设计 Prompt，使其能基于上下文生成生动描述，并建议更新 NPC 状态。
-3.  **完善 `RefereeAgent` 和 `GameStateManager` (Medium Priority)**:
-    *   实现对新 `CharacterInstance` 字段（如关系值）的硬性更新逻辑。
-    *   实现基于新字段的行动判定调整（如根据 `status` 调整难度）。
-4.  **实现完整的保存/加载流程 (Medium Priority)**:
-    *   集成 `GameStateManager` 和 `ChatHistoryManager` 的保存/加载调用。
+5.  **完善状态更新与事件驱动 (GameStateManager):** (优先级中)
+    *   确保 `GameStateManager` 在更新阶段能正确应用 `RefereeAgent` 判定的关系值变化。
+    *   继续支持通过剧本事件 (`ScenarioEvent`) 的后果直接修改 `relationship_player`。
+    *   实现基于关系值或其他新字段的行动判定调整（如根据 `status` 调整难度）。
+6.  **实现完整的保存/加载流程**: (优先级中)
+    *   在 `GameEngine` 中集成 `GameStateManager` 和 `ChatHistoryManager` 的保存/加载调用。
     *   确定保存时机和文件结构。
-5.  **完善 `RoundManager` 和阶段处理器 (Low Priority / As Needed)**:
-    *   根据上述功能的实现，填充和调整各阶段处理器的具体逻辑。
-6.  **集成与测试 (Ongoing)**:
-    *   持续测试 NPC 行为是否符合其核心要素，分层机制是否有效。
+7.  **集成测试**: (持续进行) 重点测试新的关系更新机制是否有效，NPC 行为是否符合其目标、态度和记忆。
 
 ## 已知问题 / 待办
 

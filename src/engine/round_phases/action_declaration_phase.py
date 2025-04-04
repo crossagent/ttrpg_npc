@@ -186,6 +186,9 @@ class ActionDeclarationPhase(BaseRoundPhase):
             elif isinstance(result, PlayerAction):
                 processed_action = result # Assign the valid action
                 player_actions.append(result)
+                # +++ 添加日志记录检查 generated_consequences +++
+                if result.generated_consequences:
+                    self.logger.debug(f"角色 {character_id_from_task} 的行动包含 {len(result.generated_consequences)} 条生成的后果。")
             elif result is None:
                  self.logger.warning(f"角色 {character_id_from_task} 的行动任务返回 None。")
                  # 可以选择创建一个默认的 WAIT 行动
