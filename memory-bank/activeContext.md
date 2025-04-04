@@ -2,11 +2,19 @@
 
 ## 当前工作焦点
 
-*   **GameState 重构完成**: `GameState` 模型 (`src/models/game_state_models.py`) 已被重构，移除了完整的 `Scenario` 对象（替换为 `scenario_id`）和 `chat_history` 列表，使其更轻量，适合序列化为回合快照。同时清理了冗余的模型定义（如 `ItemStatus`）。
-*   **引入 ChatHistoryManager**: 创建了新的 `ChatHistoryManager` (`src/engine/chat_history_manager.py`)，用于独立管理按回合存储的聊天记录。
-*   **Scenario 访问更新**: 修改了 `GameStateManager`, `Context Builders` (`context_utils.py`, `player_context_builder.py`), 和 `PlayerAgent`，使其通过 `ScenarioManager` 实例（通常通过依赖注入传递）和 `GameState.scenario_id` 来访问剧本信息，而不是直接访问 `game_state.scenario`。
-*   **MessageDispatcher 集成**: 更新了 `MessageDispatcher`，使其在分发消息后调用 `ChatHistoryManager` 来记录消息，并从 `ChatHistoryManager` 获取历史记录。
-*   **GameStateManager 保存/加载**: 为 `GameStateManager` 添加了 `save_state` 和 `load_state` 方法，用于序列化/反序列化核心游戏状态到 JSON 文件（不含聊天记录）。
+*   **核心策略确立: 硬机制与软描述分层**
+    *   明确了游戏实现的分层策略：核心规则/进展/状态使用可靠的**硬机制**（Flags, 数值属性, 预定义逻辑）；角色行为/个性/氛围/交互细节依赖**软描述**（LLM 上下文理解, 宏观状态字段, Prompt 设计）。(详见 `systemPatterns.md`)
+    *   当前阶段优先利用**软描述**和 LLM 能力快速实现动态交互，辅以必要的硬机制。
+*   **聚焦 NPC 核心要素:**
+    *   当前设计和开发工作的核心是实现 NPC 的三个关键要素，以驱动智能交互和突破性体验：
+        1.  **目标 (Goals):** 结合预设背景和 LLM 动态生成的情境意图。
+        2.  **对玩家的态度 (Attitude):** 结合硬性关系值和 LLM 演绎的细微情绪/行为。
+        3.  **重要事件记忆 (Memory):** 结合硬性关键 Flags 和由 `Context Builders` 提取/总结的近期重要互动信息。
+*   **基础架构调整完成:**
+    *   `GameState` 重构完成，变得更轻量。
+    *   引入独立的 `ChatHistoryManager` 管理聊天记录。
+    *   更新了相关模块以适应新的数据结构和访问方式。
+    *   初步实现了 `GameStateManager` 的核心状态保存/加载接口。
 
 ## 近期变更
 
@@ -19,12 +27,25 @@
 *   修改了 `src/communication/message_dispatcher.py`：添加 `chat_history_manager` 和 `game_state_manager` 依赖，更新消息记录和历史获取逻辑。
 *   修改了 `src/engine/game_engine.py`：实例化 `ChatHistoryManager` 并正确注入依赖。
 
-## 下一步计划
+## 下一步计划 (围绕 NPC 核心要素)
 
-1.  **实现完整的保存/加载流程**: 在 `GameEngine` 或其他协调层调用 `GameStateManager.save_state`/`load_state` 和 `ChatHistoryManager.save_history`/`load_history`，以实现完整的游戏进度保存和加载功能。
-2.  **更新 Context Builders**: 确保所有需要聊天记录的 Context Builders（例如用于构建 LLM prompt）现在从 `ChatHistoryManager` 获取所需回合的消息。
-3.  **测试**: 对重构后的状态管理、聊天记录、保存/加载功能进行全面测试。
-4.  **更新 `progress.md`**: 标记 GameState 重构任务的完成状态。
+1.  **设计 `CharacterInstance` 扩展字段:** (优先级最高)
+    *   确定并添加用于支持 NPC 目标、态度、记忆和宏观状态的字段（例如 `relationship_player: int`, `status: str`, `short_term_goals: List[str]`, `key_memories: List[str]` 等）。
+    *   定义这些字段的更新机制（硬性判定 vs. 软性建议）。
+2.  **细化 `Context Builders` 逻辑:** (优先级高)
+    *   实现从 `ChatHistoryManager` 智能提取/总结关键近期互动信息（记忆）的策略。
+    *   确保能将 NPC 的目标、态度（关系值）、状态 (`status`) 和关键记忆有效整合进 Prompt。
+3.  **设计和迭代 Agent Prompts:** (优先级高)
+    *   为 `CompanionAgent` 设计核心“思考”Prompt，强调结合目标、态度、状态和记忆进行决策。
+    *   为 `NarrativeAgent` 设计 Prompt，使其能基于上下文生成生动描述，并建议更新 NPC 状态。
+4.  **完善 `RefereeAgent` 和 `GameStateManager`:**
+    *   实现对新 `CharacterInstance` 字段（如关系值）的硬性更新逻辑。
+    *   实现基于新字段的行动判定调整（如根据 `status` 调整难度）。
+5.  **实现完整的保存/加载流程**:
+    *   在 `GameEngine` 中集成 `GameStateManager` 和 `ChatHistoryManager` 的保存/加载调用。
+    *   确定保存时机和文件结构。
+6.  **集成测试**: 重点测试 NPC 行为是否符合其目标、态度和记忆，以及分层机制是否有效工作。
+7.  **更新 `progress.md`**: 跟踪上述任务的进展。
 
 ## 待解决/考虑事项
 
