@@ -43,7 +43,8 @@ from src.engine.round_phases.base_phase import PhaseContext
 from src.engine.round_phases.narration_phase import NarrationPhase
 from src.engine.round_phases.action_declaration_phase import ActionDeclarationPhase
 from src.engine.round_phases.judgement_phase import JudgementPhase, JudgementOutput # Changed JudgementResult to JudgementOutput
-from src.engine.round_phases.update_phase import UpdatePhase
+# --- Removed UpdatePhase import ---
+# from src.engine.round_phases.update_phase import UpdatePhase
 
 
 class RoundManager:
@@ -98,8 +99,13 @@ class RoundManager:
         # 确保 game_state 对象存在且有 round_number 属性
         if game_state:
             game_state.round_number = round_id
+            # +++ Clear previous round's temporary records +++
+            game_state.current_round_actions.clear()
+            game_state.current_round_applied_consequences.clear()
+            game_state.current_round_triggered_events.clear()
+            self.logger.debug(f"已清空回合 {round_id} 的临时记录列表。")
         else:
-            self.logger.error("无法获取游戏状态对象，无法更新回合号！")
+            self.logger.error("无法获取游戏状态对象，无法更新回合号或清空记录！")
         self.logger.info(f"回合 {round_id} 开始于 {self.round_start_time}")
 
     # --- 旧的回合处理方法已被移除，逻辑迁移至 phase handlers ---
@@ -113,6 +119,18 @@ class RoundManager:
             GameState: 回合结束时的游戏状态。
         """
         game_state = self.game_state_manager.get_state()
+
+        # +++ Create and store snapshot before logging end +++
+        if game_state:
+            snapshot = self.game_state_manager.create_snapshot()
+            if snapshot:
+                self.game_state_manager.store_snapshot(self.current_round_id, snapshot)
+            else:
+                self.logger.error(f"未能为回合 {self.current_round_id} 创建快照！")
+        else:
+            self.logger.error(f"无法获取游戏状态，无法创建回合 {self.current_round_id} 的快照！")
+
+        # Log round end time
         if self.round_start_time: # 确保 round_start_time 已设置
             round_duration = datetime.now() - self.round_start_time
             self.logger.info(f"回合 {self.current_round_id} 结束，持续时间: {round_duration}")
@@ -159,11 +177,12 @@ class RoundManager:
             judgement_phase = JudgementPhase(context)
             judgement_output: JudgementOutput = await judgement_phase.execute(declared_actions) # Changed type hint and variable name
 
-            # 6. 执行更新阶段
-            update_phase = UpdatePhase(context)
-            await update_phase.execute(judgement_output, declared_actions) # Pass the renamed variable
+            # 6. 【移除】执行更新阶段
+            # update_phase = UpdatePhase(context)
+            # await update_phase.execute(judgement_output, declared_actions) # Pass the renamed variable
+            self.logger.info("步骤 6: 更新阶段已被移除，状态更新和记录已在其他阶段完成。")
 
-            # 7. 结束回合
+            # 7. 结束回合 (现在包含快照存储)
             final_state = self.end_round()
             return final_state
 

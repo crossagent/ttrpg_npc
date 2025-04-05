@@ -7,9 +7,12 @@ from typing import List, Dict, Any, Optional, Tuple, Union
 from src.engine.round_phases.base_phase import BaseRoundPhase, PhaseContext
 from src.models.action_models import PlayerAction, ActionResult, ActionType
 from src.models.message_models import Message, MessageType, MessageVisibility, SenderRole # Import SenderRole
-from src.models.scenario_models import Scenario # Ensure Scenario is imported for type hinting
-from src.models.consequence_models import ConsequenceType # Import ConsequenceType
-
+from src.models.scenario_models import Scenario, EventOutcome # Ensure Scenario is imported for type hinting
+# +++ Import consequence and record models +++
+from src.models.consequence_models import (
+    Consequence, ConsequenceType,
+    AppliedConsequenceRecord, TriggeredEventRecord
+)
 from src.models.game_state_models import GameState
 
 
@@ -53,27 +56,93 @@ class JudgementPhase(BaseRoundPhase):
         )
         self.logger.info(f"步骤 1 完成: 获得 {len(action_results)} 个行动的属性后果。")
 
-        # 2. 基于行动结果和状态，判断活跃事件是否触发
+        # 2. 【应用】行动产生的后果 (包括属性后果和 Agent 内部生成的后果)
+        all_action_consequences: List[Consequence] = []
+        for ar in action_results:
+            # 添加裁判判定的属性后果
+            all_action_consequences.extend(ar.consequences)
+            # 添加 Agent 在行动宣告时生成的后果 (例如关系评估产生的)
+            if ar.action and ar.action.generated_consequences:
+                all_action_consequences.extend(ar.action.generated_consequences)
+
+        if all_action_consequences:
+            self.logger.info(f"步骤 2: 准备应用 {len(all_action_consequences)} 条行动产生的后果...")
+            try:
+                # 调用 GameStateManager 应用后果 (假设它会处理记录 AppliedConsequenceRecord)
+                await self.game_state_manager.apply_consequences(all_action_consequences)
+                self.logger.info("步骤 2 完成: 行动产生的后果已应用。")
+            except Exception as e:
+                self.logger.exception(f"应用行动产生的后果时出错: {e}")
+        else:
+            self.logger.info("步骤 2: 没有行动产生的后果需要应用。")
+
+
+        # 3. 基于行动结果和【更新后】的状态，判断活跃事件是否触发
         triggered_events_with_outcomes: List[Dict[str, str]] = []
         if current_scenario and current_state.active_event_ids: # Check active_event_ids directly
-            self.logger.info("步骤 2: 基于行动结果判断活跃事件是否触发...")
+            self.logger.info("步骤 3: 基于行动结果和当前状态判断活跃事件是否触发...")
             try:
                 # Pass the action_results (with attribute consequences) to the event trigger check
                 triggered_events_with_outcomes = await self.referee.determine_triggered_events_and_outcomes(
-                    action_results, current_state, current_scenario
+                    action_results, current_state, current_scenario # 使用更新后的 current_state
                 )
-                self.logger.info(f"步骤 2 完成: 触发了 {len(triggered_events_with_outcomes)} 个事件。")
+                self.logger.info(f"步骤 3 完成: 触发了 {len(triggered_events_with_outcomes)} 个事件。")
             except Exception as e:
                  self.logger.exception(f"判断事件触发时出错: {e}")
                  triggered_events_with_outcomes = [] # Continue without event triggers on error
         else:
-             self.logger.info("步骤 2: 无活跃事件需要检查触发。")
+             self.logger.info("步骤 3: 无活跃事件需要检查触发。")
+
+        # 4. 【应用】触发事件的后果，并【记录】触发的事件
+        all_event_consequences: List[Consequence] = []
+        if triggered_events_with_outcomes:
+            self.logger.info(f"步骤 4: 准备应用 {len(triggered_events_with_outcomes)} 个触发事件的后果并记录事件...")
+            for event_trigger in triggered_events_with_outcomes:
+                event_id = event_trigger.get("event_id")
+                outcome_id = event_trigger.get("outcome_id")
+                trigger_source_desc = event_trigger.get("trigger_source", "未知来源") # 获取触发来源
+
+                if not event_id or not outcome_id:
+                    self.logger.warning(f"跳过无效的事件触发记录: {event_trigger}")
+                    continue
+
+                # 获取事件结局的详细信息
+                outcome: Optional[EventOutcome] = self.scenario_manager.get_event_outcome(event_id, outcome_id)
+
+                if outcome:
+                    # 收集事件结局的后果
+                    if outcome.consequences:
+                        all_event_consequences.extend(outcome.consequences)
+
+                    # 创建 TriggeredEventRecord 并记录到 GameState
+                    event_record = TriggeredEventRecord(
+                        round_number=self.current_round_id,
+                        event_id=event_id,
+                        outcome_id=outcome_id,
+                        trigger_source=trigger_source_desc # 使用从裁判处获取的来源描述
+                    )
+                    current_state.current_round_triggered_events.append(event_record)
+                    self.logger.debug(f"已记录触发事件: {event_id}, 结局: {outcome_id}")
+                else:
+                    self.logger.warning(f"无法找到事件 '{event_id}' 的结局 '{outcome_id}'，无法应用其后果或记录。")
+
+            # 统一应用所有事件后果
+            if all_event_consequences:
+                try:
+                    await self.game_state_manager.apply_consequences(all_event_consequences)
+                    self.logger.info(f"步骤 4 完成: 应用了 {len(all_event_consequences)} 条事件后果，记录了 {len(current_state.current_round_triggered_events)} 个触发事件。")
+                except Exception as e:
+                    self.logger.exception(f"应用事件产生的后果时出错: {e}")
+            else:
+                 self.logger.info("步骤 4 完成: 没有事件产生的后果需要应用，但记录了触发事件。")
+        else:
+            self.logger.info("步骤 4: 没有触发的事件需要处理。")
 
 
-        # 3. 组合并返回结果
+        # 5. 组合并返回原始判定结果 (可能不再需要，但暂时保留)
         output: JudgementOutput = {
-            "action_results": action_results,
-            "triggered_events": triggered_events_with_outcomes
+            "action_results": action_results, # 包含属性后果
+            "triggered_events": triggered_events_with_outcomes # 包含事件ID和结局ID
         }
         self.logger.info("--- 结束判定阶段 ---")
         return output

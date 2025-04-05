@@ -2,9 +2,11 @@ from pydantic import BaseModel, Field
 from typing import Dict, List, Any, Optional, Union, Literal
 from enum import Enum
 from datetime import datetime
-from src.models.scenario_models import Scenario, StoryStage, AttributeSet, SkillSet
+# +++ Import necessary types +++
+from src.models.action_models import InternalThoughts, PlayerAction
+from src.models.consequence_models import AppliedConsequenceRecord, TriggeredEventRecord
 from src.models.message_models import Message, MessageStatus
-from src.models.action_models import InternalThoughts
+from src.models.scenario_models import Scenario, StoryStage, AttributeSet, SkillSet
 
 class MessageReadMemory(BaseModel):
     """消息已读记录模型"""
@@ -134,3 +136,17 @@ class GameState(BaseModel):
     # chat_history: List[Message] = Field(default_factory=list, description="完整消息历史记录列表")
     revealed_secrets: List[str] = Field(default_factory=list, description="已揭示的秘密")
     character_internal_thoughts: Dict[str, InternalThoughts] = Field(default_factory=dict, description="角色的心理活动记录，键为角色ID")
+
+    # --- 回合内临时记录 (用于快照和叙事) ---
+    current_round_actions: List[PlayerAction] = Field(
+        default_factory=list,
+        description="本回合所有角色宣告的行动列表 (包括内心想法)"
+    )
+    current_round_applied_consequences: List[AppliedConsequenceRecord] = Field(
+        default_factory=list,
+        description="本回合实际应用的机制性后果记录列表"
+    )
+    current_round_triggered_events: List[TriggeredEventRecord] = Field(
+        default_factory=list,
+        description="本回合实际触发的事件记录列表"
+    )

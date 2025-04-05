@@ -1,6 +1,7 @@
 # src/models/consequence_models.py
 from enum import Enum
 from typing import Any, Optional, Dict
+from datetime import datetime # +++ Import datetime +++
 
 from pydantic import BaseModel, Field
 
@@ -38,3 +39,22 @@ class Consequence(BaseModel):
 
     class Config:
         pass # Default behavior: use Enum members, Pydantic handles conversion from string values on load
+
+
+# +++ 新增：记录实际应用的后果和触发的事件 +++
+
+class AppliedConsequenceRecord(BaseModel):
+    """记录一个已成功应用到游戏状态的机制性后果"""
+    timestamp: datetime = Field(default_factory=datetime.now, description="后果应用的时间戳")
+    round_number: int = Field(..., description="后果应用的具体回合数")
+    source_description: str = Field(..., description="触发此后果的来源描述 (例如: '玩家A的行动', '事件X的结局Y')")
+    applied_consequence: Consequence = Field(..., description="实际应用的后果对象")
+    # 可以添加更多元数据，例如应用前的状态值等用于调试
+
+class TriggeredEventRecord(BaseModel):
+    """记录一个已成功触发的事件及其结局"""
+    timestamp: datetime = Field(default_factory=datetime.now, description="事件触发的时间戳")
+    round_number: int = Field(..., description="事件触发的具体回合数")
+    event_id: str = Field(..., description="触发的剧本事件ID (ScenarioEvent.event_id)")
+    outcome_id: str = Field(..., description="实际发生的结局ID (EventOutcome.id)")
+    trigger_source: str = Field(..., description="触发事件的来源描述 (例如: '玩家A的行动', '环境变化')")

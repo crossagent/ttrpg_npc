@@ -5,6 +5,7 @@ from datetime import datetime
 import uuid
 import logging # Add logging import
 from operator import add, sub, mul, truediv # For attribute updates
+import copy # +++ Import copy for deepcopy +++
 
 from src.models.game_state_models import (
     GameState, CharacterInstance,
@@ -34,10 +35,11 @@ class GameStateManager:
             scenario_manager: 剧本管理器实例
             initial_state: 初始游戏状态，如果为None则创建新状态
         """
-        self.game_state = initial_state
+        self.game_state: Optional[GameState] = initial_state # Add type hint
         self.scenario_manager = scenario_manager # Store the scenario manager
         # self.message_dispatcher = message_dispatcher # Removed dispatcher dependency
         self.logger = logging.getLogger("GameStateManager") # Add logger
+        self.round_snapshots: Dict[int, GameState] = {} # +++ Add dictionary to store snapshots +++
 
     def initialize_game_state(self) -> GameState:
         """
@@ -914,6 +916,54 @@ class GameStateManager:
             self.logger.info(f"游戏状态已保存到: {file_path}")
         except Exception as e:
             self.logger.exception(f"保存游戏状态到 '{file_path}' 时出错: {e}")
+
+    # +++ 新增快照管理方法 +++
+    def create_snapshot(self) -> Optional[GameState]:
+        """
+        创建当前游戏状态的深拷贝快照。
+
+        Returns:
+            Optional[GameState]: 游戏状态的深拷贝，如果当前状态不存在则返回 None。
+        """
+        if not self.game_state:
+            self.logger.error("无法创建快照：游戏状态未初始化。")
+            return None
+        try:
+            # 使用 copy.deepcopy 确保完全独立
+            snapshot = copy.deepcopy(self.game_state)
+            self.logger.debug(f"已为回合 {snapshot.round_number} 创建游戏状态快照。")
+            return snapshot
+        except Exception as e:
+            self.logger.exception(f"创建游戏状态快照时出错: {e}")
+            return None
+
+    def store_snapshot(self, round_number: int, snapshot: GameState):
+        """
+        将游戏状态快照存储在内存中。
+
+        Args:
+            round_number: 快照对应的回合数。
+            snapshot: 要存储的游戏状态快照。
+        """
+        self.round_snapshots[round_number] = snapshot
+        self.logger.info(f"已存储回合 {round_number} 的游戏状态快照。")
+
+    def get_snapshot(self, round_number: int) -> Optional[GameState]:
+        """
+        获取指定回合的游戏状态快照。
+
+        Args:
+            round_number: 要获取快照的回合数。
+
+        Returns:
+            Optional[GameState]: 指定回合的快照，如果不存在则返回 None。
+        """
+        snapshot = self.round_snapshots.get(round_number)
+        if snapshot:
+            self.logger.debug(f"已检索到回合 {round_number} 的游戏状态快照。")
+        else:
+            self.logger.warning(f"未找到回合 {round_number} 的游戏状态快照。")
+        return snapshot
 
     def load_state(self, file_path: str) -> bool:
         """

@@ -259,5 +259,15 @@ class ActionDeclarationPhase(BaseRoundPhase):
 
         # 4. 【移除】原有的统一广播逻辑
 
+        # 5. 【新增】将收集到的所有行动记录到当前 GameState
+        current_game_state = self.get_current_state()
+        if current_game_state:
+            # 使用 extend 添加列表中的所有元素
+            current_game_state.current_round_actions.extend(player_actions)
+            self.logger.info(f"已将 {len(player_actions)} 个行动宣告记录到 GameState.current_round_actions。")
+        else:
+            self.logger.error("无法记录行动宣告：获取当前 GameState 失败。")
+
+
         self.logger.info(f"--- 结束行动宣告阶段 (立刻广播)，共处理 {len(player_actions)} 个行动意图 ---")
         return player_actions
