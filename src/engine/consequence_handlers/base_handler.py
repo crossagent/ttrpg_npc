@@ -54,7 +54,10 @@ class BaseConsequenceHandler(abc.ABC):
             target_entity_id=consequence.target_entity_id,
             success=success,
             details=consequence.model_dump(), # Store the original consequence details
-            description=description or f"Applied consequence: {consequence.type.value}"
+            description=description or f"Applied consequence: {consequence.type.value}",
+            # +++ Add missing required fields +++
+            source_description=f"来源于后果对象: {consequence.type.value}", # Placeholder description
+            applied_consequence=consequence # Store the original consequence object
         )
         # Add the record to the game state's list
         game_state.current_round_applied_consequences.append(record)

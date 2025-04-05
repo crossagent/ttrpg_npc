@@ -245,7 +245,7 @@ class CompanionAgent(BaseAgent):
         if player_instance and game_state.round_number > 0:
             try:
                 # 获取上一回合的消息
-                prev_round_messages = self.chat_history_manager.get_messages_for_round(game_state.round_number - 1)
+                prev_round_messages = self.chat_history_manager.get_messages(start_round=game_state.round_number - 1)
                 # 筛选出玩家与当前 NPC 的互动
                 player_interactions = [
                     msg for msg in prev_round_messages

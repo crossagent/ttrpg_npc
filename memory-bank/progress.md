@@ -23,30 +23,35 @@
     *   修改了 `NarrationPhase` 以使用上一回合的快照生成叙事。
     *   修改了 `RoundManager` 以在回合开始时清空记录，在回合结束时存储快照。
     *   移除了 `UpdatePhase`。
+*   **修复日志 Bug**:
+    *   修复了 `CompanionAgent` 中调用 `ChatHistoryManager` 获取历史消息的 `AttributeError`。
+    *   修复了 `BaseConsequenceHandler` 中创建 `AppliedConsequenceRecord` 时缺少必需字段 (`source_description`, `applied_consequence`) 导致的 `ValidationError`。
+    *   更新了 `RefereeAgent` 的系统 Prompt，指导其为角色属性/技能生成正确的后果类型，并要求使用有效的实体 ID。
+*   **明确架构职责**: 在 `systemPatterns.md` 和 `activeContext.md` 中明确了 `GameStateManager` (机制状态) 和 `ChatHistoryManager` (交互历史、上下文、可见性) 的职责差异。
 
 ## 进行中 / 下一步 (按优先级)
 
-1.  **更新数据模型 (Models):** (依赖架构调整后)
+1.  **检查 `NarrationPhase` 跳过逻辑**: (当前最高优先级) 查看 `src/engine/round_phases/narration_phase.py` 的代码，理解判断“活跃度”并决定跳过叙事的具体条件，确认是否符合预期。
+2.  **运行游戏测试**: (优先级次高) 在检查完 NarrationPhase 逻辑后，运行游戏以验证所有修复效果和整体流程。
+3.  **优化 Agent Prompts 和数据源**: (优先级中) 在核心 Bug 修复并通过测试后，重新审视并优化各个 Agent (特别是 `CompanionAgent`, `RefereeAgent`, `NarrativeAgent`) 的 Prompt，并确认它们获取的数据源是否准确、充分。
+4.  **更新测试用例**: (优先级中) 修改或添加测试用例以覆盖新的逻辑和修复。
+5.  **实现未完成的 Handler**: (优先级中)
+    *   实现 `TriggerEventHandler` 。
+    *   将它们添加到 `HANDLER_REGISTRY`。
+6.  **更新数据模型 (Models):** (优先级中)
     *   在 `CharacterTemplate` (`src/models/scenario_models.py`) 和 `CharacterInstance` (`src/models/game_state_models.py`) 中添加用于描述 NPC 内在设定的字段，例如 `values: List[str]`, `likes: List[str]`, `dislikes: List[str]`。
-2.  **实现基于 LLM 的关系评估 (RefereeAgent):** (依赖架构调整后)
+7.  **实现基于 LLM 的关系评估 (RefereeAgent):** (优先级中)
     *   设计并实现 `RefereeAgent` 中的逻辑：调用 LLM 来解读玩家行动/对话与目标 NPC 内在设定 (`values`, `likes`, `dislikes` 等) 的匹配/冲突程度。
     *   定义 LLM 的输入（玩家行为、情境、NPC 设定、当前关系值）和结构化输出（例如 `RelationshipImpactAssessment` 模型，包含影响类型、强度、原因、建议变化值）。
     *   设计引导 LLM 进行评估的 Prompt。
-    *   确定 `RefereeAgent` 如何结合 LLM 的建议和基础规则来最终决定 `relationship_player` 的变化量。
-3.  **细化 `Context Builders` 逻辑:** (优先级高)
+    *   确定 `RefereeAgent` 如何结合 LLM 的建议和基础规则来最终决定 `relationship_player` 的变化量（可能生成 `CHANGE_RELATIONSHIP` 后果）。
+8.  **细化 `Context Builders` 逻辑:** (优先级中)
     *   实现从 `ChatHistoryManager` 智能提取/总结关键近期互动信息（记忆）的策略。
     *   确保能将 NPC 的目标、态度（关系值、内在设定）、状态 (`status`) 和关键记忆有效整合进给 Agent 的 Prompt。
-4.  **设计和迭代 Agent Prompts:** (优先级高)
-    *   为 `CompanionAgent` 设计核心“思考”Prompt，强调结合目标、态度（包含关系值和内在设定）、状态和记忆进行决策。
-    *   为 `NarrativeAgent` 设计 Prompt，使其能基于上下文生成生动描述，并建议更新 NPC 状态。
-5.  **完善状态更新与事件驱动 (GameStateManager):** (优先级中)
-    *   确保 `GameStateManager` 在更新阶段能正确应用 `RefereeAgent` 判定的关系值变化。
-    *   继续支持通过剧本事件 (`ScenarioEvent`) 的后果直接修改 `relationship_player`。
-    *   实现基于关系值或其他新字段的行动判定调整（如根据 `status` 调整难度）。
-6.  **实现完整的保存/加载流程**: (优先级中)
+9.  **实现完整的保存/加载流程**: (优先级中)
     *   在 `GameEngine` 中集成 `GameStateManager` 和 `ChatHistoryManager` 的保存/加载调用。
     *   确定保存时机和文件结构。
-7.  **集成测试**: (持续进行) 重点测试新的关系更新机制是否有效，NPC 行为是否符合其目标、态度和记忆。
+10. **(稍后)** 检查并清理可能冗余的 `src/models/record_models.py`。
 
 ## 已知问题 / 待办
 

@@ -75,13 +75,24 @@ JSON 输出格式示例：
 
 **关于 `attribute_consequences` 列表的重要说明：**
 如果包含后果，每个后果对象中的 `type` 字段的值**必须**严格从以下 **属性类** 列表中选择：
-- 'update_attribute'  (例如: 修改 health, mana, location 等)
-- 'add_item'
-- 'remove_item'
-- 'change_relationship'
-- 'send_message'      (用于裁判需要发送的系统消息或特定叙述)
+- 'update_character_attribute' # 用于更新 **角色** 的特定属性 (如 health, status)
+- 'update_character_skill'     # 用于更新 **角色** 的特定技能等级
+- 'update_attribute'           # 用于更新 **非角色实体** (如地点、物品状态) 的通用属性
+- 'add_item'                   # 向角色或地点添加物品
+- 'remove_item'                # 从角色或地点移除物品
+- 'change_relationship'        # 改变两个角色之间的关系值
+- 'send_message'               # 用于裁判需要发送的系统消息或特定叙述
 **绝对不允许** 包含 'update_flag' 或 'trigger_event' 类型。
-请确保使用这些预定义的属性类后果类型，并根据类型提供必要的其他字段（如 `target_entity_id`, `attribute_name`, `item_id`, `value` 等）。
+
+**选择正确的属性更新类型：**
+- 当你需要更新一个 **角色** 的属性时 (例如 health, mana, status, knowledge)，请使用 `update_character_attribute` 类型，并在 `target_entity_id` 中提供角色 ID，在 `attribute_name` 中提供属性名称。
+- 当你需要更新一个 **角色** 的技能等级时，请使用 `update_character_skill` 类型，并在 `target_entity_id` 中提供角色 ID，在 `skill_name` 中提供技能名称。
+- 当你需要更新一个 **地点** 或其他 **非角色实体** 的属性时，请使用通用的 `update_attribute` 类型。
+
+**关于实体 ID 的重要说明：**
+在生成任何后果时，如果涉及到 `target_entity_id` 或 `secondary_entity_id`，**必须** 使用用户 Prompt 中提供的 **实际存在的实体 ID** (例如 `char_001`, `loc_002` 等)。**严禁** 根据描述或角色名称自行创造或猜测实体 ID (例如，不要使用像 'ally_001', 'man_at_loc_001', '艾莉' 这样的非标准 ID)。
+
+请确保使用这些预定义的属性类后果类型，并根据类型提供必要的其他字段（如 `target_entity_id`, `attribute_name`, `skill_name`, `item_id`, `value` 等），同时确保所有实体 ID 都是有效的。
 """
     # Add scenario specific rules or context if available
     # if scenario and scenario.rules:

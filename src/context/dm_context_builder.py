@@ -83,7 +83,7 @@ def build_narrative_user_prompt(
         scene_changes = "\n".join(game_state.environment.recent_changes)
     
     return f"""
-【第{game_state.round_number}回合 | {game_time} | {current_stage}】
+【第{game_state.round_number if game_state else 1}回合 | {game_time} | {current_stage}】 # Handle None game_state for round 1
 
 自上次重要事件/行动以来的活动记录: 
 {formatted_messages if formatted_messages else "无（或仅有非实质性对话）"}

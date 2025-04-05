@@ -177,6 +177,18 @@ class RoundManager:
             judgement_phase = JudgementPhase(context)
             judgement_output: JudgementOutput = await judgement_phase.execute(declared_actions) # Changed type hint and variable name
 
+            # +++ 检查回合是否活跃并更新 last_active_round +++
+            current_game_state = self.game_state_manager.get_state()
+            if current_game_state:
+                is_active_round = any(action.action_type != ActionType.WAIT for action in declared_actions)
+                if is_active_round:
+                    current_game_state.last_active_round = self.current_round_id
+                    self.logger.info(f"回合 {self.current_round_id} 被标记为活跃，更新 last_active_round。")
+                else:
+                    self.logger.info(f"回合 {self.current_round_id} 无实质性行动，未更新 last_active_round。")
+            else:
+                self.logger.error("无法获取当前游戏状态，无法更新 last_active_round。")
+
             # 6. 【移除】执行更新阶段
             # update_phase = UpdatePhase(context)
             # await update_phase.execute(judgement_output, declared_actions) # Pass the renamed variable
