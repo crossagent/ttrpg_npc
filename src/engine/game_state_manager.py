@@ -4,7 +4,7 @@ from typing import List, Dict, Any, Optional
 from datetime import datetime
 import uuid
 import logging # Add logging import
-from operator import add, sub, mul, truediv # For attribute updates
+# from operator import add, sub, mul, truediv # No longer needed here
 import copy # +++ Import copy for deepcopy +++
 
 from src.models.game_state_models import (
@@ -20,6 +20,10 @@ import uuid # Import uuid for message IDs
 from datetime import datetime # Import datetime for timestamps
 
 from src.engine.scenario_manager import ScenarioManager
+# +++ Import the handler getter function +++
+from src.engine.consequence_handlers import get_handler
+# +++ Import the handler getter function +++
+from src.engine.consequence_handlers import get_handler
 
 
 class GameStateManager:
@@ -337,389 +341,63 @@ class GameStateManager:
 
     # --- 阶段三: 后果应用核心逻辑 ---
 
-    async def apply_consequences(self, consequences: List[Consequence]):
+    async def apply_consequences(self, consequences: List[Consequence]) -> List[str]:
         """
-        应用一系列结构化的后果到当前游戏状态。
+        应用一系列结构化的后果到当前游戏状态，使用注册的 Handler 处理。
 
         Args:
             consequences: 后果对象的列表。
 
         Returns:
-            List[str]: 应用后果产生的描述信息列表。
+            List[str]: 应用后果产生的描述信息列表 (由 Handler 返回)。
         """
         if not self.game_state:
             self.logger.error("无法应用后果：游戏状态未初始化。")
-            return [] # Return empty list
+            return []
 
-        change_descriptions: List[str] = [] # List to store descriptions
+        change_descriptions: List[str] = []
         self.logger.info(f"开始应用 {len(consequences)} 条后果...")
-        for i, cons in enumerate(consequences):
-            self.logger.debug(f"应用后果 {i+1}/{len(consequences)}: {cons.model_dump_json()}")
-            description = None # Initialize description for this consequence
-            try:
-                handler = self._get_consequence_handler(cons.type)
-                if handler:
-                    # Await the handler and get the description string
-                    description = await handler(self.game_state, cons)
-                else:
-                    self.logger.warning(f"未找到后果类型 '{cons.type.value}' 的处理程序。")
-            except Exception as e:
-                self.logger.exception(f"应用后果时出错 ({cons.type.value}): {e}")
 
-            # Add the description to the list if it's not None or empty
-            if description:
-                change_descriptions.append(description)
+        for i, cons in enumerate(consequences):
+            self.logger.debug(f"处理后果 {i+1}/{len(consequences)}: {cons.type.value} - {cons.target_entity_id}")
+            description = None
+            handler = None
+            try:
+                # 获取并实例化对应的 Handler
+                handler = get_handler(cons.type)
+                if handler:
+                    # 调用 Handler 的 apply 方法，该方法负责应用和记录
+                    description = await handler.apply(cons, self.game_state)
+                    if description: # Handler 成功应用并返回了描述
+                         change_descriptions.append(description)
+                    # else: Handler 应用失败或无描述返回，Handler 内部应已记录失败
+                else:
+                    self.logger.warning(f"未找到后果类型 '{cons.type.value}' 的处理程序。跳过此后果。")
+                    # 可以在这里创建一个通用的失败记录，如果需要的话
+                    # self._create_generic_failure_record(cons, "未找到处理器")
+
+            except Exception as e:
+                # 捕获 Handler 执行期间的意外错误
+                self.logger.exception(f"应用后果 '{cons.type.value}' 时发生意外错误: {e}")
+                # 尝试让 Handler (如果已实例化) 记录失败，否则记录通用失败
+                # if handler and hasattr(handler, '_create_record'):
+                #     try:
+                #         # Assuming _create_record is synchronous and part of base class
+                #         handler._create_record(cons, self.game_state, success=False, description=f"应用时发生意外错误: {e}")
+                #     except Exception as record_e:
+                #         self.logger.error(f"尝试记录意外错误时再次出错: {record_e}")
+                # else:
+                #      self._create_generic_failure_record(cons, f"应用时发生意外错误: {e}")
+
 
         # 更新最后修改时间
-        self.game_state.last_updated = datetime.now()
-        self.logger.info(f"所有后果应用完成，共产生 {len(change_descriptions)} 条状态变更描述。")
-        return change_descriptions # Return the list of descriptions
+        if consequences: # Only update if there were consequences to apply
+             self.game_state.last_updated = datetime.now()
 
-    def _get_consequence_handler(self, consequence_type: ConsequenceType):
-        """根据后果类型返回对应的处理方法。"""
-        handlers = {
-            ConsequenceType.UPDATE_ATTRIBUTE: self._apply_update_attribute,
-            ConsequenceType.ADD_ITEM: self._apply_add_item,
-            ConsequenceType.REMOVE_ITEM: self._apply_remove_item,
-            ConsequenceType.CHANGE_RELATIONSHIP: self._apply_change_relationship,
-            ConsequenceType.TRIGGER_EVENT: self._apply_trigger_event,
-            ConsequenceType.SEND_MESSAGE: self._apply_send_message,
-            # +++ Add handlers for new types +++
-            ConsequenceType.UPDATE_CHARACTER_ATTRIBUTE: self._apply_update_character_attribute,
-            ConsequenceType.UPDATE_CHARACTER_SKILL: self._apply_update_character_skill,
-            ConsequenceType.CHANGE_LOCATION: self._apply_change_location, # +++ Add handler for location change +++
-            # Add handlers for other types here
-        }
-        return handlers.get(consequence_type)
-
-    async def _apply_update_attribute(self, game_state: GameState, cons: Consequence) -> Optional[str]:
-        """处理 UPDATE_ATTRIBUTE 后果 (通用，可能用于地点等)。"""
-        if not cons.target_entity_id or not cons.attribute_name:
-            self.logger.warning(f"无效的 UPDATE_ATTRIBUTE 后果：缺少 target_entity_id 或 attribute_name。 {cons}")
-            return None # Return None on failure
-
-        target_obj = None
-        # Find the target object (location status, item status, etc.)
-        # --- 移除对 character_states 的检查 ---
-        # if cons.target_entity_id in game_state.character_states:
-        #     target_obj = game_state.character_states[cons.target_entity_id]
-        if cons.target_entity_id in game_state.location_states:
-            target_obj = game_state.location_states[cons.target_entity_id]
-        # TODO: Add checks for items if they have attributes to update
-        # elif cons.target_entity_id in game_state.item_instances: # Assuming items might have states
-        #     target_obj = game_state.item_instances[cons.target_entity_id]
-        else:
-            self.logger.warning(f"UPDATE_ATTRIBUTE 失败：未找到目标实体 ID '{cons.target_entity_id}'。")
-            return
-
-        if not hasattr(target_obj, cons.attribute_name):
-            self.logger.warning(f"UPDATE_ATTRIBUTE 失败：目标实体 '{cons.target_entity_id}' 没有属性 '{cons.attribute_name}'。")
-            return
-
-        try:
-            # Handle different update operations (e.g., set, add, subtract)
-            # Simple 'set' operation for now
-            # More complex logic can be added based on 'cons.value' structure or metadata
-            current_value = getattr(target_obj, cons.attribute_name)
-            new_value = cons.value # Direct assignment for now
-
-            # Example: Allow simple arithmetic operations if value is like {"op": "+=", "amount": 5}
-            if isinstance(cons.value, dict) and "op" in cons.value and "amount" in cons.value:
-                 op_str = cons.value["op"]
-                 amount = cons.value["amount"]
-                 ops = {"+=": add, "-=": sub, "*=": mul, "/=": truediv, "=": lambda x, y: y}
-                 if op_str in ops and isinstance(current_value, (int, float)) and isinstance(amount, (int, float)):
-                     new_value = ops[op_str](current_value, amount)
-                 else:
-                     self.logger.warning(f"UPDATE_ATTRIBUTE: 不支持的操作 '{op_str}' 或类型不匹配 ({type(current_value)}, {type(amount)}) for attribute '{cons.attribute_name}' on '{cons.target_entity_id}'. Performing direct set.")
-                     new_value = amount # Fallback to setting the amount directly if op fails
-
-            setattr(target_obj, cons.attribute_name, new_value)
-            description = f"属性更新：实体 '{cons.target_entity_id}' 的属性 '{cons.attribute_name}' 已从 '{current_value}' 更新为 '{new_value}'。"
-            self.logger.info(description)
-            return description # Return the description string
-        except Exception as e:
-            self.logger.exception(f"更新属性 '{cons.attribute_name}' 时出错：{e}")
-            return None # Return None on error
-
-    async def _apply_add_item(self, game_state: GameState, cons: Consequence):
-        """处理 ADD_ITEM 后果。"""
-        if not cons.target_entity_id or not cons.item_id:
-            self.logger.warning(f"无效的 ADD_ITEM 后果：缺少 target_entity_id 或 item_id。 {cons}")
-            return
-
-        quantity = cons.value if isinstance(cons.value, int) and cons.value > 0 else 1
-
-        # Add to character inventory
-        if cons.target_entity_id in game_state.characters: # Use game_state.characters
-            character_instance = game_state.characters[cons.target_entity_id] # Get CharacterInstance
-            # Find if item already exists in CharacterInstance.items
-            existing_item: Optional[ItemInstance] = next((item for item in character_instance.items if item.item_id == cons.item_id), None)
-            if existing_item:
-                existing_item.quantity += quantity
-                description = f"物品更新：角色 '{cons.target_entity_id}' ({character_instance.name}) 的物品 '{cons.item_id}' 数量增加 {quantity}，当前数量: {existing_item.quantity}。"
-                self.logger.info(description)
-                return description # Return the description string
-            else:
-                # Check if item definition exists in scenario using ScenarioManager
-                item_def = self.scenario_manager.get_item_info(cons.item_id)
-                if not item_def:
-                     self.logger.warning(f"ADD_ITEM 警告：尝试添加未在剧本中定义的物品 '{cons.item_id}' 到角色 '{cons.target_entity_id}' ({character_instance.name})。")
-                     # Decide whether to proceed or fail. Let's proceed for now.
-
-                new_item = ItemInstance(item_id=cons.item_id, quantity=quantity, name=item_def.name if item_def else cons.item_id)
-                character_instance.items.append(new_item) # Add to CharacterInstance.items
-                description = f"物品添加：向角色 '{cons.target_entity_id}' ({character_instance.name}) 添加了 {quantity} 个物品 '{cons.item_id}'。"
-                self.logger.info(description)
-                return description # Return the description string
-
-
-        # Add to location
-        elif cons.target_entity_id in game_state.location_states:
-            location_state = game_state.location_states[cons.target_entity_id]
-            existing_item: Optional[ItemInstance] = next((item for item in location_state.available_items if item.item_id == cons.item_id), None)
-            if existing_item:
-                existing_item.quantity += quantity
-                self.logger.info(f"物品更新：地点 '{cons.target_entity_id}' 的物品 '{cons.item_id}' 数量增加 {quantity}，当前数量: {existing_item.quantity}。")
-            else:
-                # Use ScenarioManager to get item definition
-                item_def = self.scenario_manager.get_item_info(cons.item_id)
-                if not item_def:
-                     self.logger.warning(f"ADD_ITEM 警告：尝试添加未在剧本中定义的物品 '{cons.item_id}' 到地点 '{cons.target_entity_id}'。")
-
-                new_item = ItemInstance(item_id=cons.item_id, quantity=quantity, name=item_def.name if item_def else cons.item_id)
-                location_state.available_items.append(new_item)
-                description = f"物品添加：向地点 '{cons.target_entity_id}' 添加了 {quantity} 个物品 '{cons.item_id}'。"
-                self.logger.info(description)
-                return description # Return the description string
-
-        else:
-            self.logger.warning(f"ADD_ITEM 失败：未找到目标实体 ID '{cons.target_entity_id}' (既不是角色也不是地点)。")
-            return None # Return None on failure
-
-
-    async def _apply_remove_item(self, game_state: GameState, cons: Consequence) -> Optional[str]:
-        """处理 REMOVE_ITEM 后果。"""
-        if not cons.target_entity_id or not cons.item_id:
-            self.logger.warning(f"无效的 REMOVE_ITEM 后果：缺少 target_entity_id 或 item_id。 {cons}")
-            return None # Return None on failure
-
-        quantity_to_remove = cons.value if isinstance(cons.value, int) and cons.value > 0 else 1
-
-        # --- 修改为操作 CharacterInstance.items ---
-        if cons.target_entity_id in game_state.characters:
-            character_instance = game_state.characters[cons.target_entity_id]
-            item_to_remove: Optional[ItemInstance] = next((item for item in character_instance.items if item.item_id == cons.item_id), None)
-            if item_to_remove:
-                if item_to_remove.quantity >= quantity_to_remove:
-                    original_quantity = item_to_remove.quantity
-                    item_to_remove.quantity -= quantity_to_remove
-                    description = f"物品移除：从角色 '{cons.target_entity_id}' ({character_instance.name}) 移除 {quantity_to_remove} 个物品 '{cons.item_id}'，剩余数量: {item_to_remove.quantity}。"
-                    self.logger.info(description)
-
-                    description_to_return = description # Start with the base description
-                    if item_to_remove.quantity <= 0: # Check if quantity is zero or less
-                        character_instance.items.remove(item_to_remove)
-                        description_removed = f"物品移除：角色 '{cons.target_entity_id}' ({character_instance.name}) 的物品 '{cons.item_id}' 已完全移除。"
-                        self.logger.info(description_removed)
-                        description_to_return = description_removed # Update return value if fully removed
-
-                    return description_to_return # Return the appropriate description
-
-                else:
-                    self.logger.warning(f"REMOVE_ITEM 失败：角色 '{cons.target_entity_id}' ({character_instance.name}) 物品 '{cons.item_id}' 数量不足 ({item_to_remove.quantity} < {quantity_to_remove})。")
-                    return None # Return None on failure
-            else:
-                self.logger.warning(f"REMOVE_ITEM 失败：角色 '{cons.target_entity_id}' ({character_instance.name}) 没有物品 '{cons.item_id}'。")
-                return None # Return None on failure
-
-        # Remove from location (保持不变)
-        elif cons.target_entity_id in game_state.location_states:
-            location_state = game_state.location_states[cons.target_entity_id]
-            item_to_remove: Optional[ItemInstance] = next((item for item in location_state.available_items if item.item_id == cons.item_id), None)
-            if item_to_remove:
-                if item_to_remove.quantity >= quantity_to_remove:
-                    original_quantity = item_to_remove.quantity
-                    item_to_remove.quantity -= quantity_to_remove
-                    description = f"物品移除：从地点 '{cons.target_entity_id}' 移除 {quantity_to_remove} 个物品 '{cons.item_id}'，剩余数量: {item_to_remove.quantity}。"
-                    self.logger.info(description)
-
-                    description_to_return = description # Start with the base description
-                    if item_to_remove.quantity == 0:
-                        location_state.available_items.remove(item_to_remove)
-                        description_removed = f"物品移除：地点 '{cons.target_entity_id}' 的物品 '{cons.item_id}' 已完全移除。"
-                        self.logger.info(description_removed)
-                        description_to_return = description_removed # Update return value if fully removed
-
-                    return description_to_return # Return the appropriate description
-                else:
-                    self.logger.warning(f"REMOVE_ITEM 失败：地点 '{cons.target_entity_id}' 物品 '{cons.item_id}' 数量不足 ({item_to_remove.quantity} < {quantity_to_remove})。")
-                    return None # Return None on failure
-            else:
-                self.logger.warning(f"REMOVE_ITEM 失败：地点 '{cons.target_entity_id}' 没有物品 '{cons.item_id}'。")
-        else:
-            self.logger.warning(f"REMOVE_ITEM 失败：未找到目标实体 ID '{cons.target_entity_id}' (既不是角色也不是地点)。")
-
-
-    async def _apply_change_relationship(self, game_state: GameState, cons: Consequence) -> Optional[str]:
-        """处理 CHANGE_RELATIONSHIP 后果。"""
-        if not cons.target_entity_id or cons.secondary_entity_id is None or cons.value is None:
-            self.logger.warning(f"无效的 CHANGE_RELATIONSHIP 后果：缺少 target_entity_id, secondary_entity_id 或 value。 {cons}")
-            return None
-
-        target_char = game_state.characters.get(cons.target_entity_id)
-        secondary_char = game_state.characters.get(cons.secondary_entity_id) # Usually the player
-
-        if not target_char:
-            self.logger.warning(f"CHANGE_RELATIONSHIP 失败：未找到目标角色 ID '{cons.target_entity_id}'。")
-            return None
-        if not secondary_char:
-            self.logger.warning(f"CHANGE_RELATIONSHIP 失败：未找到次要角色 ID '{cons.secondary_entity_id}'。")
-            return None # Or maybe proceed if relationship is only one-way? Let's require both for now.
-
-        try:
-            change_value = int(cons.value) # Ensure value is an integer
-            old_relationship = target_char.relationship_player
-            new_relationship = old_relationship + change_value
-
-            # Clamp the value between -100 and 100
-            new_relationship = max(-100, min(100, new_relationship))
-
-            target_char.relationship_player = new_relationship
-            description = f"关系变化：角色 '{target_char.name}' 对 '{secondary_char.name}' 的关系值从 {old_relationship} 变为 {new_relationship} (变化: {change_value})。"
-            self.logger.info(description)
-            return description
-        except ValueError:
-            self.logger.error(f"CHANGE_RELATIONSHIP 失败：无法将 value '{cons.value}' 转换为整数。")
-            return None
-        except Exception as e:
-            self.logger.exception(f"更新角色 '{cons.target_entity_id}' 对 '{cons.secondary_entity_id}' 的关系时出错：{e}")
-            return None
-
-    async def _apply_trigger_event(self, game_state: GameState, cons: Consequence):
-        """处理 TRIGGER_EVENT 后果。"""
-        # TODO: Implement logic - likely involves adding event_id to active_event_ids or similar
-        self.logger.warning(f"后果类型 'TRIGGER_EVENT' 的处理程序尚未实现。")
-        pass
-
-    async def _apply_send_message(self, game_state: GameState, cons: Consequence):
-        """处理 SEND_MESSAGE 后果。"""
-        # TODO: Implement logic - likely involves using MessageDispatcher
-        self.logger.warning(f"后果类型 'SEND_MESSAGE' 的处理程序尚未实现。")
-        return None # Return None
-
-    # +++ 新增处理角色属性/技能的方法 +++
-    async def _apply_update_character_attribute(self, game_state: GameState, cons: Consequence) -> Optional[str]:
-        """处理 UPDATE_CHARACTER_ATTRIBUTE 后果。"""
-        if not cons.target_entity_id or not cons.attribute_name or cons.value is None:
-            self.logger.warning(f"无效的 UPDATE_CHARACTER_ATTRIBUTE 后果：缺少 target_entity_id, attribute_name 或 value。 {cons}")
-            return None
-
-        character_instance = game_state.characters.get(cons.target_entity_id)
-        if not character_instance:
-            self.logger.warning(f"UPDATE_CHARACTER_ATTRIBUTE 失败：未找到角色 ID '{cons.target_entity_id}'。")
-            return None
-
-        if not hasattr(character_instance.attributes, cons.attribute_name):
-            self.logger.warning(f"UPDATE_CHARACTER_ATTRIBUTE 失败：角色 '{cons.target_entity_id}' 的属性集没有属性 '{cons.attribute_name}'。")
-            return None
-
-        try:
-            current_value = getattr(character_instance.attributes, cons.attribute_name)
-            change_value = cons.value
-            new_value = current_value
-
-            # Assume value is the change amount (e.g., +1, -2)
-            if isinstance(change_value, (int, float)) and isinstance(current_value, (int, float)):
-                new_value = current_value + change_value
-            else:
-                self.logger.warning(f"UPDATE_CHARACTER_ATTRIBUTE: 无法应用变化值 '{change_value}' (类型: {type(change_value)}) 到属性 '{cons.attribute_name}' (当前值: {current_value}, 类型: {type(current_value)})。将尝试直接设置。")
-                # Fallback: try direct assignment if types mismatch or value isn't numeric change
-                new_value = change_value
-
-            setattr(character_instance.attributes, cons.attribute_name, new_value)
-            description = f"角色属性更新：角色 '{cons.target_entity_id}' ({character_instance.name}) 的属性 '{cons.attribute_name}' 从 '{current_value}' 更新为 '{new_value}' (变化: {change_value})。"
-            self.logger.info(description)
-            return description
-        except Exception as e:
-            self.logger.exception(f"更新角色属性 '{cons.attribute_name}' 时出错：{e}")
-            return None
-
-    async def _apply_update_character_skill(self, game_state: GameState, cons: Consequence) -> Optional[str]:
-        """处理 UPDATE_CHARACTER_SKILL 后果。"""
-        if not cons.target_entity_id or not cons.skill_name or cons.value is None:
-            self.logger.warning(f"无效的 UPDATE_CHARACTER_SKILL 后果：缺少 target_entity_id, skill_name 或 value。 {cons}")
-            return None
-
-        character_instance = game_state.characters.get(cons.target_entity_id)
-        if not character_instance:
-            self.logger.warning(f"UPDATE_CHARACTER_SKILL 失败：未找到角色 ID '{cons.target_entity_id}'。")
-            return None
-
-        if not hasattr(character_instance.skills, cons.skill_name):
-            self.logger.warning(f"UPDATE_CHARACTER_SKILL 失败：角色 '{cons.target_entity_id}' 的技能集没有技能 '{cons.skill_name}'。")
-            return None
-
-        try:
-            current_value = getattr(character_instance.skills, cons.skill_name)
-            change_value = cons.value
-            new_value = current_value
-
-            # Assume value is the change amount (e.g., +1, -2)
-            if isinstance(change_value, (int, float)) and isinstance(current_value, (int, float)):
-                new_value = current_value + change_value
-            else:
-                self.logger.warning(f"UPDATE_CHARACTER_SKILL: 无法应用变化值 '{change_value}' (类型: {type(change_value)}) 到技能 '{cons.skill_name}' (当前值: {current_value}, 类型: {type(current_value)})。将尝试直接设置。")
-                new_value = change_value # Fallback
-
-            setattr(character_instance.skills, cons.skill_name, new_value)
-            description = f"角色技能更新：角色 '{cons.target_entity_id}' ({character_instance.name}) 的技能 '{cons.skill_name}' 从 '{current_value}' 更新为 '{new_value}' (变化: {change_value})。"
-            self.logger.info(description)
-            return description
-        except Exception as e:
-            self.logger.exception(f"更新角色技能 '{cons.skill_name}' 时出错：{e}")
-            return None
-
-    async def _apply_change_location(self, game_state: GameState, cons: Consequence) -> Optional[str]:
-        """处理 CHANGE_LOCATION 后果。"""
-        if not cons.target_entity_id or not cons.value or not isinstance(cons.value, str):
-            self.logger.warning(f"无效的 CHANGE_LOCATION 后果：缺少 target_entity_id 或 value 不是字符串。 {cons}")
-            return None
-
-        character_instance = game_state.characters.get(cons.target_entity_id)
-        if not character_instance:
-            self.logger.warning(f"CHANGE_LOCATION 失败：未找到角色 ID '{cons.target_entity_id}'。")
-            return None
-
-        new_location_id = cons.value
-        # Optional: Validate if new_location_id exists in game_state.location_states
-        if new_location_id not in game_state.location_states:
-             self.logger.warning(f"CHANGE_LOCATION 警告：目标地点 ID '{new_location_id}' 不存在于 location_states 中。")
-             # Decide whether to proceed or fail. Let's proceed for now.
-
-        try:
-            old_location = character_instance.location
-            character_instance.location = new_location_id
-            description = f"角色位置更新：角色 '{cons.target_entity_id}' ({character_instance.name}) 的位置从 '{old_location}' 更新为 '{new_location_id}'。"
-            self.logger.info(description)
-
-            # --- 更新旧地点和新地点的 present_characters ---
-            # Remove from old location
-            if old_location and old_location in game_state.location_states:
-                if cons.target_entity_id in game_state.location_states[old_location].present_characters:
-                    game_state.location_states[old_location].present_characters.remove(cons.target_entity_id)
-                    self.logger.debug(f"已将角色 '{cons.target_entity_id}' 从地点 '{old_location}' 的 present_characters 移除。")
-            # Add to new location
-            if new_location_id in game_state.location_states:
-                if cons.target_entity_id not in game_state.location_states[new_location_id].present_characters:
-                    game_state.location_states[new_location_id].present_characters.append(cons.target_entity_id)
-                    self.logger.debug(f"已将角色 '{cons.target_entity_id}' 添加到地点 '{new_location_id}' 的 present_characters。")
-            # --- 结束更新 present_characters ---
-
-            return description
-        except Exception as e:
-            self.logger.exception(f"更新角色 '{cons.target_entity_id}' 位置时出错：{e}")
-            return None
+        self.logger.info(f"后果应用流程完成。共处理 {len(consequences)} 条，产生 {len(change_descriptions)} 条有效状态变更描述。")
+        # 注意：实际记录的 AppliedConsequenceRecord 数量可能与 len(change_descriptions) 不同，
+        # 因为 Handler 可能在失败时也创建记录。
+        return change_descriptions
 
     # --- 移除旧的 update_state 方法 ---
     # def update_state(self, state_changes: Dict[str, Any]) -> GameState:

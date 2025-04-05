@@ -20,8 +20,13 @@
         *   **普通 NPC**: 对应剧本中 `is_playable=False` 的角色。没有对应的 Agent 实例。其行为由 `NarrativeAgent` 描述或由 `RefereeAgent` 在处理后果时触发。
 *   **游戏状态管理器 (Game State Manager)**:
     *   **职责**: 存储和管理核心游戏世界状态（角色实例、环境、物品、事件实例、进度、Flags 等）。**负责即时应用**经过校验的后果（属性变化、Flag 设置、事件效果等）到游戏状态。提供状态的保存和加载接口（包括回合快照）。处理阶段检查与推进。
-    *   **模式**: 单一事实来源 (Single Source of Truth)，数据库模式。确保状态更新的原子性。
-    *   **注意**: `GameState` 模型将包含临时的、回合作用域的字段（如 `current_round_actions`, `current_round_applied_consequences`, `current_round_triggered_events`），用于在回合结束快照中记录该回合的事件。这些字段在每个新回合开始时被清空。
+    *   **模式**: 单一事实来源 (Single Source of Truth)，数据库模式。
+    *   **后果处理**: 通过调用注册的 **后果处理器 (Consequence Handlers)** 来应用状态变更。每个 Handler 负责一种特定类型的后果，封装其应用逻辑和记录逻辑 (`AppliedConsequenceRecord`)。`GameStateManager` 本身不包含具体的应用逻辑细节。
+    *   **注意**: `GameState` 模型包含临时的回合作用域字段（如 `current_round_actions`, `current_round_applied_consequences`, `current_round_triggered_events`），用于回合结束快照。这些字段在新回合开始时清空。
+*   **后果处理器 (Consequence Handlers)**: (新组件)
+    *   **位置**: `src/engine/consequence_handlers/`
+    *   **职责**: 实现具体的后果应用逻辑和记录逻辑。每个 Handler 继承自 `BaseConsequenceHandler` 并处理一种 `ConsequenceType`。
+    *   **模式**: 策略模式 (Strategy Pattern)。通过注册表 (`HANDLER_REGISTRY` in `__init__.py`) 进行分发。
 *   **剧本管理器 (Scenario Manager)**:
     *   **职责**: 加载、存储和提供对当前游戏剧本（`Scenario` 对象）及其内部结构（角色模板、地点、物品、事件定义、故事结构等）的访问。
     *   **模式**: 内容管理系统 (CMS) / 剧本引擎。
@@ -46,8 +51,8 @@
     3.  **判定与应用阶段 (Judgement & Application Phase)**: (原 Judgement Phase 扩展)
         *   **判定**: `RefereeAgent` 判定宣告行动的成功/失败、直接后果（如属性变化），以及基于当前状态和行动后果判断 `ScenarioEvent` 是否触发及结局。这可能包括由 `CompanionAgent` 在行动宣告时预先生成的后果 (`generated_consequences`)。
         *   **校验**: 对判定的后果和事件进行合法性校验（结构校验、逻辑校验）。
-        *   **即时应用**: 对于通过校验的后果和事件，**立即** 调用 `GameStateManager` 的方法将其应用到 *实时* `GameState`。
-        *   **记录已应用变更**: 当一个后果或事件被成功应用后，创建相应的记录（如 `AppliedConsequenceRecord`, `TriggeredEventRecord`）并添加到 *实时* `GameState` 的临时字段 `current_round_applied_consequences` 和 `current_round_triggered_events` 中。(`judgement_phase.py`)
+        *   **即时应用**: 对于通过校验的后果和事件，**立即** 调用 `GameStateManager.apply_consequences()` 方法。该方法会查找并调用相应的 **后果处理器 (Consequence Handler)** 来修改 *实时* `GameState`。
+        *   **记录已应用变更**: **后果处理器 (Consequence Handler)** 在成功应用后果后，负责创建 `AppliedConsequenceRecord` 并添加到 *实时* `GameState` 的 `current_round_applied_consequences` 列表中。`JudgementPhase` 负责记录触发的事件 (`TriggeredEventRecord`) 到 `current_round_triggered_events`。(`judgement_phase.py`)
     4.  **回合结束处理 (End of Round Processing)**: (由 `RoundManager` 或 `GameEngine` 触发)
         *   **创建快照**: 对当前的 *实时* `GameState`（包含最终状态和 `current_round_...` 列表）进行**深拷贝**，生成该回合的结束状态快照。
         *   **存储快照**: 将快照与回合号关联并存储（例如，存储在内存中的字典或持久化）。
@@ -61,7 +66,7 @@
 *   **游戏推进逻辑 (即时应用)**:
     *   **叙事阶段**: `NarrativeAgent` 基于上一回合的 `GameState` 快照进行总结叙事。
     *   **行动宣告阶段**: 收集意图 (`PlayerAction`) 并记录到当前 `GameState`。
-    *   **判定与应用阶段**: `RefereeAgent` 判定后果和事件 -> 校验 -> **立即**通过 `GameStateManager` 应用到当前 `GameState` -> 记录已应用的变更到当前 `GameState`。
+    *   **判定与应用阶段**: `RefereeAgent` 判定后果和事件 -> 校验 -> **立即**调用 `GameStateManager.apply_consequences()` -> `GameStateManager` 分发给对应的 **后果处理器 (Handler)** 应用到当前 `GameState` 并记录 `AppliedConsequenceRecord` -> `JudgementPhase` 记录 `TriggeredEventRecord`。
     *   **回合结束**: 创建当前 `GameState` 快照并存储，清空临时记录字段。
 
 ## 4. 设计原则
