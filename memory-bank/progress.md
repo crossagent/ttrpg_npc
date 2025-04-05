@@ -15,11 +15,15 @@
 *   **开发焦点明确**: 确定当前开发核心是围绕 NPC 的三大要素：目标 (Goals)、态度 (Attitude)、记忆 (Memory)。
 *   **`CharacterInstance` 扩展**: 在 `CharacterInstance` 模型中添加了 `relationship_player`, `attitude_description`, `long_term_goal`, `short_term_goals`, `key_memories`, `status` 字段，为实现 NPC 核心要素奠定基础。
 
-## 进行中 / 下一步 (围绕 NPC 核心要素，按优先级)
+## 进行中 / 下一步 (按优先级)
 
-1.  **更新数据模型 (Models):** (优先级最高)
+1.  **实施即时状态更新架构 (调整后):** (当前最高优先级)
+    *   **目标**: 解决后果应用延迟问题，实现状态即时更新和清晰的回合记录。
+    *   **核心**: 移除 `UpdatePhase`，将状态更新和记录责任分散到相关阶段 (`NarrationPhase`, `ActionDeclarationPhase`, `JudgementPhase`)，通过 `GameStateManager` 即时应用变更，并在回合结束时创建 `GameState` 快照。
+    *   **步骤**: 详见 `activeContext.md` 中的详细计划 (调整后)。
+2.  **更新数据模型 (Models):** (依赖架构调整后)
     *   在 `CharacterTemplate` (`src/models/scenario_models.py`) 和 `CharacterInstance` (`src/models/game_state_models.py`) 中添加用于描述 NPC 内在设定的字段，例如 `values: List[str]`, `likes: List[str]`, `dislikes: List[str]`。
-2.  **实现基于 LLM 的关系评估 (RefereeAgent):** (优先级最高)
+3.  **实现基于 LLM 的关系评估 (RefereeAgent):** (依赖架构调整后)
     *   设计并实现 `RefereeAgent` 中的逻辑：调用 LLM 来解读玩家行动/对话与目标 NPC 内在设定 (`values`, `likes`, `dislikes` 等) 的匹配/冲突程度。
     *   定义 LLM 的输入（玩家行为、情境、NPC 设定、当前关系值）和结构化输出（例如 `RelationshipImpactAssessment` 模型，包含影响类型、强度、原因、建议变化值）。
     *   设计引导 LLM 进行评估的 Prompt。

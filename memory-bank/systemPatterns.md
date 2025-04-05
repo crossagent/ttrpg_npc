@@ -19,8 +19,9 @@
         *   **RefereeAgent (裁判代理)**: 负责判定 Agent 行动的直接**属性后果**（将利用 `CharacterInstance` 中的属性/技能进行更细致的判定），并在回合评估阶段根据剧本和当前状态判断**活跃事件**是否触发。**不直接设置 Flag**，Flag 只能由事件后果设置。由 `AgentManager` 在初始化时创建。
         *   **普通 NPC**: 对应剧本中 `is_playable=False` 的角色。没有对应的 Agent 实例。其行为由 `NarrativeAgent` 描述或由 `RefereeAgent` 在处理后果时触发。
 *   **游戏状态管理器 (Game State Manager)**:
-    *   **职责**: 存储和管理核心游戏世界状态（角色实例、环境、物品、事件实例、进度、Flags 等，**不包含**完整的剧本对象和聊天记录）。提供状态的保存和加载接口。应用结构化后果。处理阶段检查与推进。
+    *   **职责**: 存储和管理核心游戏世界状态（角色实例、环境、物品、事件实例、进度、Flags 等）。**负责即时应用**经过校验的后果（属性变化、Flag 设置、事件效果等）到游戏状态。提供状态的保存和加载接口（包括回合快照）。处理阶段检查与推进。
     *   **模式**: 单一事实来源 (Single Source of Truth)，数据库模式。确保状态更新的原子性。
+    *   **注意**: `GameState` 模型将包含临时的、回合作用域的字段（如 `current_round_actions`, `current_round_applied_consequences`, `current_round_triggered_events`），用于在回合结束快照中记录该回合的事件。这些字段在每个新回合开始时被清空。
 *   **剧本管理器 (Scenario Manager)**:
     *   **职责**: 加载、存储和提供对当前游戏剧本（`Scenario` 对象）及其内部结构（角色模板、地点、物品、事件定义、故事结构等）的访问。
     *   **模式**: 内容管理系统 (CMS) / 剧本引擎。
@@ -39,29 +40,29 @@
 
 ## 3. 关键交互模式与数据流
 
-*   **回合制循环 (阶段驱动)**: 由 `RoundManager` 驱动，按明确定义的顺序执行四个核心阶段。每个阶段的逻辑将被封装在独立的处理器中 (`src/engine/round_phases/`)。
-    1.  **叙事阶段 (Narration Phase)**: 处理可选的开场 DM 叙事。(`narration_phase.py`)
-    2.  **行动宣告阶段 (Action Declaration Phase)**: 收集所有 `PlayerAgent` 和 `CompanionAgent` 的行动意图 (`PlayerAction`)，不进行判定。(`action_declaration_phase.py`)
-    3.  **判定阶段 (Judgement Phase)**:
-        *   **步骤一：行动判定**: `RefereeAgent` 利用 `CharacterInstance` 中的属性/技能判定每个宣告行动的成功/失败及其直接**属性后果**。
-        *   **步骤二：事件触发判定**: `RefereeAgent` 基于本回合所有行动的属性后果和当前游戏状态（含 flags），判断**活跃的 `ScenarioEvent`** 是否被触发，并确定结局。
-        *   **输出**: 包含两部分：所有行动的属性后果列表 (`ActionResult`) 和触发的事件及结局列表。(`judgement_phase.py`)
-    4.  **更新阶段 (Update Phase)**:
-        *   **应用属性后果**: `GameStateManager` 应用所有 `ActionResult` 中的属性后果（包括对 `CharacterInstance` 属性/技能的修改）。
-        *   **应用事件后果**: `GameStateManager` 根据触发事件的结局，应用其后果（**这是唯一设置 Flag 的地方**，也可能包含属性/技能修改）。
-        *   **检查阶段推进**: `GameStateManager` 检查 `GameState.flags` 是否满足当前阶段的完成条件。
-        *   广播状态变更消息。(`update_phase.py`)
-*   **状态驱动**: Agent 的行动宣告、裁判的判定、以及状态更新都基于当前核心游戏状态 (`GameState`)。
+*   **回合制循环 (阶段驱动)**: 由 `RoundManager` 驱动，按明确定义的顺序执行核心阶段。每个阶段的逻辑将被封装在独立的处理器中 (`src/engine/round_phases/`)。
+    1.  **叙事阶段 (Narration Phase)**: 处理可选的开场 DM 叙事，可能基于上一回合的 `GameState` 快照进行总结。(`narration_phase.py`)
+    2.  **行动宣告阶段 (Action Declaration Phase)**: 收集所有 `PlayerAgent` 和 `CompanionAgent` 的行动意图 (`PlayerAction`)，并将这些行动记录到当前 *实时* `GameState` 的临时字段 `current_round_actions` 中。(`action_declaration_phase.py`)
+    3.  **判定与应用阶段 (Judgement & Application Phase)**: (原 Judgement Phase 扩展)
+        *   **判定**: `RefereeAgent` 判定宣告行动的成功/失败、直接后果（如属性变化），以及基于当前状态和行动后果判断 `ScenarioEvent` 是否触发及结局。这可能包括由 `CompanionAgent` 在行动宣告时预先生成的后果 (`generated_consequences`)。
+        *   **校验**: 对判定的后果和事件进行合法性校验（结构校验、逻辑校验）。
+        *   **即时应用**: 对于通过校验的后果和事件，**立即** 调用 `GameStateManager` 的方法将其应用到 *实时* `GameState`。
+        *   **记录已应用变更**: 当一个后果或事件被成功应用后，创建相应的记录（如 `AppliedConsequenceRecord`, `TriggeredEventRecord`）并添加到 *实时* `GameState` 的临时字段 `current_round_applied_consequences` 和 `current_round_triggered_events` 中。(`judgement_phase.py`)
+    4.  **回合结束处理 (End of Round Processing)**: (由 `RoundManager` 或 `GameEngine` 触发)
+        *   **创建快照**: 对当前的 *实时* `GameState`（包含最终状态和 `current_round_...` 列表）进行**深拷贝**，生成该回合的结束状态快照。
+        *   **存储快照**: 将快照与回合号关联并存储（例如，存储在内存中的字典或持久化）。
+        *   **准备下一回合**: 清空 *实时* `GameState` 中的 `current_round_...` 临时字段。
+*   **状态驱动**: Agent 的行动宣告、裁判的判定都基于当前的 *实时* `GameState`。状态变更是即时生效的。
 *   **剧本访问**: 需要剧本静态信息（如地点描述、物品定义）的组件（如 Context Builders, GameStateManager）通过 `ScenarioManager` 获取，使用 `GameState.scenario_id` 作为索引。
 *   **消息驱动**: 模块间通过 `MessageDispatcher` 进行通信。`MessageDispatcher` 将消息分发给相关 Agent，并调用 `ChatHistoryManager` 按回合记录消息。
 *   **聊天记录访问**: 需要历史消息（如用于 LLM 上下文）的组件通过 `ChatHistoryManager` 按需获取指定回合范围的消息。
 *   **LLM 集成**: 各 Agent 利用 LLM 进行生成、思考和判断，上下文由构建器提供（包含角色属性/技能信息，以及从 `ChatHistoryManager` 获取的相关历史消息）。
 *   **结构化自由**: `ScenarioManager` 提供结构化剧本内容。`RefereeAgent` 判断事件触发，`GameStateManager` 检查阶段完成条件。
-*   **游戏推进逻辑 (阶段化)**:
-    *   **行动宣告阶段**: 收集意图。
-    *   **判定阶段**: `RefereeAgent` 先利用角色属性/技能判定行动的属性后果，再判断事件触发。
-    *   **更新阶段**: `GameStateManager` 应用属性后果（含属性/技能修改），然后应用事件后果（含 Flag 设置和可能的属性/技能修改），最后检查阶段推进。
-    *   **叙事阶段**: `NarrativeAgent` (如果需要) 负责开场叙事。
+*   **游戏推进逻辑 (即时应用)**:
+    *   **叙事阶段**: `NarrativeAgent` 基于上一回合的 `GameState` 快照进行总结叙事。
+    *   **行动宣告阶段**: 收集意图 (`PlayerAction`) 并记录到当前 `GameState`。
+    *   **判定与应用阶段**: `RefereeAgent` 判定后果和事件 -> 校验 -> **立即**通过 `GameStateManager` 应用到当前 `GameState` -> 记录已应用的变更到当前 `GameState`。
+    *   **回合结束**: 创建当前 `GameState` 快照并存储，清空临时记录字段。
 
 ## 4. 设计原则
 

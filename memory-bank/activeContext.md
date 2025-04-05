@@ -1,20 +1,14 @@
 # Active Context: GameState 重构与聊天记录分离
 
-## 当前工作焦点
+## 当前工作焦点: 即时状态更新架构调整
 
-*   **核心策略确立: 硬机制与软描述分层**
-    *   明确了游戏实现的分层策略：核心规则/进展/状态使用可靠的**硬机制**（Flags, 数值属性, 预定义逻辑）；角色行为/个性/氛围/交互细节依赖**软描述**（LLM 上下文理解, 宏观状态字段, Prompt 设计）。(详见 `systemPatterns.md`)
-    *   当前阶段优先利用**软描述**和 LLM 能力快速实现动态交互，辅以必要的硬机制。
-*   **聚焦 NPC 核心要素:**
-    *   当前设计和开发工作的核心是实现 NPC 的三个关键要素，以驱动智能交互和突破性体验：
-        1.  **目标 (Goals):** 结合预设背景和 LLM 动态生成的情境意图。
-        2.  **对玩家的态度 (Attitude):** 结合硬性关系值和 LLM 演绎的细微情绪/行为。
-        3.  **重要事件记忆 (Memory):** 结合硬性关键 Flags 和由 `Context Builders` 提取/总结的近期重要互动信息。
-*   **基础架构调整完成:**
-    *   `GameState` 重构完成，变得更轻量。
-    *   引入独立的 `ChatHistoryManager` 管理聊天记录。
-    *   更新了相关模块以适应新的数据结构和访问方式。
-    *   初步实现了 `GameStateManager` 的核心状态保存/加载接口。
+*   **目标**: 解决当前架构中行动后果应用延迟的问题，实现状态变更的即时生效。
+*   **核心改动**: 移除独立的 `UpdatePhase`，将后果的判定、校验、**即时应用**和记录整合到 `JudgementPhase`（或紧随其后）。
+*   **记录机制**:
+    *   在回合结束时对包含最终状态和回合内事件记录（宣告的行动、应用的后果、触发的事件）的 `GameState` 进行快照。
+    *   回合内宣告的行动 (`PlayerAction`)，包括 `CompanionAgent` 生成的 `internal_thoughts` 等描述性内容，记录在快照的 `current_round_actions` 中。
+    *   回合内**实际应用**的机制性后果 (`AppliedConsequenceRecord`) 和触发的事件 (`TriggeredEventRecord`) 记录在快照的相应列表中。
+*   **原则**: 保持机制层（Hard Mechanisms - 应用的后果）和描述层（Soft Descriptions - 如 `internal_thoughts`）的分离。叙事基于快照中的机制性变化事实，可参考描述性内容进行润色。
 
 ## 近期变更
 
@@ -28,30 +22,40 @@
 *   修改了 `src/engine/game_engine.py`：实例化 `ChatHistoryManager` 并正确注入依赖。
 *   **修改了 `src/models/game_state_models.py`**: 为 `CharacterInstance` 添加了 `relationship_player`, `attitude_description`, `long_term_goal`, `short_term_goals`, `key_memories`, `status` 字段，以支持 NPC 核心要素（态度、目标、记忆、状态）。
 
-## 下一步计划 (围绕 NPC 核心要素)
+## 下一步计划 (实施即时状态更新架构 - 调整后)
 
-1.  **更新数据模型 (Models):** (优先级最高)
-    *   在 `CharacterTemplate` (`src/models/scenario_models.py`) 和 `CharacterInstance` (`src/models/game_state_models.py`) 中添加用于描述 NPC 内在设定的字段，例如 `values: List[str]`, `likes: List[str]`, `dislikes: List[str]`。
-2.  **实现基于 LLM 的关系评估 (RefereeAgent):** (优先级最高)
-    *   设计并实现 `RefereeAgent` 中的逻辑：调用 LLM 来解读玩家行动/对话与目标 NPC 内在设定 (`values`, `likes`, `dislikes` 等) 的匹配/冲突程度。
-    *   定义 LLM 的输入（玩家行为、情境、NPC 设定、当前关系值）和结构化输出（例如 `RelationshipImpactAssessment` 模型，包含影响类型、强度、原因、建议变化值）。
-    *   设计引导 LLM 进行评估的 Prompt。
-    *   确定 `RefereeAgent` 如何结合 LLM 的建议和基础规则来最终决定 `relationship_player` 的变化量。
-3.  **细化 `Context Builders` 逻辑:** (优先级高)
-    *   实现从 `ChatHistoryManager` 智能提取/总结关键近期互动信息（记忆）的策略。
-    *   确保能将 NPC 的目标、态度（关系值、内在设定）、状态 (`status`) 和关键记忆有效整合进给 Agent 的 Prompt。
-4.  **设计和迭代 Agent Prompts:** (优先级高)
-    *   为 `CompanionAgent` 设计核心“思考”Prompt，强调结合目标、态度（包含关系值和内在设定）、状态和记忆进行决策。
-    *   为 `NarrativeAgent` 设计 Prompt，使其能基于上下文生成生动描述，并建议更新 NPC 状态。
-5.  **完善状态更新与事件驱动 (GameStateManager):** (优先级中)
-    *   确保 `GameStateManager` 在更新阶段能正确应用 `RefereeAgent` 判定的关系值变化。
-    *   继续支持通过剧本事件 (`ScenarioEvent`) 的后果直接修改 `relationship_player`。
-    *   实现基于关系值或其他新字段的行动判定调整（如根据 `status` 调整难度）。
-6.  **实现完整的保存/加载流程**: (优先级中)
-    *   在 `GameEngine` 中集成 `GameStateManager` 和 `ChatHistoryManager` 的保存/加载调用。
-    *   确定保存时机和文件结构。
-7.  **集成测试**: (持续进行) 重点测试新的关系更新机制是否有效，NPC 行为是否符合其目标、态度和记忆。
-8.  **更新 `progress.md`**: (完成此步骤后) 跟踪上述任务的进展。
+1.  **定义记录模型:** (优先级最高)
+    *   在 `src/models/consequence_models.py` 中定义 `AppliedConsequenceRecord` 模型，用于清晰记录**已应用的**机制性后果细节。
+    *   在 `src/models/consequence_models.py` 中定义 `TriggeredEventRecord` 模型，记录触发的事件 ID 和结局。
+2.  **修改 `GameState` 模型:** (优先级最高)
+    *   在 `src/models/game_state_models.py` 中的 `GameState` 添加临时的回合作用域列表：
+        *   `current_round_actions: List[PlayerAction] = Field(default_factory=list)`
+        *   `current_round_applied_consequences: List[AppliedConsequenceRecord] = Field(default_factory=list)`
+        *   `current_round_triggered_events: List[TriggeredEventRecord] = Field(default_factory=list)`
+    *   确保这些字段在序列化时可以被包含（用于快照），并在新回合开始时会被清空。
+3.  **修改 `GameStateManager`:** (优先级高)
+    *   确保其状态修改方法（如属性更新、Flag 设置、事件应用等）是**即时生效**的。
+    *   确认或添加创建/检索 `GameState` 快照的方法。
+4.  **修改回合阶段处理器 (`NarrationPhase`, `ActionDeclarationPhase`, `JudgementPhase`):** (优先级高)
+    *   确保所有可能修改状态的阶段都注入 `GameStateManager`。
+    *   在各阶段逻辑中，任何需要修改状态的地方，都**调用 `GameStateManager` 的方法立即应用**。
+    *   **在成功应用状态变更后**，创建对应的记录实例 (`PlayerAction`, `AppliedConsequenceRecord`, `TriggeredEventRecord`)，并将其添加到当前 *实时* `GameState` 的相应 `current_round_...` 列表中。
+    *   `ActionDeclarationPhase` 负责记录 `PlayerAction`。
+    *   `JudgementPhase` 负责判定、校验、应用后果/事件，并记录 `AppliedConsequenceRecord` / `TriggeredEventRecord`。
+5.  **修改 `RoundManager` / `GameEngine`:** (优先级高)
+    *   在回合开始逻辑中，清空 *实时* `GameState` 的 `current_round_...` 列表。
+    *   在回合结束逻辑中，实现对 *实时* `GameState` 的**深拷贝**（快照）并存储（例如，按回合号存入内存字典）。
+6.  **修改叙事逻辑 (`NarrationPhase` / `NarrativeAgent`):** (优先级中)
+    *   修改逻辑，使其在回合开始时获取**上一回合**的 `GameState` 快照。
+    *   基于快照中的 `current_round_applied_consequences` 和 `current_round_triggered_events` 生成核心叙事，可参考 `current_round_actions` 中的描述性内容进行丰富。
+7.  **移除 `UpdatePhase`:** (优先级高)
+    *   删除 `src/engine/round_phases/update_phase.py` 文件。
+    *   从 `RoundManager` 的回合流程中移除该阶段。
+8.  **更新测试:** (优先级高)
+    *   修改现有测试用例以适应新的分布式状态更新和记录流程。
+    *   添加新的测试用例，验证状态即时更新和回合记录的正确性。
+9.  **更新 `progress.md`**: (完成上述步骤后) 跟踪架构调整任务的进展。
+10. **(稍后)** 检查并清理可能冗余的 `src/models/record_models.py`。
 
 ## 待解决/考虑事项
 
