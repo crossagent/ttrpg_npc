@@ -24,13 +24,13 @@
 
 ## 下一步计划 (基于后果处理器重构后)
 
-1.  **更新测试:** (优先级最高)
+1.  **更新测试:** (人工执行,暂时跳过)
     *   修改现有测试用例以适应新的基于 Handler 的后果处理流程。
     *   为 `src/engine/consequence_handlers/` 下的每个 Handler 类编写单元测试，验证其应用和记录逻辑。
     *   执行集成测试，确保 `GameStateManager.apply_consequences` 和 `JudgementPhase` 能够正确调用 Handler 并处理后果。
 2.  **更新 `progress.md`**: (完成测试后) 标记后果处理重构任务完成。
 3.  **实现未完成的 Handler:** (优先级高)
-    *   实现 `TriggerEventHandler` 和 `SendMessageHandler`（如果需要）。
+    *   实现 `TriggerEventHandler` 。
     *   将它们添加到 `HANDLER_REGISTRY`。
 4.  **更新数据模型 (Models):** (优先级高)
     *   在 `CharacterTemplate` (`src/models/scenario_models.py`) 和 `CharacterInstance` (`src/models/game_state_models.py`) 中添加用于描述 NPC 内在设定的字段，例如 `values: List[str]`, `likes: List[str]`, `dislikes: List[str]`。
