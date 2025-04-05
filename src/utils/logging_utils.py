@@ -72,4 +72,8 @@ if __name__ == '__main__':
     logging.error("This is an error message.")
     logging.critical("This is a critical message.")
     # Update the test print message to reflect the new filename format
-    print(f"Log messages should be in {os.path.join(LOG_DIR, f'debug_{datetime.now().strftime("%Y%m%d_%H%M%S")}.log')}")
+    # --- Simplified f-string to avoid nesting ---
+    timestamp_str_test = datetime.now().strftime("%Y%m%d_%H%M%S")
+    test_filename = f'debug_{timestamp_str_test}.log'
+    test_filepath = os.path.join(LOG_DIR, test_filename)
+    print(f"Log messages should be in {test_filepath}")

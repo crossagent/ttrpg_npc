@@ -21,9 +21,9 @@ from src.engine.chat_history_manager import ChatHistoryManager # Import ChatHist
 from src.context.referee_context_builder import (
     build_action_resolve_system_prompt, # Will be simplified
     build_action_resolve_user_prompt,   # Will be simplified
-    # +++ Import new prompt builder for relationship assessment +++
-    build_relationship_assessment_system_prompt,
-    build_relationship_assessment_user_prompt,
+    # +++ Import new prompt builder for relationship assessment (Commented out for now) +++
+    # build_relationship_assessment_system_prompt,
+    # build_relationship_assessment_user_prompt,
     # Import the new combined prompt builders
     build_event_trigger_and_outcome_system_prompt, # Will be used by determine_triggered_events_and_outcomes
     build_event_trigger_and_outcome_user_prompt  # Will be used by determine_triggered_events_and_outcomes
