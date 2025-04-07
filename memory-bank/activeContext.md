@@ -1,14 +1,22 @@
-# Active Context: GameState 重构与聊天记录分离
+# Active Context: 优化 DM 叙事准确性
 
-## 当前工作焦点: 即时状态更新架构调整
+## 当前工作焦点: 改进 DM Agent 上下文构建以聚焦关键变化
 
-*   **目标**: 解决当前架构中行动后果应用延迟的问题，实现状态变更的即时生效。
-*   **核心改动**: 移除独立的 `UpdatePhase`，将后果的判定、校验、**即时应用**和记录整合到 `JudgementPhase`（或紧随其后）。
-*   **记录机制**:
-    *   在回合结束时对包含最终状态和回合内事件记录（宣告的行动、应用的后果、触发的事件）的 `GameState` 进行快照。
-    *   回合内宣告的行动 (`PlayerAction`)，包括 `CompanionAgent` 生成的 `internal_thoughts` 等描述性内容，记录在快照的 `current_round_actions` 中。
-    *   回合内**实际应用**的机制性后果 (`AppliedConsequenceRecord`) 和触发的事件 (`TriggeredEventRecord`) 记录在快照的相应列表中。
-*   **原则**: 保持机制层（Hard Mechanisms - 应用的后果）和描述层（Soft Descriptions - 如 `internal_thoughts`）的分离。叙事基于快照中的机制性变化事实，可参考描述性内容进行润色。
+*   **问题**: 当前 DM Agent (叙事 Agent) 在生成叙事时，未能严格基于 `GameState` 的事实，有时会忽略关键变化或虚构情节，即使 Prompt 中已包含相关指令和聊天记录。根本原因在于 LLM 可能难以准确判断哪些信息是需要重点描述的“新变化”，并容易被聊天记录带偏。
+*   **解决方案 (最终修订版 v2)**: 不引入新的 Consequence 类型，而是增强 `dm_context_builder` 的能力，使其在构建 DM 上下文时，主动分析 `GameState` 中记录的**本回合**关键变化 (`current_round_applied_consequences` 和 `current_round_triggered_events`)，并从中提取具体的描述性文本或摘要，直接提供给 DM Agent。
+*   **核心改动**:
+    1.  **增强 `dm_context_builder.py`**:
+        *   访问 `game_state.current_round_applied_consequences` 和 `game_state.current_round_triggered_events`。
+        *   分析这些记录，识别关键变化类型（如首次地点进入、事件触发、关键 Flag 更新）。
+        *   根据识别出的变化，从 `GameState` 或场景配置中**提取**对应的描述性文本或摘要（例如，新地点的描述、事件/结局的摘要）。
+        *   将提取出的文本填充到传递给 DM Agent 的新字段 `narrative_focus_points: List[str]` 中。
+    2.  **调整 `agents/dm_agent.py` 的 Prompt**:
+        *   明确指示 DM Agent 基于 `GameState` 摘要进行叙事。
+        *   要求 DM Agent **将 `narrative_focus_points` 列表中的具体文本片段自然地融入**叙事，以突出关键变化。
+        *   继续强调“GameState 是客观事实的唯一来源”，并避免重复静态信息和虚构事实。
+    3.  **确保 `GameState` 包含必要信息**:
+        *   需要有追踪角色已访问地点的机制 (如 `visited_locations`)。
+        *   确保地点、事件、章节等数据结构包含可供提取的描述或摘要。
 
 ## 近期变更
 
@@ -34,37 +42,23 @@
 *   **移除了 `GameState.last_active_round`**: 不再显式跟踪最后一个活跃回合。
 *   **更新了 `NarrationPhase` 活跃度判断**: 现在通过检查历史回合快照中的实际活动记录（行动、后果、事件）来判断是否需要触发叙事。
 
-## 下一步计划 (基于日志分析和 Bug 修复后)
+## 下一步计划 (DM 叙事优化)
 
-1.  **运行游戏测试**: (当前最高优先级) 运行游戏以验证移除 `last_active_round` 及 `NarrationPhase` 新逻辑的效果，以及整体流程。
-2.  **优化 Agent Prompts 和数据源**: (优先级次高) 在核心 Bug 修复并通过测试后，重新审视并优化各个 Agent (特别是 `CompanionAgent`, `RefereeAgent`, `NarrativeAgent`) 的 Prompt，并确认它们获取的数据源是否准确、充分。
-3.  **更新测试用例**: (优先级中) 修改或添加测试用例以覆盖新的逻辑和修复。
-4.  **更新测试用例**: (优先级中) 修改或添加测试用例以覆盖新的逻辑和修复。
-5.  **实现未完成的 Handler**: (优先级中)
-    *   实现 `TriggerEventHandler` 。
-    *   将它们添加到 `HANDLER_REGISTRY`。
-6.  **更新数据模型 (Models):** (优先级中)
-    *   在 `CharacterTemplate` (`src/models/scenario_models.py`) 和 `CharacterInstance` (`src/models/game_state_models.py`) 中添加用于描述 NPC 内在设定的字段，例如 `values: List[str]`, `likes: List[str]`, `dislikes: List[str]`。
-7.  **实现基于 LLM 的关系评估 (RefereeAgent):** (优先级中)
-    *   设计并实现 `RefereeAgent` 中的逻辑：调用 LLM 来解读玩家行动/对话与目标 NPC 内在设定 (`values`, `likes`, `dislikes` 等) 的匹配/冲突程度。
-    *   定义 LLM 的输入（玩家行为、情境、NPC 设定、当前关系值）和结构化输出（例如 `RelationshipImpactAssessment` 模型，包含影响类型、强度、原因、建议变化值）。
-    *   设计引导 LLM 进行评估的 Prompt。
-    *   确定 `RefereeAgent` 如何结合 LLM 的建议和基础规则来最终决定 `relationship_player` 的变化量（可能生成 `CHANGE_RELATIONSHIP` 后果）。
-8.  **细化 `Context Builders` 逻辑:** (优先级中)
-    *   实现从 `ChatHistoryManager` 智能提取/总结关键近期互动信息（记忆）的策略。
-    *   确保能将 NPC 的目标、态度（关系值、内在设定）、状态 (`status`) 和关键记忆有效整合进给 Agent 的 Prompt。
-9.  **实现完整的保存/加载流程**: (优先级中)
-    *   在 `GameEngine` 中集成 `GameStateManager` 和 `ChatHistoryManager` 的保存/加载调用。
-    *   确定保存时机和文件结构。
-10. **更新 `progress.md`**: (在完成主要 Bug 修复和测试后) 更新项目进展。
-11. **(稍后)** 检查并清理可能冗余的 `src/models/record_models.py`。
+1.  **实现 `GameState` 地点追踪**: (如果尚未实现) 在 `GameState` 或 `CharacterInstance` 中添加 `visited_locations: Set[str]` 字段及相关更新逻辑。
+2.  **修改 `dm_context_builder.py`**:
+    *   实现分析 `current_round_applied_consequences` 和 `current_round_triggered_events` 的逻辑。
+    *   实现根据后果/事件记录提取对应描述/摘要的逻辑（需要访问 `GameState` 和场景数据）。
+    *   实现填充 `narrative_focus_points` 字段。
+3.  **修改 `agents/dm_agent.py`**: 更新 System Prompt 以利用 `narrative_focus_points`。
+4.  **测试**: 运行游戏，观察 DM 叙事是否更准确地聚焦于关键变化，并减少虚构。
+5.  **更新 Memory Bank**: 更新 `progress.md` 和 `systemPatterns.md`。
 
 ## 待解决/考虑事项
 
-## 架构理解深化
+*   需要确认 `GameState`、场景配置 (`Scenario`) 中是否已包含足够详细的地点描述、事件/结局摘要等信息供 `dm_context_builder` 提取。如果不足，需要补充。
+*   `dm_context_builder` 提取逻辑的健壮性，如何处理找不到描述或摘要的情况。
+
+## 架构理解深化 (保持不变)
 
 *   **明确职责**: 进一步明确了 `GameState` (核心机制状态、全局信息、世界快照) 与 `ChatHistoryManager` (交互历史、上下文、信息可见性) 的不同职责和重要性。`GameState` 是硬性规则和后果的基础，而 `ChatHistoryManager` 为 Agent 理解对话流、进行关系评估和生成符合情境的反应提供关键上下文。保持此分离对实现智能交互至关重要。
-
-*   确定保存游戏状态和聊天记录的具体时机（例如，每回合结束时自动保存，还是提供手动保存选项）。
-*   设计保存文件的命名和组织方式（例如，每个存档一个文件夹，包含 game_state.json 和 chat_history.json）。
-*   错误处理：加载状态时，如果剧本 ID 不匹配或文件损坏，应如何处理？
+*   **叙事焦点传递**: 确定了通过分析 `GameState` 回合记录，由 `dm_context_builder` 提取具体文本，再传递给 DM Agent 的模式，以提高叙事准确性。

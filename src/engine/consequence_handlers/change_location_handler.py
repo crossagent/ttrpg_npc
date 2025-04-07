@@ -65,6 +65,16 @@ class ChangeLocationHandler(BaseConsequenceHandler):
                     game_state.location_states[new_location_id].present_characters.append(character_id)
                     self.logger.debug(f"已将角色 '{character_id}' 添加到地点 '{new_location_id}' 的 present_characters。")
 
+            # +++ 更新 visited_locations +++
+            if hasattr(character_instance, 'visited_locations'):
+                # Treat the list like a set for checking existence
+                if new_location_id not in character_instance.visited_locations:
+                    character_instance.visited_locations.append(new_location_id)
+                    self.logger.info(f"角色 '{character_id}' 首次访问地点 '{new_location_id}'，已添加到 visited_locations。")
+            else:
+                 self.logger.warning(f"角色 '{character_id}' 实例缺少 visited_locations 属性。")
+            # +++ 结束更新 visited_locations +++
+
             self._create_record(consequence, game_state, success=True, source_description=source_description, description=description)
             return description
         except Exception as e:

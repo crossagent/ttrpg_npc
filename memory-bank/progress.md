@@ -32,13 +32,17 @@
 
 ## 进行中 / 下一步 (按优先级)
 
-1.  **优化 Agent Prompts 和数据源**: (当前最高优先级) 重新审视并优化各个 Agent (特别是 `CompanionAgent`, `RefereeAgent`, `NarrativeAgent`) 的 Prompt，并确认它们获取的数据源是否准确、充分。
-2.  **更新测试用例**: (优先级次高) 修改或添加测试用例以覆盖新的逻辑和修复。
-3.  **实现未完成的 Handler**: (优先级中)
-5.  **实现未完成的 Handler**: (优先级中)
-    *   实现 `TriggerEventHandler` 。
+1.  **优化 DM 叙事准确性**: (当前最高优先级)
+    *   **实现 `GameState` 地点追踪**: (如果尚未实现) 在 `GameState` 或 `CharacterInstance` 中添加 `visited_locations: Set[str]` 字段及相关更新逻辑。
+    *   **修改 `dm_context_builder.py`**: 实现分析 `current_round_applied_consequences` 和 `current_round_triggered_events`，并从中提取具体描述/摘要填充到 `narrative_focus_points` 字段。
+    *   **修改 `agents/dm_agent.py`**: 更新 System Prompt 以利用 `narrative_focus_points`。
+    *   **测试**: 运行游戏，验证 DM 叙事是否更准确聚焦关键变化。
+2.  **优化其他 Agent Prompts 和数据源**: (优先级次高) 在 DM 叙事优化后，重新审视并优化 `CompanionAgent`, `RefereeAgent` 等的 Prompt 和数据源。
+3.  **更新测试用例**: (优先级中) 修改或添加测试用例以覆盖新的逻辑和修复。
+4.  **实现未完成的 Handler**: (优先级中)
+    *   实现 `TriggerEventHandler`。
     *   将它们添加到 `HANDLER_REGISTRY`。
-6.  **更新数据模型 (Models):** (优先级中)
+5.  **更新数据模型 (Models):** (优先级中)
     *   在 `CharacterTemplate` (`src/models/scenario_models.py`) 和 `CharacterInstance` (`src/models/game_state_models.py`) 中添加用于描述 NPC 内在设定的字段，例如 `values: List[str]`, `likes: List[str]`, `dislikes: List[str]`。
 7.  **实现基于 LLM 的关系评估 (RefereeAgent):** (优先级中)
     *   设计并实现 `RefereeAgent` 中的逻辑：调用 LLM 来解读玩家行动/对话与目标 NPC 内在设定 (`values`, `likes`, `dislikes` 等) 的匹配/冲突程度。

@@ -13,9 +13,14 @@ from src.context.context_utils import (format_messages, format_character_list, f
                                        format_environment_info, format_current_stage_summary, 
                                        format_current_stage_characters, format_current_stage_locations)
 from src.models.context_models import DMNarrativeSystemContext, DMNarrativeUserContext
-from src.models.message_models import Message # Ensure Message is imported for type hint
-# +++ Import Optional if not already imported for the helper function type hint +++
-from typing import Optional 
+from src.models.message_models import Message
+# +++ Import necessary types +++
+from src.models.consequence_models import (
+    AppliedConsequenceRecord, TriggeredEventRecord, AnyConsequence,
+    ChangeLocationConsequence, TriggerEventConsequence, UpdateFlagConsequence # Add others if needed
+)
+from src.models.scenario_models import Scenario, LocationInfo, ScenarioEvent, EventOutcome
+from typing import Optional, List, Set # Ensure Set is imported if used internally
 
 from src.engine.scenario_manager import ScenarioManager
 
@@ -67,28 +72,72 @@ def build_narrative_system_prompt(scenario: Optional[Scenario]) -> str:
 def build_narrative_user_prompt(
     game_state: GameState,
     scenario_manager: ScenarioManager, # Add scenario_manager parameter
-    relevant_messages: List[Message], # Changed parameter name from unread_messages
-    scenario: Scenario # Keep scenario for now, might be removable later if all utils use manager
+    relevant_messages: List[Message],
+    # scenario: Scenario # Removed, get scenario via manager
 ) -> str:
     """构建DM叙述生成的用户提示"""
     # Format the relevant historical messages
-    formatted_messages = format_messages(relevant_messages) 
+    formatted_messages = format_messages(relevant_messages)
 
-    # Create the context object (consider if DMNarrativeUserContext needs update)
-    # Note: DMNarrativeUserContext might not be strictly necessary if we build the prompt string directly
-    # Keeping it for now, but ensure its fields align with the prompt content.
-    narrative_user_prompt = DMNarrativeUserContext(
-        recent_messages=formatted_messages, # Use formatted relevant messages
-        stage_decribertion=format_current_stage_summary(game_state, scenario_manager), # Pass manager
-        characters_description=format_current_stage_characters(game_state, scenario_manager), # Pass manager
-        environment_description=format_environment_info(game_state, scenario_manager), # Pass manager
-        location_description=format_current_stage_locations(game_state, scenario_manager) # Pass manager
-    )
-    
-    # No need to format again, already done above
-    # formatted_messages = format_messages(relevant_messages) 
+    # --- Extract Narrative Focus Points ---
+    focus_points: List[str] = []
+    scenario = scenario_manager.get_scenario(game_state.scenario_id)
+    if not scenario:
+        print(f"错误：在 dm_context_builder 中无法加载剧本 {game_state.scenario_id}")
+        # Handle error appropriately, maybe add a default focus point
+        focus_points.append("错误：无法加载剧本信息。")
+    else:
+        # Process Applied Consequences from the *current* round temporary record
+        if hasattr(game_state, 'current_round_applied_consequences'):
+            for record in game_state.current_round_applied_consequences:
+                # Ensure applied_consequence is the correct object, not just details
+                consequence = record.applied_consequence
 
-    # 获取当前故事阶段(如果有)
+                if isinstance(consequence, ChangeLocationConsequence):
+                    char_id = consequence.target_entity_id
+                    new_loc_id = consequence.value
+                    if char_id in game_state.characters:
+                        character = game_state.characters[char_id]
+                        # Use the visited_locations list (treat as set for check)
+                        if hasattr(character, 'visited_locations') and new_loc_id not in character.visited_locations:
+                            if scenario.locations and new_loc_id in scenario.locations:
+                                location_info = scenario.locations[new_loc_id]
+                                focus_points.append(f"首次进入地点 '{location_info.name}' ({new_loc_id}): {location_info.description}")
+                            else:
+                                focus_points.append(f"首次进入未知地点: {new_loc_id}")
+
+                # Example: Add focus for important flag updates if needed later
+                # elif isinstance(consequence, UpdateFlagConsequence):
+                #     if consequence.flag_name in ["some_important_flag"]:
+                #         focus_points.append(f"关键剧情标志更新: '{consequence.flag_name}' 设为 {consequence.flag_value}.")
+
+        # Process Triggered Events from the *current* round temporary record
+        if hasattr(game_state, 'current_round_triggered_events'):
+             for record in game_state.current_round_triggered_events:
+                 event_id = record.event_id
+                 outcome_id = record.outcome_id
+                 event_name = f"事件 {event_id}"
+                 outcome_desc = f"结局 {outcome_id}"
+
+                 if scenario.events:
+                     found_event = next((evt for evt in scenario.events if evt.event_id == event_id), None)
+                     if found_event:
+                         event_name = found_event.name
+                         found_outcome = next((out for out in found_event.possible_outcomes if out.id == outcome_id), None)
+                         if found_outcome:
+                             outcome_desc = found_outcome.description
+                 focus_points.append(f"事件触发: '{event_name}' ({event_id}) 发生结局 '{outcome_desc}' ({outcome_id})。")
+
+    formatted_focus_points = "\n".join([f"- {fp}" for fp in focus_points]) if focus_points else "无特别关注的焦点变化。"
+
+    # --- Build Context Sections ---
+    # (Keep existing formatting functions, ensure they use scenario_manager)
+    stage_description = format_current_stage_summary(game_state, scenario_manager)
+    characters_description = format_current_stage_characters(game_state, scenario_manager)
+    environment_description = format_environment_info(game_state, scenario_manager)
+    location_description = format_current_stage_locations(game_state, scenario_manager)
+
+    # --- Get other context info ---
     current_stage = "未知阶段"
     if hasattr(game_state, "progress") and hasattr(game_state.progress, "current_stage"):
         if game_state.progress.current_stage:
@@ -114,45 +163,48 @@ def build_narrative_user_prompt(
 **近期重要活动记录 (最近 {len(relevant_messages)} 条消息):**
 {formatted_messages if formatted_messages else "无重要活动记录（例如，游戏刚开始或长时间无实质交互）"}
 
+**本回合关键变化焦点:**
+{formatted_focus_points}
+
 **当前状态摘要:**
 
 玩家角色及主要伙伴信息：
-{narrative_user_prompt.characters_description}
+{characters_description}
 
 当前地点关键信息：
-{narrative_user_prompt.location_description}
+{location_description}
 
 当前环境状况：
-{narrative_user_prompt.environment_description}
+{environment_description}
 
 当前主要剧情阶段：
-{narrative_user_prompt.stage_decribertion}
+{stage_description}
 
 近期场景变化记录:
-{scene_changes if scene_changes else "无明显变化"}
+{scene_changes if scene_changes else "无明显变化"} # Consider removing if focus points cover major changes
 
 **当前活跃/相关事件:**
 {formatted_active_events}
 
 **叙述任务:**
 
-请基于以上提供的**当前状态摘要**（包含角色、地点、环境、剧情、事件信息）和**近期重要活动记录**，生成一段生动的场景描述(约300字)。请严格遵守以下指示：
+请基于以上提供的**当前状态摘要**（包含角色、地点、环境、剧情、事件信息）和**近期重要活动记录**，并**特别注意将“本回合关键变化焦点”中提到的具体描述或摘要自然地融入**到你的叙事中，生成一段生动的场景描述(约300字)。请严格遵守以下指示：
 
-**核心原则：GameState 是事实的唯一来源，近期活动记录用于聚焦变化和风格调整。**
+**核心原则：GameState 是客观事实的唯一来源。近期活动记录用于理解上下文，关键变化焦点用于突出重要进展。**
 
-1.  **事实来源**: 你描述的所有**客观事实**（谁在哪里、拥有什么、状态如何、发生了什么固定后果）**必须**严格来源于上面提供的“**当前状态摘要**”和“**近期场景变化记录**”。**禁止**虚构与 GameState 不符的事实。
+1.  **事实来源**: 你描述的所有**客观事实**（谁在哪里、拥有什么、状态如何）**必须**严格来源于上面提供的“**当前状态摘要**”。**禁止**虚构与 GameState 不符的事实。**“本回合关键变化焦点”部分提供了本回合发生的、需要你在叙事中明确提及或反映的关键新信息、地点描述或事件摘要。**
 2.  **聚焦变化，避免重复**:
-    *   **首要任务**: 利用“**近期重要活动记录**”来理解**自上次叙述以来发生了什么**。你的描述**必须**反映这些活动带来的**新信息**或**状态进展**。
-    *   **关键指令**: **绝对不要**简单重复上一回合的场景描述，特别是当“近期重要活动记录”不为空时。如果场景核心要素（地点、环境、在场人物）没有巨大变化，应侧重于描述**人物的行动、互动或状态的细微变化**。
-    *   **处理静态信息**: 对于玩家已知且未发生显著变化的静态环境信息（例如，“房间还是那个房间”），请**务必简略带过或完全省略**。
+    *   **首要任务**: 利用“**近期重要活动记录**”来理解**自上次叙述以来发生了哪些行动**。利用“**本回合关键变化焦点**”来了解**世界发生了哪些重要变化**。你的描述**必须**反映这些活动和变化带来的**新信息**或**状态进展**。
+    *   **关键指令**: **绝对不要**简单重复上一回合的场景描述。如果场景核心要素（地点、环境、在场人物）没有巨大变化（即没有出现在焦点中），应侧重于描述**人物的行动、互动或状态的细微变化**。
+    *   **处理静态信息**: 对于玩家已知且未发生显著变化的静态环境信息（例如，“房间还是那个房间”，且未作为焦点提及），请**务必简略带过或完全省略**。
 3.  **区分转述与描述**:
-    *   对于玩家角色（Player）和主要 NPC 伙伴（Companion）的行动（参考“近期重要活动记录”和“近期场景变化记录”），请**客观、简洁地转述**发生了什么及其直接、明显的结果。**不要**猜测他们的内心想法或添加 GameState 中没有的后果。
-    *   对于其他次要 NPC 的行为、环境的自然变化、需要渲染的氛围或基于“当前活跃/相关事件”的暗示，你可以进行更具**描述性**的生成，但仍需与 GameState 的整体情况保持一致。
-4.  **核心要素**: 在聚焦变化的同时，确保描绘出场景的**氛围**和关键的**感官体验**，并点明场景中的**关键元素**和**在场角色**（特别是新出现的或状态有显著变化的）。
+    *   对于玩家角色（Player）和主要 NPC 伙伴（Companion）的行动（参考“近期重要活动记录”），请**客观、简洁地转述**发生了什么及其直接、明显的结果。**不要**猜测他们的内心想法或添加 GameState 中没有的后果。
+    *   对于其他次要 NPC 的行为、环境的自然变化、需要渲染的氛围或基于“当前活跃/相关事件”和“本回合关键变化焦点”的暗示，你可以进行更具**描述性**的生成，但仍需与 GameState 的整体情况保持一致。
+4.  **核心要素**: 在聚焦变化的同时，确保描绘出场景的**氛围**和关键的**感官体验**，并点明场景中的**关键元素**和**在场角色**（特别是新出现的或状态有显著变化的）。**务必将“本回合关键变化焦点”中的具体文本片段或摘要自然地、无缝地融入到你的整体叙事中。**
 5.  **引导探索 (可选)**: 如果合适，可以通过环境细节**暗示**（而非明示）可能的探索方向、潜在的危险或与“当前活跃/相关事件”相关的线索。
 6.  **结尾**: 可以考虑以一个开放性的观察或简短问句结束，引导玩家思考。
 
-请确保叙述**连贯**，风格符合剧本设定，并且所有事实性描述都**严格基于**提供的 GameState 信息，同时**必须体现**近期活动记录中的动态进展。
+请确保叙述**连贯**，风格符合剧本设定，并且所有事实性描述都**严格基于**提供的 GameState 信息，同时**必须体现**近期活动记录中的动态进展和**关键变化焦点**中提供的具体内容。
 """
 
 def build_action_resolve_system_prompt(scenario: Optional[Scenario]) -> str:

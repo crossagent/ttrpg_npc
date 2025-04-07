@@ -39,8 +39,13 @@
     *   **职责**: 路由和分发消息给对应的 Agent，处理可见性过滤。**将已分发的消息记录到 `ChatHistoryManager`**。
     *   **模式**: 发布/订阅模式 (Publish/Subscribe)，消息队列。
 *   **上下文构建器 (Context Builders)**:
-    *   **职责**: 将结构化数据格式化为自然语言 或 LLM Prompt。
+    *   **职责**: 将结构化的 `GameState`、`ChatHistory` 和 `Scenario` 数据格式化为自然语言或 LLM Prompt，供 Agent 使用。**核心职责之一是为 `NarrativeAgent` 准备叙事焦点信息。**
     *   **模式**: 数据转换层 (Data Transformation Layer)，适配器模式 (Adapter Pattern)。
+    *   **DM 上下文构建 (`dm_context_builder.py`)**:
+        *   访问 `GameState` 中的 `current_round_applied_consequences` 和 `current_round_triggered_events`。
+        *   分析这些记录，识别关键变化（如首次地点进入、事件触发、关键 Flag 更新）。
+        *   根据识别出的变化，从 `GameState` 或 `Scenario` 数据中**提取**对应的描述性文本或摘要。
+        *   将提取出的文本填充到传递给 `NarrativeAgent` 的 `narrative_focus_points` 字段中。
 *   **展现层 (Presentation Layer)**:
     *   **职责**: 用户界面，显示信息，接收输入。
     *   **模式**: MVC/MVP 中的 View 层。
@@ -63,11 +68,11 @@
 *   **剧本访问**: 需要剧本静态信息（如地点描述、物品定义）的组件（如 Context Builders, GameStateManager）通过 `ScenarioManager` 获取，使用 `GameState.scenario_id` 作为索引。
 *   **消息驱动**: 模块间通过 `MessageDispatcher` 进行通信。`MessageDispatcher` 将消息分发给相关 Agent，并调用 `ChatHistoryManager` 按回合记录消息。
 *   **聊天记录访问**: 需要历史消息（如用于 LLM 上下文）的组件通过 `ChatHistoryManager` 按需获取指定回合范围的消息。
-*   **LLM 集成**: 各 Agent 利用 LLM 进行生成、思考和判断，上下文由构建器提供（包含角色属性/技能信息，以及从 `ChatHistoryManager` 获取的相关历史消息）。
+*   **LLM 集成**: 各 Agent 利用 LLM 进行生成、思考和判断。上下文由构建器提供，包含角色属性/技能、从 `ChatHistoryManager` 获取的相关历史消息，以及（对 `NarrativeAgent`）由 `dm_context_builder` 提取的 `narrative_focus_points`。
 *   **结构化自由**: `ScenarioManager` 提供结构化剧本内容。`RefereeAgent` 判断事件触发，`GameStateManager` 检查阶段完成条件。
 *   **游戏推进逻辑 (即时应用)**:
-    *   **叙事阶段**: `NarrativeAgent` 基于上一回合的 `GameState` 快照进行总结叙事。
-    *   **行动宣告阶段**: 收集意图 (`PlayerAction`) 并记录到当前 `GameState`。
+    *   **叙事阶段**: `NarrativeAgent` 基于上一回合的 `GameState` 快照和由 `dm_context_builder` 准备的 `narrative_focus_points` 进行总结叙事。
+    *   **行动宣告阶段**: 收集意图 (`PlayerAction`) 并记录到当前 `GameState` 的 `current_round_actions`。
     *   **判定与应用阶段**: `RefereeAgent` 判定后果和事件 -> 校验 -> **立即**调用 `GameStateManager.apply_consequences()` -> `GameStateManager` 分发给对应的 **后果处理器 (Handler)** 应用到当前 `GameState` 并记录 `AppliedConsequenceRecord` -> `JudgementPhase` 记录 `TriggeredEventRecord`。
     *   **回合结束**: 创建当前 `GameState` 快照并存储，清空临时记录字段。
 

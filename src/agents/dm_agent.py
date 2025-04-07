@@ -62,8 +62,13 @@ class DMAgent(BaseAgent):
         )
         
         # 构建用户消息 - 使用 relevant_messages
-        # 注意：build_narrative_user_prompt 现在需要处理 game_state 可能为 None 的情况 (例如第一回合)
-        user_message_content = build_narrative_user_prompt(game_state, self.scenario_manager, relevant_messages or [], scenario) # Pass self.scenario_manager
+        # build_narrative_user_prompt 现在会处理 game_state 可能为 None 的情况，并包含 narrative_focus_points
+        user_message_content = build_narrative_user_prompt(
+            game_state=game_state,
+            scenario_manager=self.scenario_manager,
+            relevant_messages=relevant_messages or []
+            # scenario 参数已移除，由 scenario_manager 处理
+        )
         user_message = TextMessage(
             content=user_message_content,
             source="system" # Source is system as this prompt is constructed by the system for the LLM

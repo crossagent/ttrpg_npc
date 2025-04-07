@@ -86,6 +86,7 @@ class CharacterInstance(BaseModel):
     location: str = Field(..., description="当前位置")
     items: List['ItemInstance'] = Field(default_factory=list, description="拥有的物品实例列表")
     known_information: List[str] = Field(default_factory=list, description="已知信息")
+    visited_locations: List[str] = Field(default_factory=list, description="已访问过的地点ID列表") # Changed to List for JSON compatibility
 
     # --- NPC 核心要素扩展 ---
     # 态度 (Attitude)
