@@ -95,14 +95,31 @@ class NarrationPhase(BaseRoundPhase):
             self.logger.info("这是第一回合或无法确定上一回合，DM叙事将基于初始状态（如果需要）。")
             # Optionally, pass the initial state if needed, or handle None snapshot in DM agent
 
-        # --- 调用 DM Agent 生成叙事，传递快照 ---
-        # 注意：dm_generate_narrative 需要调整以接受 GameState 快照
+        # --- 获取最近的相关消息 ---
+        # 确定要获取多少回合的消息，可以设为可配置
+        num_rounds_history = 20 # 例如，获取最近2回合的消息
+        start_round = max(0, current_round_id - num_rounds_history)
+        end_round = current_round_id - 1 # 获取到上一回合为止
+        
+        relevant_messages: List[Message] = []
+        if end_round >= start_round:
+            try:
+                relevant_messages = self.chat_history_manager.get_messages(
+                    start_round=start_round,
+                    end_round=end_round
+                )
+                self.logger.debug(f"从 ChatHistoryManager 获取了回合 {start_round} 到 {end_round} 的 {len(relevant_messages)} 条消息。")
+            except Exception as hist_error:
+                 self.logger.error(f"从 ChatHistoryManager 获取消息时出错: {hist_error}")
+
+        # --- 调用 DM Agent 生成叙事，传递快照和相关消息 ---
+        # 注意：dm_generate_narrative 需要调整以接受 GameState 快照和消息列表
         # 并且能够从快照的 current_round_... 字段提取信息
         try:
             dm_narrative = await dm_agent.dm_generate_narrative(
                 previous_snapshot, # Pass the snapshot (or None)
-                scenario
-                # historical_messages=historical_messages # Removed historical messages, context comes from snapshot
+                scenario,
+                relevant_messages=relevant_messages # Pass relevant messages
             )
         except Exception as e:
             self.logger.exception(f"DM Agent 生成叙事时出错: {e}")

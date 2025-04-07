@@ -14,8 +14,28 @@ from src.context.context_utils import (format_messages, format_character_list, f
                                        format_current_stage_characters, format_current_stage_locations)
 from src.models.context_models import DMNarrativeSystemContext, DMNarrativeUserContext
 from src.models.message_models import Message # Ensure Message is imported for type hint
+# +++ Import Optional if not already imported for the helper function type hint +++
+from typing import Optional 
 
 from src.engine.scenario_manager import ScenarioManager
+
+# +++ Helper function to format event info +++
+def _format_active_events(game_state: Optional[GameState]) -> str:
+    if not game_state or not hasattr(game_state, 'event_instances') or not game_state.event_instances:
+        return "无特别活跃的事件实例。"
+    
+    active_events = []
+    for event_id, instance in game_state.event_instances.items():
+        # Example: Format based on instance status or other relevant fields
+        # This needs refinement based on the actual structure and meaning of EventInstance
+        status = getattr(instance, 'status', '未知状态') 
+        description = getattr(instance, 'description', event_id) # Use description if available
+        active_events.append(f"- {description} (ID: {event_id}, 状态: {status})") 
+        
+    if not active_events:
+        return "无特别活跃的事件实例。"
+        
+    return "\n".join(active_events)
 
 def build_narrative_system_prompt(scenario: Optional[Scenario]) -> str:
     """构建DM叙述生成的系统提示"""
@@ -55,6 +75,8 @@ def build_narrative_user_prompt(
     formatted_messages = format_messages(relevant_messages) 
 
     # Create the context object (consider if DMNarrativeUserContext needs update)
+    # Note: DMNarrativeUserContext might not be strictly necessary if we build the prompt string directly
+    # Keeping it for now, but ensure its fields align with the prompt content.
     narrative_user_prompt = DMNarrativeUserContext(
         recent_messages=formatted_messages, # Use formatted relevant messages
         stage_decribertion=format_current_stage_summary(game_state, scenario_manager), # Pass manager
@@ -79,38 +101,55 @@ def build_narrative_user_prompt(
     
     # 获取重要场景变化
     scene_changes = ""
-    if hasattr(game_state, "environment") and hasattr(game_state.environment, "recent_changes"):
+    # Check if game_state is not None before accessing attributes
+    if game_state and hasattr(game_state, "environment") and hasattr(game_state.environment, "recent_changes"):
         scene_changes = "\n".join(game_state.environment.recent_changes)
+        
+    # +++ Format active events using the helper +++
+    formatted_active_events = _format_active_events(game_state) # Pass the snapshot here
     
     return f"""
 【第{game_state.round_number if game_state else 1}回合 | {game_time} | {current_stage}】 # Handle None game_state for round 1
 
-自上次重要事件/行动以来的活动记录: 
-{formatted_messages if formatted_messages else "无（或仅有非实质性对话）"}
+**近期重要活动记录 (最近 {len(relevant_messages)} 条消息):**
+{formatted_messages if formatted_messages else "无重要活动记录（例如，游戏刚开始或长时间无实质交互）"}
 
-玩家角色信息：
+**当前状态摘要:**
+
+玩家角色及主要伙伴信息：
 {narrative_user_prompt.characters_description}
 
-当前地点描述：
+当前地点关键信息：
 {narrative_user_prompt.location_description}
 
-当前环境：
+当前环境状况：
 {narrative_user_prompt.environment_description}
 
-当前主要剧情描述:
+当前主要剧情阶段：
 {narrative_user_prompt.stage_decribertion}
 
-场景变化:
+近期场景变化记录:
 {scene_changes if scene_changes else "无明显变化"}
 
-请基于以上信息，生成一段生动的场景描述(300字左右)。描述应该:
-1. 创造当前场景的氛围和感官体验
-2. 突出场景中的关键元素和存在的角色
-3. 反映玩家行动对环境和NPC的影响
-4. 暗示可能的探索方向和隐藏的机会
-5. 以引导性问题结束，激发玩家思考下一步行动
+**当前活跃/相关事件:**
+{formatted_active_events}
 
-请确保叙述连贯且与之前的情节保持一致。
+**叙述任务:**
+
+请基于以上提供的**当前状态摘要**（包含角色、地点、环境、剧情、事件信息）和**近期重要活动记录**，生成一段生动的场景描述(约300字)。请严格遵守以下指示：
+
+**核心原则：GameState 是事实的唯一来源，近期活动记录用于聚焦变化和风格调整。**
+
+1.  **事实来源**: 你描述的所有**客观事实**（谁在哪里、拥有什么、状态如何、发生了什么固定后果）**必须**严格来源于上面提供的“**当前状态摘要**”和“**近期场景变化记录**”。**禁止**虚构与 GameState 不符的事实。
+2.  **聚焦变化，避免重复**: 利用“**近期重要活动记录**”来理解**自上次叙述以来的主要变化**。你的首要任务是描述这些**新信息**：新出现的人物/地点/物品、状态的显著改变、首次进入的场景等。对于玩家已知且未发生显著变化的静态环境信息，请**务必简略带过或完全省略**。
+3.  **区分转述与描述**:
+    *   对于玩家角色（Player）和主要 NPC 伙伴（Companion）的行动（参考“近期重要活动记录”和“近期场景变化记录”），请**客观、简洁地转述**其行动过程和已发生的、记录在 GameState 中的直接结果。**不要**猜测他们的内心想法或添加 GameState 中没有的后果。
+    *   对于其他次要 NPC 的行为、环境的自然变化、需要渲染的氛围或基于“当前活跃/相关事件”的暗示，你可以进行更具**描述性**的生成，但仍需与 GameState 的整体情况保持一致。
+4.  **核心要素**: 在聚焦变化的同时，确保描绘出场景的**氛围**和关键的**感官体验**，并点明场景中的**关键元素**和**在场角色**（特别是新出现的或状态有显著变化的）。
+5.  **引导探索 (可选)**: 如果合适，可以通过环境细节**暗示**（而非明示）可能的探索方向、潜在的危险或与“当前活跃/相关事件”相关的线索。
+6.  **结尾**: 可以考虑以一个开放性的观察或简短问句结束，引导玩家思考。
+
+请确保叙述**连贯**，风格符合剧本设定，并且所有事实性描述都**严格基于**提供的 GameState 信息。
 """
 
 def build_action_resolve_system_prompt(scenario: Optional[Scenario]) -> str:
