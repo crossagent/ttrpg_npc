@@ -27,20 +27,47 @@ class NarrationPhase(BaseRoundPhase):
         执行叙事阶段逻辑。
         """
         self.logger.info("--- 开始叙事阶段 ---")
-        state = self.get_current_state()
         round_id = self.current_round_id
+        last_truly_active_round = 0 # 初始化最近活跃回合为0
 
-        # 1. 判断是否需要调用DM叙事
-        rounds_since_active = round_id - state.last_active_round
-        # 第一次进入游戏 (round_id=1, last_active_round=0) 或达到阈值时触发
+        # 1. 判断是否需要调用DM叙事 - 通过检查历史快照判断活跃度
+        self.logger.debug(f"检查回合 {round_id} 是否需要叙事，开始回溯历史快照...")
+        for prev_round_id in range(round_id - 1, -1, -1):
+            snapshot = self.game_state_manager.get_snapshot(prev_round_id)
+            if snapshot:
+                # 检查快照中是否有行动、后果或事件记录
+                is_active = bool(
+                    snapshot.current_round_actions or
+                    snapshot.current_round_applied_consequences or
+                    snapshot.current_round_triggered_events
+                )
+                if is_active:
+                    last_truly_active_round = prev_round_id
+                    self.logger.debug(f"在回合 {prev_round_id} 找到活动记录，标记为最近活跃回合。")
+                    break # 找到最近的活跃回合，停止回溯
+                else:
+                     self.logger.debug(f"回合 {prev_round_id} 快照无活动记录。")
+            else:
+                self.logger.debug(f"未找到回合 {prev_round_id} 的快照。")
+        
+        if last_truly_active_round == 0 and round_id > 1:
+             self.logger.warning(f"未能找到回合 {round_id} 之前的任何活跃回合快照。")
+             # 在这种情况下，可以认为是从游戏开始或长时间不活跃，强制触发叙事
+             rounds_since_active = round_id # 或者设置为一个大于阈值的值
+        else:
+            rounds_since_active = round_id - last_truly_active_round
+
+        # 第一次进入游戏 (round_id=1) 或达到阈值时触发
+        # 注意: round_id=1 时, last_truly_active_round=0, rounds_since_active=1
         should_call_dm = (rounds_since_active == 1 and round_id > 0) or (rounds_since_active >= DM_NARRATION_THRESHOLD)
 
         if should_call_dm:
-            self.logger.info(f"回合 {round_id}: 距离上次活跃 {rounds_since_active} 回合，触发DM叙事。")
-            # +++ Pass previous round ID +++
-            await self._process_dm_turn(round_id - 1)
+            self.logger.info(f"回合 {round_id}: 距离上次活跃回合({last_truly_active_round}) {rounds_since_active} 回合，触发DM叙事。")
+            # 传递最近活跃回合的 ID 给 DM 处理函数，如果需要的话
+            # 或者仍然传递 round_id - 1 作为上一回合 ID
+            await self._process_dm_turn(round_id - 1) # 保持传递上一回合ID，DM内部处理快照
         else:
-            self.logger.info(f"回合 {round_id}: 距离上次活跃 {rounds_since_active} 回合，跳过DM叙事。")
+            self.logger.info(f"回合 {round_id}: 距离上次活跃回合({last_truly_active_round}) {rounds_since_active} 回合，跳过DM叙事。")
 
         self.logger.info("--- 结束叙事阶段 ---")
 

@@ -112,7 +112,7 @@ class GameState(BaseModel):
     is_finished: bool = Field(False, description="游戏是否结束")
     started_at: datetime = Field(default_factory=datetime.now, description="游戏开始时间")
     last_updated: datetime = Field(default_factory=datetime.now, description="最后更新时间")
-    last_active_round: int = Field(0, description="最后一个有玩家实质性行动的回合ID")
+    # last_active_round: int = Field(0, description="最后一个有玩家实质性行动的回合ID") # Removed
     
     # 游戏进度
     progress: ProgressStatus = Field(..., description="游戏进度状态")
