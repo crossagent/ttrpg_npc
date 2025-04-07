@@ -44,7 +44,8 @@ class EventOutcome(BaseModel):
     """事件结局模型"""
     id: str = Field(..., description="结局唯一标识符")
     description: str = Field(..., description="结局描述")
-    consequences: List[AnyConsequence] = Field(..., description="结局导致的结构化后果列表") # Updated type hint
+    # Restore the correct type hint for automatic validation
+    consequences: List[AnyConsequence] = Field(..., description="结局导致的结构化后果列表")
 
 class ScenarioEvent(BaseModel):
     """剧本事件模型"""
@@ -193,40 +194,8 @@ class Scenario(BaseModel):
         # 让 Pydantic 处理整个结构的验证，包括嵌套模型和 AnyConsequence
         try:
             # Pydantic V2 使用 model_validate
+            # Pydantic V2 should handle nested validation automatically with the correct type hint
             instance = cls.model_validate(json_data)
-
-            # --- 后处理: 处理旧的字符串后果格式 (如果需要保留兼容性) ---
-            # 遍历已验证的实例，查找并转换旧格式
-            for event in instance.events:
-                for outcome in event.possible_outcomes:
-                    processed_consequences = []
-                    # 检查原始数据中的后果格式
-                    original_event_data = next((e for e in json_data.get("events", []) if e.get("id") == event.event_id), None)
-                    if original_event_data:
-                        original_outcome_data = next((o for o in original_event_data.get("possible_outcomes", []) if o.get("id") == outcome.id), None)
-                        if original_outcome_data:
-                            raw_consequences = original_outcome_data.get("consequences")
-                            if isinstance(raw_consequences, str):
-                                print(f"警告: 事件 {event.event_id} 结局 {outcome.id} 使用了旧的字符串后果格式: '{raw_consequences}'. 将创建 SendMessageConsequence。")
-                                processed_consequences.append(SendMessageConsequence(message_content=f"结局效果: {raw_consequences}"))
-                            elif isinstance(raw_consequences, list):
-                                # 如果是列表，Pydantic 应该已经处理了，直接使用验证后的结果
-                                processed_consequences.extend(outcome.consequences)
-                            elif raw_consequences is not None:
-                                 print(f"警告: 事件 {event.event_id} 结局 {outcome.id} 的后果格式未知: {type(raw_consequences)}")
-                        else:
-                             # 如果原始结局数据找不到，保留 Pydantic 验证的结果
-                             processed_consequences.extend(outcome.consequences)
-                    else:
-                        # 如果原始事件数据找不到，保留 Pydantic 验证的结果
-                        processed_consequences.extend(outcome.consequences)
-                    
-                    # 更新实例中的后果列表
-                    # 注意:直接修改 Pydantic 模型实例的字段可能需要配置 model_config(frozen=False)
-                    # 或者创建一个新的 EventOutcome 实例。为简单起见，这里假设可以直接修改。
-                    # 如果遇到问题，需要调整此部分。
-                    outcome.consequences = processed_consequences 
-
             return instance
 
         except ValidationError as e:
