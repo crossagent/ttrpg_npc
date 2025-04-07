@@ -151,25 +151,25 @@
         {
           "id": "secretly_record_conversation",
           "description": "秘密记录对话",
-          "consequence": [
-            { "type": "gain_item", "item_id": "info_victor_deal_details" },
-            { "type": "change_npc_state", "target": "char_003", "state": "suspicion_level", "change": "+1" }
+          "consequences": [
+            { "type": "add_item", "target_entity_id": "player", "item_id": "info_victor_deal_details", "value": 1 },
+            { "type": "update_character_attribute", "target_entity_id": "char_003", "attribute_name": "suspicion_level", "value": 1 }
           ]
         },
         {
           "id": "caught_eavesdropping",
           "description": "偷听被发现",
-          "consequence": [
-            { "type": "change_relationship", "target_entity_id": "char_003", "secondary_entity_id": "player", "value": -2 },
-            { "type": "update_attribute", "target_entity_id": "char_003", "attribute_name": "suspicion_level", "value": {"op": "+=", "amount": 3} },
-            { "type": "require_skill_check", "skill": "deception", "dc": 14, "success_consequence": [{"type": "add_item", "target_entity_id": "player", "item_id": "info_victor_deal_details"}], "failure_consequence": [{"type": "update_flag", "flag_name": "player_under_surveillance", "flag_value": true}]}
+          "consequences": [
+            { "type": "change_relationship", "target_entity_id": "char_003", "secondary_entity_id": "player", "value": -2.0 },
+            { "type": "update_character_attribute", "target_entity_id": "char_003", "attribute_name": "suspicion_level", "value": 3 },
+            { "type": "send_message", "message_content": "需要进行欺骗技能检定(DC14)。成功则获得情报，失败则被监视。", "message_recipient": "PLAYER"}
           ]
         },
         {
           "id": "leave_with_incomplete_info",
           "description": "带着不完整信息离开",
-          "consequence": [
-             { "type": "gain_item", "item_id": "info_victor_deal_details" }
+          "consequences": [
+             { "type": "add_item", "target_entity_id": "player", "item_id": "info_victor_deal_details", "value": 1 }
           ]
         }
       ]
@@ -184,25 +184,25 @@
         {
           "id": "agree_to_cooperate",
           "description": "同意合作",
-          "consequence": [
-             { "type": "change_npc_state", "target": "char_001", "state": "relationship", "change": "+2" },
-             { "type": "gain_item", "item_id": "item_004" }
+          "consequences": [
+             { "type": "change_relationship", "target_entity_id": "char_001", "secondary_entity_id": "player", "value": 2.0 },
+             { "type": "add_item", "target_entity_id": "player", "item_id": "item_004", "value": 1 }
           ]
         },
         {
           "id": "refuse_and_inform_jackson",
           "description": "拒绝并告知杰克逊",
-          "consequence": [
-             { "type": "change_relationship", "target_entity_id": "char_002", "secondary_entity_id": "player", "value": 1 },
+          "consequences": [
+             { "type": "change_relationship", "target_entity_id": "char_002", "secondary_entity_id": "player", "value": 1.0 },
              { "type": "update_flag", "flag_name": "monica_in_danger", "flag_value": true }
           ]
         },
         {
           "id": "pretend_and_extract_info",
           "description": "假装合作并套取信息",
-          "consequence": [
-             { "type": "change_npc_state", "target": "char_001", "state": "relationship", "change": "-1" },
-             { "type": "gain_knowledge", "topic": "monica_evidence_details_partial" }
+          "consequences": [
+             { "type": "change_relationship", "target_entity_id": "char_001", "secondary_entity_id": "player", "value": -1.0 },
+             { "type": "add_item", "target_entity_id": "player", "item_id": "info_monica_evidence_partial", "value": 1 }
           ]
         }
       ]
@@ -217,23 +217,23 @@
         {
           "id": "help_evacuate",
           "description": "协助疏散",
-          "consequence": [
-             { "type": "change_npc_state", "target": "char_003", "state": "relationship", "change": "+1" },
-             { "type": "change_npc_state", "target": "char_002", "state": "relationship", "change": "+1" }
+          "consequences": [
+             { "type": "change_relationship", "target_entity_id": "char_003", "secondary_entity_id": "player", "value": 1.0 },
+             { "type": "change_relationship", "target_entity_id": "char_002", "secondary_entity_id": "player", "value": 1.0 }
           ]
         },
         {
           "id": "seize_evidence_in_chaos",
           "description": "趁乱夺取证据",
-          "consequence": [
-             { "type": "gain_item", "item_id": "item_001" }
+          "consequences": [
+             { "type": "add_item", "target_entity_id": "player", "item_id": "item_001", "value": 1 }
           ]
         },
         {
           "id": "contact_external_support",
           "description": "联系外部支援",
-          "consequence": [
-             { "type": "gain_knowledge", "topic": "external_support_contacted_attempt" }
+          "consequences": [
+             { "type": "add_item", "target_entity_id": "player", "item_id": "info_external_support_contacted", "value": 1 }
           ]
         }
       ]
@@ -248,25 +248,25 @@
         {
           "id": "offer_help",
           "description": "提供帮助",
-          "consequence": [
-            { "type": "change_npc_state", "target": "char_004", "state": "relationship", "change": "+2" },
-            { "type": "gain_item", "item_id": "info_rachel_confirmed_undercover" }
+          "consequences": [
+            { "type": "change_relationship", "target_entity_id": "char_004", "secondary_entity_id": "player", "value": 2.0 },
+            { "type": "add_item", "target_entity_id": "player", "item_id": "info_rachel_confirmed_undercover", "value": 1 }
           ]
         },
         {
           "id": "probe_for_truth",
           "description": "试探真相",
-          "consequence": [
-            { "type": "gain_item", "item_id": "info_rachel_not_simple" },
-            { "type": "change_npc_state", "target": "char_004", "state": "relationship", "change": "+1" }
+          "consequences": [
+            { "type": "add_item", "target_entity_id": "player", "item_id": "info_rachel_not_simple", "value": 1 },
+            { "type": "change_relationship", "target_entity_id": "char_004", "secondary_entity_id": "player", "value": 1.0 }
           ]
         },
         {
           "id": "report_to_victor",
           "description": "向维克多报告",
-          "consequence": [
-            { "type": "change_relationship", "target_entity_id": "char_003", "secondary_entity_id": "player", "value": 1 },
-            { "type": "change_relationship", "target_entity_id": "char_004", "secondary_entity_id": "player", "value": -3 },
+          "consequences": [
+            { "type": "change_relationship", "target_entity_id": "char_003", "secondary_entity_id": "player", "value": 1.0 },
+            { "type": "change_relationship", "target_entity_id": "char_004", "secondary_entity_id": "player", "value": -3.0 },
             { "type": "update_flag", "flag_name": "rachel_compromised", "flag_value": true }
           ]
         }
@@ -282,23 +282,24 @@
         {
           "id": "successfully_acquire",
           "description": "成功获取",
-          "consequence": [
-             { "type": "gain_item", "item_id": "item_001" }
+          "consequences": [
+             { "type": "add_item", "target_entity_id": "player", "item_id": "item_001", "value": 1 }
           ]
         },
         {
           "id": "conflict_with_others",
           "description": "与他人冲突",
-          "consequence": [
-             { "type": "change_player_state", "state": "injured", "value": "minor" },
-             { "type": "reveal_opponent", "opponent_id": "char_005" }
+          "consequences": [
+             { "type": "update_character_attribute", "target_entity_id": "player", "attribute_name": "health", "value": -10 },
+             { "type": "send_message", "message_content": "你与卡特发生冲突并受了轻伤。", "message_recipient": "PLAYER" }
           ]
         },
         {
           "id": "set_trap_and_leave",
           "description": "设置陷阱后离开",
-          "consequence": [
-             { "type": "set_location_trap", "location_id": "loc_004", "trap_type": "simple_alarm" }
+          "consequences": [
+             { "type": "update_attribute", "target_entity_id": "loc_004", "attribute_name": "trap_status", "value": "simple_alarm_set" },
+             { "type": "send_message", "message_content": "你在经理办公室设置了一个简单的警报陷阱。", "message_recipient": "PLAYER" }
           ]
         }
       ]
@@ -314,15 +315,15 @@
           "id": "successful_concealment",
           "description": "成功隐瞒",
           "consequences": [
-            { "type": "send_message", "message_content": "你成功地打消了杰克逊的疑虑，他暂时不再怀疑你。" }
+            { "type": "send_message", "message_content": "你成功地打消了杰克逊的疑虑，他暂时不再怀疑你。", "message_recipient": "PLAYER" }
           ]
         },
         {
           "id": "partial_truth_for_trust",
           "description": "部分坦白以获取信任",
           "consequences": [
-            { "type": "change_relationship", "target_entity_id": "char_002", "secondary_entity_id": "player", "value": 1 },
-            { "type": "send_message", "message_content": "你透露了部分信息，与杰克逊的关系略有改善，但也增加了暴露的风险。" }
+            { "type": "change_relationship", "target_entity_id": "char_002", "secondary_entity_id": "player", "value": 1.0 },
+            { "type": "send_message", "message_content": "你透露了部分信息，与杰克逊的关系略有改善，但也增加了暴露的风险。", "message_recipient": "PLAYER" }
           ]
         },
         {
@@ -330,7 +331,7 @@
           "description": "紧张失言",
           "consequences": [
             { "type": "update_flag", "flag_name": "player_under_surveillance", "flag_value": true },
-            { "type": "send_message", "message_content": "你的紧张引起了杰克逊的警觉，他开始密切监视你。" }
+            { "type": "send_message", "message_content": "你的紧张引起了杰克逊的警觉，他开始密切监视你。", "message_recipient": "PLAYER" }
           ]
         }
       ]
@@ -346,23 +347,23 @@
           "id": "accept_deal",
           "description": "接受交易",
           "consequences": [
-            { "type": "add_item", "item_id": "money_large_sum", "quantity": 1 },
-            { "type": "send_message", "message_content": "你接受了卡特的交易，获得了一笔资金，但这可能会让你与其他人的目标产生冲突。" }
+            { "type": "add_item", "target_entity_id": "player", "item_id": "money_large_sum", "value": 1 },
+            { "type": "send_message", "message_content": "你接受了卡特的交易，获得了一笔资金，但这可能会让你与其他人的目标产生冲突。", "message_recipient": "PLAYER" }
           ]
         },
         {
           "id": "refuse_and_threaten",
           "description": "拒绝并威胁",
           "consequences": [
-            { "type": "change_relationship", "target_entity_id": "char_005", "secondary_entity_id": "player", "value": -3 },
-            { "type": "send_message", "message_content": "你强硬地拒绝了卡特并发出威胁，这让你与他结怨，但也可能赢得了其他人的尊重。" }
+            { "type": "change_relationship", "target_entity_id": "char_005", "secondary_entity_id": "player", "value": -3.0 },
+            { "type": "send_message", "message_content": "你强硬地拒绝了卡特并发出威胁，这让你与他结怨，但也可能赢得了其他人的尊重。", "message_recipient": "PLAYER" }
           ]
         },
         {
           "id": "pretend_to_accept",
           "description": "假装接受",
           "consequences": [
-            { "type": "send_message", "message_content": "你假装接受了卡特的提议，这是一个高风险的策略，结果难以预料。" }
+            { "type": "send_message", "message_content": "你假装接受了卡特的提议，这是一个高风险的策略，结果难以预料。", "message_recipient": "PLAYER" }
           ]
         }
       ]
@@ -378,22 +379,22 @@
           "id": "eavesdrop",
           "description": "偷听对话",
           "consequences": [
-            { "type": "add_item", "item_id": "info_basement_meeting_details", "quantity": 1 },
-            { "type": "send_message", "message_content": "你成功偷听到了维克多与神秘人的部分谈话，获得了关于'最终交易'和'清洗'的关键信息，但也冒着被发现的风险。" }
+            { "type": "add_item", "target_entity_id": "player", "item_id": "info_basement_meeting_details", "value": 1 },
+            { "type": "send_message", "message_content": "你成功偷听到了维克多与神秘人的部分谈话，获得了关于'最终交易'和'清洗'的关键信息，但也冒着被发现的风险。", "message_recipient": "PLAYER" }
           ]
         },
         {
           "id": "intervene",
           "description": "介入谈话",
           "consequences": [
-            { "type": "send_message", "message_content": "你突然介入了维克多的密会，打断了他们的谈话，现在所有人的目光都集中在你身上。" }
+            { "type": "send_message", "message_content": "你突然介入了维克多的密会，打断了他们的谈话，现在所有人的目光都集中在你身上。", "message_recipient": "PLAYER" }
           ]
         },
         {
           "id": "quietly_report",
           "description": "悄悄报告",
           "consequences": [
-            { "type": "send_message", "message_content": "你选择悄悄离开并向上级或盟友报告了密会的情况，避免了直接冲突，但信息可能不完整。" }
+            { "type": "send_message", "message_content": "你选择悄悄离开并向上级或盟友报告了密会的情况，避免了直接冲突，但信息可能不完整。", "message_recipient": "PLAYER" }
           ]
         }
       ]
@@ -409,23 +410,23 @@
           "id": "help_evacuate",
           "description": "协助疏散",
           "consequences": [
-            { "type": "send_message", "message_content": "你在火灾中帮助疏散了其他人，赢得了他们的信任和感激。" }
+            { "type": "send_message", "message_content": "你在火灾中帮助疏散了其他人，赢得了他们的信任和感激。", "message_recipient": "PLAYER" }
           ]
         },
         {
           "id": "complete_objectives",
           "description": "完成自身目标",
           "consequences": [
-            { "type": "send_message", "message_content": "你趁着混乱专注于完成自己的目标，虽然任务有所进展，但可能错失了帮助他人或建立关系的机会。" }
+            { "type": "send_message", "message_content": "你趁着混乱专注于完成自己的目标，虽然任务有所进展，但可能错失了帮助他人或建立关系的机会。", "message_recipient": "PLAYER" }
           ]
         },
         {
           "id": "protect_key_character",
           "description": "保护关键人物",
           "consequences": [
-            { "type": "change_relationship", "target_entity_id": "key_character_id_placeholder", "secondary_entity_id": "player", "value": 3 },
-            { "type": "add_item", "item_id": "info_from_protected_character", "quantity": 1 },
-            { "type": "send_message", "message_content": "你在火灾中保护了某个关键人物，与他/她建立了特殊联系，并可能获得了重要信息。" }
+            { "type": "change_relationship", "target_entity_id": "key_character_id_placeholder", "secondary_entity_id": "player", "value": 3.0 },
+            { "type": "add_item", "target_entity_id": "player", "item_id": "info_from_protected_character", "value": 1 },
+            { "type": "send_message", "message_content": "你在火灾中保护了某个关键人物，与他/她建立了特殊联系，并可能获得了重要信息。", "message_recipient": "PLAYER" }
           ]
         }
       ]
@@ -440,29 +441,29 @@
         {
           "id": "assist_law_enforcement",
           "description": "协助执法机构",
-          "consequence": [
-             { "type": "gain_item", "item_id": "info_final_decision_made" }
+          "consequences": [
+             { "type": "add_item", "target_entity_id": "player", "item_id": "info_final_decision_made", "value": 1 }
           ]
         },
         {
           "id": "cooperate_with_criminal",
           "description": "与犯罪分子合作",
-          "consequence": [
-             { "type": "gain_item", "item_id": "info_final_decision_made" }
+          "consequences": [
+             { "type": "add_item", "target_entity_id": "player", "item_id": "info_final_decision_made", "value": 1 }
           ]
         },
         {
           "id": "act_independently",
           "description": "独立行动",
-          "consequence": [
-             { "type": "gain_item", "item_id": "info_final_decision_made" }
+          "consequences": [
+             { "type": "add_item", "target_entity_id": "player", "item_id": "info_final_decision_made", "value": 1 }
           ]
         },
         {
           "id": "protect_innocent",
           "description": "保护无辜者",
-          "consequence": [
-             { "type": "gain_item", "item_id": "info_final_decision_made" }
+          "consequences": [
+             { "type": "add_item", "target_entity_id": "player", "item_id": "info_final_decision_made", "value": 1 }
           ]
         }
       ]
