@@ -1,11 +1,11 @@
 {
   "story_info": {
-      "id": "story_001",
-      "title": "星光幻境的阴谋",
-      "background": "大都市夜生活区的一家高端脱衣舞俱乐部'星光幻境'成为各种势力角逐的舞台。表面上是奢华娱乐场所，背后却隐藏着警方卧底行动、黑帮利益纷争和政治丑闻。最近，一位俱乐部舞者意外获取了足以摧毁多方势力的关键证据，各方势力开始暗中行动。",
-      "secret": "俱乐部实际是一个庞大洗钱网络的前线，资金来自政治献金和违法交易。隐藏在VIP包厢的录音设备收集了无数权贵的秘密对话，成为最有价值的讨价还价筹码。",
-      "narrative_style": "现代黑色电影风格，充满阴谋、欺骗与紧张对峙。每个人都有秘密，每段对话都可能有双重含义。场景描述应强调昏暗灯光、浓烈香水与威士忌的气味、闪烁霓虹灯的色彩反差，以及表面光鲜下的腐败氛围。对话锋利而简练，危险感无处不在。"
-    },
+    "id": "story_001",
+    "title": "星光幻境的阴谋",
+    "background": "大都市夜生活区的一家高端脱衣舞俱乐部'星光幻境'成为各种势力角逐的舞台。表面上是奢华娱乐场所，背后却隐藏着警方卧底行动、黑帮利益纷争和政治丑闻。最近，一位俱乐部舞者意外获取了足以摧毁多方势力的关键证据，各方势力开始暗中行动。",
+    "secret": "俱乐部实际是一个庞大洗钱网络的前线，资金来自政治献金和违法交易。隐藏在VIP包厢的录音设备收集了无数权贵的秘密对话，成为最有价值的讨价还价筹码。",
+    "narrative_style": "现代黑色电影风格，充满阴谋、欺骗与紧张对峙。每个人都有秘密，每段对话都可能有双重含义。场景描述应强调昏暗灯光、浓烈香水与威士忌的气味、闪烁霓虹灯的色彩反差，以及表面光鲜下的腐败氛围。对话锋利而简练，危险感无处不在。"
+  },
   "locations": [
     {
       "id": "loc_001",
@@ -146,30 +146,61 @@
       "name": "可疑交易目击",
       "description": "目击维克多与神秘人物进行秘密交谈，交换了密封文件，对话中提到'最后的交易'和'48小时后行动'。",
       "trigger_condition": "current_stage:stage_01_01_01 && any_character_enters:loc_002",
-      "perceptible_players": ["present_players"],
+      "perceptible_players": [
+        "present_players"
+      ],
       "possible_outcomes": [
         {
           "id": "secretly_record_conversation",
           "description": "秘密记录对话",
           "consequences": [
-            { "type": "add_item", "target_entity_id": "player", "item_id": "info_victor_deal_details", "value": 1 },
-            { "type": "update_character_attribute", "target_entity_id": "char_003", "attribute_name": "suspicion_level", "value": 1 }
+            {
+              "type": "add_item",
+              "target_entity_id": "player",
+              "item_id": "info_victor_deal_details",
+              "value": 1
+            },
+            {
+              "type": "update_character_attribute",
+              "target_entity_id": "char_003",
+              "attribute_name": "suspicion_level",
+              "value": 1
+            }
           ]
         },
         {
           "id": "caught_eavesdropping",
           "description": "偷听被发现",
           "consequences": [
-            { "type": "change_relationship", "target_entity_id": "char_003", "secondary_entity_id": "player", "value": -2.0 },
-            { "type": "update_character_attribute", "target_entity_id": "char_003", "attribute_name": "suspicion_level", "value": 3 },
-            { "type": "send_message", "message_content": "需要进行欺骗技能检定(DC14)。成功则获得情报，失败则被监视。", "message_recipient": "PLAYER"}
+            {
+              "type": "change_relationship",
+              "target_entity_id": "char_003",
+              "secondary_entity_id": "player",
+              "value": -2.0
+            },
+            {
+              "type": "update_character_attribute",
+              "target_entity_id": "char_003",
+              "attribute_name": "suspicion_level",
+              "value": 3
+            },
+            {
+              "type": "send_message",
+              "message_content": "需要进行欺骗技能检定(DC14)。成功则获得情报，失败则被监视。",
+              "message_recipient": "PLAYER"
+            }
           ]
         },
         {
           "id": "leave_with_incomplete_info",
           "description": "带着不完整信息离开",
           "consequences": [
-             { "type": "add_item", "target_entity_id": "player", "item_id": "info_victor_deal_details", "value": 1 }
+            {
+              "type": "add_item",
+              "target_entity_id": "player",
+              "item_id": "info_victor_deal_details",
+              "value": 1
+            }
           ]
         }
       ]
@@ -179,30 +210,61 @@
       "name": "莫妮卡的求助",
       "description": "莫妮卡秘密接触玩家寻求帮助，表示自己掌握了重要证据但感到生命威胁，提议合作交换信息。",
       "trigger_condition": "current_stage:stage_02_01_01",
-      "perceptible_players": ["all"],
+      "perceptible_players": [
+        "all"
+      ],
       "possible_outcomes": [
         {
           "id": "agree_to_cooperate",
           "description": "同意合作",
           "consequences": [
-             { "type": "change_relationship", "target_entity_id": "char_001", "secondary_entity_id": "player", "value": 2.0 },
-             { "type": "add_item", "target_entity_id": "player", "item_id": "item_004", "value": 1 }
+            {
+              "type": "change_relationship",
+              "target_entity_id": "char_001",
+              "secondary_entity_id": "player",
+              "value": 2.0
+            },
+            {
+              "type": "add_item",
+              "target_entity_id": "player",
+              "item_id": "item_004",
+              "value": 1
+            }
           ]
         },
         {
           "id": "refuse_and_inform_jackson",
           "description": "拒绝并告知杰克逊",
           "consequences": [
-             { "type": "change_relationship", "target_entity_id": "char_002", "secondary_entity_id": "player", "value": 1.0 },
-             { "type": "update_flag", "flag_name": "monica_in_danger", "flag_value": true }
+            {
+              "type": "change_relationship",
+              "target_entity_id": "char_002",
+              "secondary_entity_id": "player",
+              "value": 1.0
+            },
+            {
+              "type": "update_flag",
+              "flag_name": "monica_in_danger",
+              "flag_value": true
+            }
           ]
         },
         {
           "id": "pretend_and_extract_info",
           "description": "假装合作并套取信息",
           "consequences": [
-             { "type": "change_relationship", "target_entity_id": "char_001", "secondary_entity_id": "player", "value": -1.0 },
-             { "type": "add_item", "target_entity_id": "player", "item_id": "info_monica_evidence_partial", "value": 1 }
+            {
+              "type": "change_relationship",
+              "target_entity_id": "char_001",
+              "secondary_entity_id": "player",
+              "value": -1.0
+            },
+            {
+              "type": "add_item",
+              "target_entity_id": "player",
+              "item_id": "info_monica_evidence_partial",
+              "value": 1
+            }
           ]
         }
       ]
@@ -212,28 +274,50 @@
       "name": "突袭警报",
       "description": "警方突袭情报泄露，俱乐部开始紧急销毁证据并准备撤离。各方人员行动变得紧张和危险。",
       "trigger_condition": "current_stage:stage_03_01_01 || evidence_discovered",
-      "perceptible_players": ["all"],
+      "perceptible_players": [
+        "all"
+      ],
       "possible_outcomes": [
         {
           "id": "help_evacuate",
           "description": "协助疏散",
           "consequences": [
-             { "type": "change_relationship", "target_entity_id": "char_003", "secondary_entity_id": "player", "value": 1.0 },
-             { "type": "change_relationship", "target_entity_id": "char_002", "secondary_entity_id": "player", "value": 1.0 }
+            {
+              "type": "change_relationship",
+              "target_entity_id": "char_003",
+              "secondary_entity_id": "player",
+              "value": 1.0
+            },
+            {
+              "type": "change_relationship",
+              "target_entity_id": "char_002",
+              "secondary_entity_id": "player",
+              "value": 1.0
+            }
           ]
         },
         {
           "id": "seize_evidence_in_chaos",
           "description": "趁乱夺取证据",
           "consequences": [
-             { "type": "add_item", "target_entity_id": "player", "item_id": "item_001", "value": 1 }
+            {
+              "type": "add_item",
+              "target_entity_id": "player",
+              "item_id": "item_001",
+              "value": 1
+            }
           ]
         },
         {
           "id": "contact_external_support",
           "description": "联系外部支援",
           "consequences": [
-             { "type": "add_item", "target_entity_id": "player", "item_id": "info_external_support_contacted", "value": 1 }
+            {
+              "type": "add_item",
+              "target_entity_id": "player",
+              "item_id": "info_external_support_contacted",
+              "value": 1
+            }
           ]
         }
       ]
@@ -243,31 +327,67 @@
       "name": "身份危机",
       "description": "瑞秋在压力下暗示自己并非表面身份，需要帮助完成某项隐秘任务。",
       "trigger_condition": "any_player_converses_with:char_004",
-      "perceptible_players": ["conversing_players"],
+      "perceptible_players": [
+        "conversing_players"
+      ],
       "possible_outcomes": [
         {
           "id": "offer_help",
           "description": "提供帮助",
           "consequences": [
-            { "type": "change_relationship", "target_entity_id": "char_004", "secondary_entity_id": "player", "value": 2.0 },
-            { "type": "add_item", "target_entity_id": "player", "item_id": "info_rachel_confirmed_undercover", "value": 1 }
+            {
+              "type": "change_relationship",
+              "target_entity_id": "char_004",
+              "secondary_entity_id": "player",
+              "value": 2.0
+            },
+            {
+              "type": "add_item",
+              "target_entity_id": "player",
+              "item_id": "info_rachel_confirmed_undercover",
+              "value": 1
+            }
           ]
         },
         {
           "id": "probe_for_truth",
           "description": "试探真相",
           "consequences": [
-            { "type": "add_item", "target_entity_id": "player", "item_id": "info_rachel_not_simple", "value": 1 },
-            { "type": "change_relationship", "target_entity_id": "char_004", "secondary_entity_id": "player", "value": 1.0 }
+            {
+              "type": "add_item",
+              "target_entity_id": "player",
+              "item_id": "info_rachel_not_simple",
+              "value": 1
+            },
+            {
+              "type": "change_relationship",
+              "target_entity_id": "char_004",
+              "secondary_entity_id": "player",
+              "value": 1.0
+            }
           ]
         },
         {
           "id": "report_to_victor",
           "description": "向维克多报告",
           "consequences": [
-            { "type": "change_relationship", "target_entity_id": "char_003", "secondary_entity_id": "player", "value": 1.0 },
-            { "type": "change_relationship", "target_entity_id": "char_004", "secondary_entity_id": "player", "value": -3.0 },
-            { "type": "update_flag", "flag_name": "rachel_compromised", "flag_value": true }
+            {
+              "type": "change_relationship",
+              "target_entity_id": "char_003",
+              "secondary_entity_id": "player",
+              "value": 1.0
+            },
+            {
+              "type": "change_relationship",
+              "target_entity_id": "char_004",
+              "secondary_entity_id": "player",
+              "value": -3.0
+            },
+            {
+              "type": "update_flag",
+              "flag_name": "rachel_compromised",
+              "flag_value": true
+            }
           ]
         }
       ]
@@ -277,29 +397,54 @@
       "name": "录音带争夺",
       "description": "发现包含敏感内容的录音存储设备，多方人员都在寻找这一关键证据。",
       "trigger_condition": "any_character_enters:loc_004",
-      "perceptible_players": ["present_players"],
+      "perceptible_players": [
+        "present_players"
+      ],
       "possible_outcomes": [
         {
           "id": "successfully_acquire",
           "description": "成功获取",
           "consequences": [
-             { "type": "add_item", "target_entity_id": "player", "item_id": "item_001", "value": 1 }
+            {
+              "type": "add_item",
+              "target_entity_id": "player",
+              "item_id": "item_001",
+              "value": 1
+            }
           ]
         },
         {
           "id": "conflict_with_others",
           "description": "与他人冲突",
           "consequences": [
-             { "type": "update_character_attribute", "target_entity_id": "player", "attribute_name": "health", "value": -10 },
-             { "type": "send_message", "message_content": "你与卡特发生冲突并受了轻伤。", "message_recipient": "PLAYER" }
+            {
+              "type": "update_character_attribute",
+              "target_entity_id": "player",
+              "attribute_name": "health",
+              "value": -10
+            },
+            {
+              "type": "send_message",
+              "message_content": "你与卡特发生冲突并受了轻伤。",
+              "message_recipient": "PLAYER"
+            }
           ]
         },
         {
           "id": "set_trap_and_leave",
           "description": "设置陷阱后离开",
           "consequences": [
-             { "type": "update_attribute", "target_entity_id": "loc_004", "attribute_name": "trap_status", "value": "simple_alarm_set" },
-             { "type": "send_message", "message_content": "你在经理办公室设置了一个简单的警报陷阱。", "message_recipient": "PLAYER" }
+            {
+              "type": "update_attribute",
+              "target_entity_id": "loc_004",
+              "attribute_name": "trap_status",
+              "value": "simple_alarm_set"
+            },
+            {
+              "type": "send_message",
+              "message_content": "你在经理办公室设置了一个简单的警报陷阱。",
+              "message_recipient": "PLAYER"
+            }
           ]
         }
       ]
@@ -309,29 +454,52 @@
       "name": "杰克逊的审问",
       "description": "杰克逊单独约谈角色，以友好方式进行问话，但明显在试探是否为内鬼。",
       "trigger_condition": "current_stage:stage_02_01_01 && any_character_suspicious",
-      "perceptible_players": ["suspected_players"],
+      "perceptible_players": [
+        "suspected_players"
+      ],
       "possible_outcomes": [
         {
           "id": "successful_concealment",
           "description": "成功隐瞒",
           "consequences": [
-            { "type": "send_message", "message_content": "你成功地打消了杰克逊的疑虑，他暂时不再怀疑你。", "message_recipient": "PLAYER" }
+            {
+              "type": "send_message",
+              "message_content": "你成功地打消了杰克逊的疑虑，他暂时不再怀疑你。",
+              "message_recipient": "PLAYER"
+            }
           ]
         },
         {
           "id": "partial_truth_for_trust",
           "description": "部分坦白以获取信任",
           "consequences": [
-            { "type": "change_relationship", "target_entity_id": "char_002", "secondary_entity_id": "player", "value": 1.0 },
-            { "type": "send_message", "message_content": "你透露了部分信息，与杰克逊的关系略有改善，但也增加了暴露的风险。", "message_recipient": "PLAYER" }
+            {
+              "type": "change_relationship",
+              "target_entity_id": "char_002",
+              "secondary_entity_id": "player",
+              "value": 1.0
+            },
+            {
+              "type": "send_message",
+              "message_content": "你透露了部分信息，与杰克逊的关系略有改善，但也增加了暴露的风险。",
+              "message_recipient": "PLAYER"
+            }
           ]
         },
         {
           "id": "nervous_slip",
           "description": "紧张失言",
           "consequences": [
-            { "type": "update_flag", "flag_name": "player_under_surveillance", "flag_value": true },
-            { "type": "send_message", "message_content": "你的紧张引起了杰克逊的警觉，他开始密切监视你。", "message_recipient": "PLAYER" }
+            {
+              "type": "update_flag",
+              "flag_name": "player_under_surveillance",
+              "flag_value": true
+            },
+            {
+              "type": "send_message",
+              "message_content": "你的紧张引起了杰克逊的警觉，他开始密切监视你。",
+              "message_recipient": "PLAYER"
+            }
           ]
         }
       ]
@@ -341,29 +509,53 @@
       "name": "卡特的提议",
       "description": "卡特秘密接触持有或知晓证据下落的角色，提出丰厚条件换取合作。",
       "trigger_condition": "any_character_has_evidence",
-      "perceptible_players": ["evidence_holder"],
+      "perceptible_players": [
+        "evidence_holder"
+      ],
       "possible_outcomes": [
         {
           "id": "accept_deal",
           "description": "接受交易",
           "consequences": [
-            { "type": "add_item", "target_entity_id": "player", "item_id": "money_large_sum", "value": 1 },
-            { "type": "send_message", "message_content": "你接受了卡特的交易，获得了一笔资金，但这可能会让你与其他人的目标产生冲突。", "message_recipient": "PLAYER" }
+            {
+              "type": "add_item",
+              "target_entity_id": "player",
+              "item_id": "money_large_sum",
+              "value": 1
+            },
+            {
+              "type": "send_message",
+              "message_content": "你接受了卡特的交易，获得了一笔资金，但这可能会让你与其他人的目标产生冲突。",
+              "message_recipient": "PLAYER"
+            }
           ]
         },
         {
           "id": "refuse_and_threaten",
           "description": "拒绝并威胁",
           "consequences": [
-            { "type": "change_relationship", "target_entity_id": "char_005", "secondary_entity_id": "player", "value": -3.0 },
-            { "type": "send_message", "message_content": "你强硬地拒绝了卡特并发出威胁，这让你与他结怨，但也可能赢得了其他人的尊重。", "message_recipient": "PLAYER" }
+            {
+              "type": "change_relationship",
+              "target_entity_id": "char_005",
+              "secondary_entity_id": "player",
+              "value": -3.0
+            },
+            {
+              "type": "send_message",
+              "message_content": "你强硬地拒绝了卡特并发出威胁，这让你与他结怨，但也可能赢得了其他人的尊重。",
+              "message_recipient": "PLAYER"
+            }
           ]
         },
         {
           "id": "pretend_to_accept",
           "description": "假装接受",
           "consequences": [
-            { "type": "send_message", "message_content": "你假装接受了卡特的提议，这是一个高风险的策略，结果难以预料。", "message_recipient": "PLAYER" }
+            {
+              "type": "send_message",
+              "message_content": "你假装接受了卡特的提议，这是一个高风险的策略，结果难以预料。",
+              "message_recipient": "PLAYER"
+            }
           ]
         }
       ]
@@ -373,28 +565,47 @@
       "name": "地下室密会",
       "description": "意外撞见维克多与神秘人物进行紧张谈判，内容涉及'最终交易'和'彻底清洗'。",
       "trigger_condition": "current_stage:stage_03_01_01 && character_enters:loc_005",
-      "perceptible_players": ["present_players"],
+      "perceptible_players": [
+        "present_players"
+      ],
       "possible_outcomes": [
         {
           "id": "eavesdrop",
           "description": "偷听对话",
           "consequences": [
-            { "type": "add_item", "target_entity_id": "player", "item_id": "info_basement_meeting_details", "value": 1 },
-            { "type": "send_message", "message_content": "你成功偷听到了维克多与神秘人的部分谈话，获得了关于'最终交易'和'清洗'的关键信息，但也冒着被发现的风险。", "message_recipient": "PLAYER" }
+            {
+              "type": "add_item",
+              "target_entity_id": "player",
+              "item_id": "info_basement_meeting_details",
+              "value": 1
+            },
+            {
+              "type": "send_message",
+              "message_content": "你成功偷听到了维克多与神秘人的部分谈话，获得了关于'最终交易'和'清洗'的关键信息，但也冒着被发现的风险。",
+              "message_recipient": "PLAYER"
+            }
           ]
         },
         {
           "id": "intervene",
           "description": "介入谈话",
           "consequences": [
-            { "type": "send_message", "message_content": "你突然介入了维克多的密会，打断了他们的谈话，现在所有人的目光都集中在你身上。", "message_recipient": "PLAYER" }
+            {
+              "type": "send_message",
+              "message_content": "你突然介入了维克多的密会，打断了他们的谈话，现在所有人的目光都集中在你身上。",
+              "message_recipient": "PLAYER"
+            }
           ]
         },
         {
           "id": "quietly_report",
           "description": "悄悄报告",
           "consequences": [
-            { "type": "send_message", "message_content": "你选择悄悄离开并向上级或盟友报告了密会的情况，避免了直接冲突，但信息可能不完整。", "message_recipient": "PLAYER" }
+            {
+              "type": "send_message",
+              "message_content": "你选择悄悄离开并向上级或盟友报告了密会的情况，避免了直接冲突，但信息可能不完整。",
+              "message_recipient": "PLAYER"
+            }
           ]
         }
       ]
@@ -404,29 +615,53 @@
       "name": "意外火灾",
       "description": "俱乐部突发火灾，可能是意外也可能是蓄意破坏，所有人必须快速决定如何行动。",
       "trigger_condition": "current_stage:stage_03_01_01 && round_number > 3",
-      "perceptible_players": ["all"],
+      "perceptible_players": [
+        "all"
+      ],
       "possible_outcomes": [
         {
           "id": "help_evacuate",
           "description": "协助疏散",
           "consequences": [
-            { "type": "send_message", "message_content": "你在火灾中帮助疏散了其他人，赢得了他们的信任和感激。", "message_recipient": "PLAYER" }
+            {
+              "type": "send_message",
+              "message_content": "你在火灾中帮助疏散了其他人，赢得了他们的信任和感激。",
+              "message_recipient": "PLAYER"
+            }
           ]
         },
         {
           "id": "complete_objectives",
           "description": "完成自身目标",
           "consequences": [
-            { "type": "send_message", "message_content": "你趁着混乱专注于完成自己的目标，虽然任务有所进展，但可能错失了帮助他人或建立关系的机会。", "message_recipient": "PLAYER" }
+            {
+              "type": "send_message",
+              "message_content": "你趁着混乱专注于完成自己的目标，虽然任务有所进展，但可能错失了帮助他人或建立关系的机会。",
+              "message_recipient": "PLAYER"
+            }
           ]
         },
         {
           "id": "protect_key_character",
           "description": "保护关键人物",
           "consequences": [
-            { "type": "change_relationship", "target_entity_id": "key_character_id_placeholder", "secondary_entity_id": "player", "value": 3.0 },
-            { "type": "add_item", "target_entity_id": "player", "item_id": "info_from_protected_character", "value": 1 },
-            { "type": "send_message", "message_content": "你在火灾中保护了某个关键人物，与他/她建立了特殊联系，并可能获得了重要信息。", "message_recipient": "PLAYER" }
+            {
+              "type": "change_relationship",
+              "target_entity_id": "key_character_id_placeholder",
+              "secondary_entity_id": "player",
+              "value": 3.0
+            },
+            {
+              "type": "add_item",
+              "target_entity_id": "player",
+              "item_id": "info_from_protected_character",
+              "value": 1
+            },
+            {
+              "type": "send_message",
+              "message_content": "你在火灾中保护了某个关键人物，与他/她建立了特殊联系，并可能获得了重要信息。",
+              "message_recipient": "PLAYER"
+            }
           ]
         }
       ]
@@ -436,34 +671,56 @@
       "name": "最终抉择",
       "description": "所有核心证据和关键人物集中，玩家必须决定最终立场和行动方向。",
       "trigger_condition": "current_stage:stage_04_01_01",
-      "perceptible_players": ["all"],
+      "perceptible_players": [
+        "all"
+      ],
       "possible_outcomes": [
         {
           "id": "assist_law_enforcement",
           "description": "协助执法机构",
           "consequences": [
-             { "type": "add_item", "target_entity_id": "player", "item_id": "info_final_decision_made", "value": 1 }
+            {
+              "type": "add_item",
+              "target_entity_id": "player",
+              "item_id": "info_final_decision_made",
+              "value": 1
+            }
           ]
         },
         {
           "id": "cooperate_with_criminal",
           "description": "与犯罪分子合作",
           "consequences": [
-             { "type": "add_item", "target_entity_id": "player", "item_id": "info_final_decision_made", "value": 1 }
+            {
+              "type": "add_item",
+              "target_entity_id": "player",
+              "item_id": "info_final_decision_made",
+              "value": 1
+            }
           ]
         },
         {
           "id": "act_independently",
           "description": "独立行动",
           "consequences": [
-             { "type": "add_item", "target_entity_id": "player", "item_id": "info_final_decision_made", "value": 1 }
+            {
+              "type": "add_item",
+              "target_entity_id": "player",
+              "item_id": "info_final_decision_made",
+              "value": 1
+            }
           ]
         },
         {
           "id": "protect_innocent",
           "description": "保护无辜者",
           "consequences": [
-             { "type": "add_item", "target_entity_id": "player", "item_id": "info_final_decision_made", "value": 1 }
+            {
+              "type": "add_item",
+              "target_entity_id": "player",
+              "item_id": "info_final_decision_made",
+              "value": 1
+            }
           ]
         }
       ]
@@ -476,7 +733,10 @@
       "description": "包含政商名流隐秘对话的加密存储设备",
       "location": "loc_004",
       "location_detail": "保险柜内",
-      "related_characters": ["char_003", "char_005"],
+      "related_characters": [
+        "char_003",
+        "char_005"
+      ],
       "acquisition_difficulty": "high",
       "difficulty_details": "需破解保险柜"
     },
@@ -486,7 +746,10 @@
       "description": "详细记录洗钱交易的账簿，编码隐藏但足够证明犯罪",
       "location": "loc_005",
       "location_detail": "隐藏夹层内",
-      "related_characters": ["char_003", "char_004"],
+      "related_characters": [
+        "char_003",
+        "char_004"
+      ],
       "acquisition_difficulty": "medium",
       "difficulty_details": "需找到隐藏夹层"
     },
@@ -496,7 +759,9 @@
       "description": "可访问俱乐部所有区域的高级权限卡",
       "location": "char_002",
       "location_detail": "随身携带",
-      "related_characters": ["char_002"],
+      "related_characters": [
+        "char_002"
+      ],
       "acquisition_difficulty": "high",
       "difficulty_details": "需取得信任或趁其不备"
     },
@@ -506,7 +771,9 @@
       "description": "包含她秘密收集的证据和个人逃离计划",
       "location": "loc_003",
       "location_detail": "储物柜内隐藏",
-      "related_characters": ["char_001"],
+      "related_characters": [
+        "char_001"
+      ],
       "acquisition_difficulty": "medium",
       "difficulty_details": "需找到隐藏方式"
     },
@@ -516,7 +783,9 @@
       "description": "详细标注了所有秘密出口和安全屋位置的地图",
       "location": "multiple",
       "location_detail": "俱乐部各处零散分布",
-      "related_characters": ["all"],
+      "related_characters": [
+        "all"
+      ],
       "acquisition_difficulty": "medium",
       "difficulty_details": "需收集并拼凑完整信息"
     },
@@ -573,19 +842,39 @@
                 "completion_criteria": [
                   {
                     "type": "item_possession",
-                    "details": { "character_id": "char_001", "item_id": "info_victor_deal_details", "quantity": 1 },
+                    "details": {
+                      "character_id": "char_001",
+                      "item_id": "info_victor_deal_details",
+                      "quantity": 1
+                    },
                     "description": "莫妮卡拥有维克多交易情报"
                   },
                   {
                     "type": "item_possession",
-                    "details": { "character_id": "char_001", "item_id": "info_rachel_not_simple", "quantity": 1 },
+                    "details": {
+                      "character_id": "char_001",
+                      "item_id": "info_rachel_not_simple",
+                      "quantity": 1
+                    },
                     "description": "莫妮卡拥有瑞秋身份线索"
                   }
                 ],
-                "locations": ["loc_001", "loc_002"],
-                "characters": ["char_001", "char_002", "char_003"],
-                "events": ["evt_001", "evt_004"],
-                "available_items": ["item_005"]
+                "locations": [
+                  "loc_001",
+                  "loc_002"
+                ],
+                "characters": [
+                  "char_001",
+                  "char_002",
+                  "char_003"
+                ],
+                "events": [
+                  "evt_001",
+                  "evt_004"
+                ],
+                "available_items": [
+                  "item_005"
+                ]
               }
             ]
           }
@@ -609,19 +898,43 @@
                 "completion_criteria": [
                   {
                     "type": "item_possession",
-                    "details": { "character_id": "char_001", "item_id": "item_004", "quantity": 1 },
+                    "details": {
+                      "character_id": "char_001",
+                      "item_id": "item_004",
+                      "quantity": 1
+                    },
                     "description": "莫妮卡拥有莫妮卡的U盘"
                   },
                   {
                     "type": "item_possession",
-                    "details": { "character_id": "char_001", "item_id": "info_rachel_confirmed_undercover", "quantity": 1 },
+                    "details": {
+                      "character_id": "char_001",
+                      "item_id": "info_rachel_confirmed_undercover",
+                      "quantity": 1
+                    },
                     "description": "莫妮卡确认瑞秋卧底身份"
                   }
                 ],
-                "locations": ["loc_002", "loc_003", "loc_004"],
-                "characters": ["char_001", "char_002", "char_004", "char_005"],
-                "events": ["evt_002", "evt_006", "evt_007"],
-                "available_items": ["item_003", "item_004"]
+                "locations": [
+                  "loc_002",
+                  "loc_003",
+                  "loc_004"
+                ],
+                "characters": [
+                  "char_001",
+                  "char_002",
+                  "char_004",
+                  "char_005"
+                ],
+                "events": [
+                  "evt_002",
+                  "evt_006",
+                  "evt_007"
+                ],
+                "available_items": [
+                  "item_003",
+                  "item_004"
+                ]
               }
             ]
           }
@@ -645,19 +958,45 @@
                 "completion_criteria": [
                   {
                     "type": "item_possession",
-                    "details": { "character_id": "char_001", "item_id": "item_001", "quantity": 1 },
+                    "details": {
+                      "character_id": "char_001",
+                      "item_id": "item_001",
+                      "quantity": 1
+                    },
                     "description": "莫妮卡拥有录音存储器"
                   },
                   {
                     "type": "item_possession",
-                    "details": { "character_id": "char_001", "item_id": "item_002", "quantity": 1 },
+                    "details": {
+                      "character_id": "char_001",
+                      "item_id": "item_002",
+                      "quantity": 1
+                    },
                     "description": "莫妮卡拥有账目记录"
                   }
                 ],
-                "locations": ["loc_001", "loc_004", "loc_005"],
-                "characters": ["char_001", "char_002", "char_003", "char_004", "char_005"],
-                "events": ["evt_003", "evt_005", "evt_008", "evt_009"],
-                "available_items": ["item_001", "item_002"]
+                "locations": [
+                  "loc_001",
+                  "loc_004",
+                  "loc_005"
+                ],
+                "characters": [
+                  "char_001",
+                  "char_002",
+                  "char_003",
+                  "char_004",
+                  "char_005"
+                ],
+                "events": [
+                  "evt_003",
+                  "evt_005",
+                  "evt_008",
+                  "evt_009"
+                ],
+                "available_items": [
+                  "item_001",
+                  "item_002"
+                ]
               }
             ]
           }
@@ -681,14 +1020,37 @@
                 "completion_criteria": [
                   {
                     "type": "item_possession",
-                    "details": { "character_id": "char_001", "item_id": "info_final_decision_made", "quantity": 1 },
+                    "details": {
+                      "character_id": "char_001",
+                      "item_id": "info_final_decision_made",
+                      "quantity": 1
+                    },
                     "description": "莫妮卡已做出最终抉择"
                   }
                 ],
-                "locations": ["loc_001", "loc_002", "loc_003", "loc_004", "loc_005"],
-                "characters": ["char_001", "char_002", "char_003", "char_004", "char_005"],
-                "events": ["evt_010"],
-                "ending_variables": ["law_enforcement_outcome", "evidence_possession", "character_fates", "club_future"]
+                "locations": [
+                  "loc_001",
+                  "loc_002",
+                  "loc_003",
+                  "loc_004",
+                  "loc_005"
+                ],
+                "characters": [
+                  "char_001",
+                  "char_002",
+                  "char_003",
+                  "char_004",
+                  "char_005"
+                ],
+                "events": [
+                  "evt_010"
+                ],
+                "ending_variables": [
+                  "law_enforcement_outcome",
+                  "evidence_possession",
+                  "character_fates",
+                  "club_future"
+                ]
               }
             ]
           }

@@ -27,75 +27,75 @@ class BaseConsequence(BaseModel):
 
 class UpdateAttributeConsequence(BaseConsequence):
     """Updates an attribute of a non-character entity (item, location)."""
-    type: Literal[ConsequenceType.UPDATE_ATTRIBUTE] = ConsequenceType.UPDATE_ATTRIBUTE
+    type: str # Changed from Literal
     target_entity_id: str = Field(..., description="The ID of the entity (item, location) affected.")
     attribute_name: str = Field(..., description="The name of the attribute being changed.")
     value: Any = Field(..., description="The new value for the attribute.")
 
 class AddItemConsequence(BaseConsequence):
     """Adds an item to a character's inventory or a location."""
-    type: Literal[ConsequenceType.ADD_ITEM] = ConsequenceType.ADD_ITEM
+    type: str # Changed from Literal
     target_entity_id: str = Field(..., description="The ID of the character or location receiving the item.")
     item_id: str = Field(..., description="The ID of the item being added.")
     value: int = Field(1, description="The quantity of the item to add.", gt=0) # Represents quantity
 
 class RemoveItemConsequence(BaseConsequence):
     """Removes an item from a character's inventory or a location."""
-    type: Literal[ConsequenceType.REMOVE_ITEM] = ConsequenceType.REMOVE_ITEM
+    type: str # Changed from Literal
     target_entity_id: str = Field(..., description="The ID of the character or location losing the item.")
     item_id: str = Field(..., description="The ID of the item being removed.")
     value: int = Field(1, description="The quantity of the item to remove.", gt=0) # Represents quantity
 
 class ChangeRelationshipConsequence(BaseConsequence):
     """Changes the relationship value between two characters."""
-    type: Literal[ConsequenceType.CHANGE_RELATIONSHIP] = ConsequenceType.CHANGE_RELATIONSHIP
+    type: str # Changed from Literal
     target_entity_id: str = Field(..., description="The ID of the first character.")
     secondary_entity_id: str = Field(..., description="The ID of the second character.")
     value: float = Field(..., description="The amount to change the relationship value by (e.g., +0.1, -0.5).")
 
 class TriggerEventConsequence(BaseConsequence):
     """Triggers a new event."""
-    type: Literal[ConsequenceType.TRIGGER_EVENT] = ConsequenceType.TRIGGER_EVENT
+    type: str # Changed from Literal
     event_id: str = Field(..., description="The ID of the event to be triggered.")
 
 class SendMessageConsequence(BaseConsequence):
     """Sends a specific message."""
-    type: Literal[ConsequenceType.SEND_MESSAGE] = ConsequenceType.SEND_MESSAGE
+    type: str # Changed from Literal
     message_content: str = Field(..., description="The content of the message to be sent.")
     message_recipient: str = Field("PLAYER", description="The recipient ('PLAYER', 'DM', or specific character ID).")
 
 class UpdateFlagConsequence(BaseConsequence):
     """Sets or updates a narrative flag."""
-    type: Literal[ConsequenceType.UPDATE_FLAG] = ConsequenceType.UPDATE_FLAG
+    type: str # Changed from Literal
     flag_name: str = Field(..., description="The name of the flag being set or updated.")
     flag_value: bool = Field(..., description="The boolean value to set the flag to.")
 
 class UpdateCharacterAttributeConsequence(BaseConsequence):
     """Updates a specific attribute of a character instance."""
-    type: Literal[ConsequenceType.UPDATE_CHARACTER_ATTRIBUTE] = ConsequenceType.UPDATE_CHARACTER_ATTRIBUTE
+    type: str # Changed from Literal
     target_entity_id: str = Field(..., description="The ID of the character affected.")
     attribute_name: str = Field(..., description="The name of the character attribute being changed.")
     value: Any = Field(..., description="The change amount (e.g., +1, -2) or new value for the attribute.")
 
 class UpdateCharacterSkillConsequence(BaseConsequence):
     """Updates a specific skill of a character instance."""
-    type: Literal[ConsequenceType.UPDATE_CHARACTER_SKILL] = ConsequenceType.UPDATE_CHARACTER_SKILL
+    type: str # Changed from Literal
     target_entity_id: str = Field(..., description="The ID of the character affected.")
     skill_name: str = Field(..., description="The name of the character skill being changed.")
     value: Any = Field(..., description="The change amount (e.g., +1, -2) or new value for the skill.")
 
 class ChangeLocationConsequence(BaseConsequence):
     """Changes the location of a character instance."""
-    type: Literal[ConsequenceType.CHANGE_LOCATION] = ConsequenceType.CHANGE_LOCATION
+    type: str # Changed from Literal
     target_entity_id: str = Field(..., description="The ID of the character whose location is changing.")
     value: str = Field(..., description="The ID of the new location.") # Represents new location_id
 
 # --- Union Type Definition ---
 
-AnyConsequence = Annotated[
-    Union[
-        UpdateAttributeConsequence,
-        AddItemConsequence,
+# Removed Annotated and discriminator as we will handle validation manually
+AnyConsequence = Union[
+    UpdateAttributeConsequence,
+    AddItemConsequence,
         RemoveItemConsequence,
         ChangeRelationshipConsequence,
         TriggerEventConsequence,
@@ -104,9 +104,7 @@ AnyConsequence = Annotated[
         UpdateCharacterAttributeConsequence,
         UpdateCharacterSkillConsequence,
         ChangeLocationConsequence,
-        # Add future consequence types here
-    ],
-    Field(discriminator='type')
+    # Add future consequence types here
 ]
 
 # --- Record Models (Updated) ---
