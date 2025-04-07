@@ -38,14 +38,14 @@ class DMAgent(BaseAgent):
         self.scenario_manager = scenario_manager # Store scenario_manager
 
 
-    async def dm_generate_narrative(self, game_state: GameState, scenario: Scenario, historical_messages: Optional[List[Message]] = None) -> str: # Add historical_messages parameter
+    async def dm_generate_narrative(self, game_state: Optional[GameState], scenario: Scenario, relevant_messages: Optional[List[Message]] = None) -> str: # Changed historical_messages to relevant_messages and allow None game_state
         """
         DM生成叙述
 
         Args:
-            game_state: 当前游戏状态
+            game_state: 上一回合的游戏状态快照 (可能为 None)
             scenario: 当前剧本
-            historical_messages: 自上次活跃回合以来的历史消息 (可选)
+            relevant_messages: 最近的相关历史消息 (可选)
         """
         # 不再需要获取未读消息，使用传入的 historical_messages
         # unread_messages = self.get_unread_messages(game_state) 
@@ -61,12 +61,12 @@ class DMAgent(BaseAgent):
             system_message=system_message
         )
         
-        # 构建用户消息 - 使用 historical_messages 替换 unread_messages
-        # 注意：需要确保 build_narrative_user_prompt 接口已更新
-        user_message_content = build_narrative_user_prompt(game_state, self.scenario_manager, historical_messages or [], scenario) # Pass self.scenario_manager
+        # 构建用户消息 - 使用 relevant_messages
+        # 注意：build_narrative_user_prompt 现在需要处理 game_state 可能为 None 的情况 (例如第一回合)
+        user_message_content = build_narrative_user_prompt(game_state, self.scenario_manager, relevant_messages or [], scenario) # Pass self.scenario_manager
         user_message = TextMessage(
             content=user_message_content,
-            source="system"
+            source="system" # Source is system as this prompt is constructed by the system for the LLM
         )
         
         # 使用新创建的assistant的on_messages方法
