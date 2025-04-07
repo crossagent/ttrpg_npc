@@ -1,3 +1,4 @@
+import logging # Import logging
 from typing import List, Dict, Any, Optional, Union
 from datetime import datetime
 from autogen_agentchat.agents import BaseChatAgent
@@ -72,7 +73,7 @@ class AgentManager:
         if not self.game_state.player_character_id:
              raise ValueError("玩家角色ID未在游戏状态中设置 (Player character ID not set in game state)")
 
-        print("Initializing agents...")
+        logging.info("Initializing agents...") # Use logger
         self.player_agents.clear()
         self.all_agents.clear()
 
@@ -95,7 +96,7 @@ class AgentManager:
             model_client=self.model_client
         )
         self.all_agents["referee"] = self.referee_agent # 添加到 all_agents
-        print(f"  Initialized Referee Agent: {self.referee_agent.agent_id}")
+        logging.info(f"  Initialized Referee Agent: {self.referee_agent.agent_id}") # Use logger
 
         # 遍历剧本中的静态角色信息来创建 Agent
         for character_id, char_info in scenario.characters.items():
@@ -104,7 +105,7 @@ class AgentManager:
 
             if character_id == self.game_state.player_character_id:
                 # 创建玩家控制的 Agent
-                print(f"  Creating PlayerAgent for selected character: {character_id} ({char_info.name})")
+                logging.info(f"  Creating PlayerAgent for selected character: {character_id} ({char_info.name})") # Use logger
                 agent_instance = PlayerAgent(
                     agent_id=agent_id,
                     agent_name=char_info.name,
@@ -115,7 +116,7 @@ class AgentManager:
                 )
             elif char_info.is_playable:
                 # 创建 AI 控制的陪玩 Agent
-                print(f"  Creating CompanionAgent for playable character: {character_id} ({char_info.name})")
+                logging.info(f"  Creating CompanionAgent for playable character: {character_id} ({char_info.name})") # Use logger
                 agent_instance = CompanionAgent(
                     agent_id=agent_id,
                     agent_name=char_info.name,
@@ -126,17 +127,17 @@ class AgentManager:
                 )
             else:
                 # 非玩家角色，不创建 Agent 实例
-                print(f"  Skipping Agent creation for non-playable character: {character_id} ({char_info.name})")
+                logging.info(f"  Skipping Agent creation for non-playable character: {character_id} ({char_info.name})") # Use logger
                 continue # 跳到下一个角色
 
             # 存储创建的 Agent
             if agent_instance:
                 self.player_agents[character_id] = agent_instance
                 self.all_agents[agent_id] = agent_instance # 使用 character_id 作为 agent_id
-                print(f"    Stored Agent: {agent_id} ({type(agent_instance).__name__})")
+                logging.info(f"    Stored Agent: {agent_id} ({type(agent_instance).__name__})") # Use logger
 
-        print(f"Agent initialization complete. Total agents in all_agents: {len(self.all_agents)}")
-        print(f"Playable/Companion agents in player_agents: {list(self.player_agents.keys())}")
+        logging.info(f"Agent initialization complete. Total agents in all_agents: {len(self.all_agents)}") # Use logger
+        logging.info(f"Playable/Companion agents in player_agents: {list(self.player_agents.keys())}") # Use logger
 
 
     def register_agent(self, agent_id: str, agent_type: str, agent_instance: BaseAgent) -> bool:
