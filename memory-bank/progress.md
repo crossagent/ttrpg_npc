@@ -28,13 +28,13 @@
     *   修复了 `BaseConsequenceHandler` 中创建 `AppliedConsequenceRecord` 时缺少必需字段 (`source_description`, `applied_consequence`) 导致的 `ValidationError`。
     *   更新了 `RefereeAgent` 的系统 Prompt，指导其为角色属性/技能生成正确的后果类型，并要求使用有效的实体 ID。
 *   **明确架构职责**: 在 `systemPatterns.md` 和 `activeContext.md` 中明确了 `GameStateManager` (机制状态) 和 `ChatHistoryManager` (交互历史、上下文、可见性) 的职责差异。
+*   **重构活跃回合判断**: 移除了 `GameState.last_active_round` 字段，并更新 `NarrationPhase` 以通过检查历史回合快照中的活动记录来判断活跃度。(已测试通过)
 
 ## 进行中 / 下一步 (按优先级)
 
-1.  **检查 `NarrationPhase` 跳过逻辑**: (当前最高优先级) 查看 `src/engine/round_phases/narration_phase.py` 的代码，理解判断“活跃度”并决定跳过叙事的具体条件，确认是否符合预期。
-2.  **运行游戏测试**: (优先级次高) 在检查完 NarrationPhase 逻辑后，运行游戏以验证所有修复效果和整体流程。
-3.  **优化 Agent Prompts 和数据源**: (优先级中) 在核心 Bug 修复并通过测试后，重新审视并优化各个 Agent (特别是 `CompanionAgent`, `RefereeAgent`, `NarrativeAgent`) 的 Prompt，并确认它们获取的数据源是否准确、充分。
-4.  **更新测试用例**: (优先级中) 修改或添加测试用例以覆盖新的逻辑和修复。
+1.  **优化 Agent Prompts 和数据源**: (当前最高优先级) 重新审视并优化各个 Agent (特别是 `CompanionAgent`, `RefereeAgent`, `NarrativeAgent`) 的 Prompt，并确认它们获取的数据源是否准确、充分。
+2.  **更新测试用例**: (优先级次高) 修改或添加测试用例以覆盖新的逻辑和修复。
+3.  **实现未完成的 Handler**: (优先级中)
 5.  **实现未完成的 Handler**: (优先级中)
     *   实现 `TriggerEventHandler` 。
     *   将它们添加到 `HANDLER_REGISTRY`。

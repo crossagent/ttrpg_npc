@@ -31,12 +31,14 @@
     *   修改了 `src/engine/consequence_handlers/base_handler.py`，更新 `apply` 和 `_create_record` 方法以接受 `AnyConsequence`。
     *   修改了 `src/engine/consequence_handlers/` 目录下的所有具体 Handler 实现，使其适应新的模型和基类接口。
     *   修改了 `src/agents/referee_agent.py` 中解析 LLM 返回后果的部分，使用 `AnyConsequence.model_validate`。
+*   **移除了 `GameState.last_active_round`**: 不再显式跟踪最后一个活跃回合。
+*   **更新了 `NarrationPhase` 活跃度判断**: 现在通过检查历史回合快照中的实际活动记录（行动、后果、事件）来判断是否需要触发叙事。
 
 ## 下一步计划 (基于日志分析和 Bug 修复后)
 
-1.  **检查 `NarrationPhase` 跳过逻辑**: (当前最高优先级) 查看 `src/engine/round_phases/narration_phase.py` 的代码，理解判断“活跃度”并决定跳过叙事的具体条件，确认是否符合预期。
-2.  **运行游戏测试**: (优先级次高) 在检查完 NarrationPhase 逻辑后，运行游戏以验证所有修复效果和整体流程。
-3.  **优化 Agent Prompts 和数据源**: (优先级中) 在核心 Bug 修复并通过测试后，重新审视并优化各个 Agent (特别是 `CompanionAgent`, `RefereeAgent`, `NarrativeAgent`) 的 Prompt，并确认它们获取的数据源是否准确、充分。
+1.  **运行游戏测试**: (当前最高优先级) 运行游戏以验证移除 `last_active_round` 及 `NarrationPhase` 新逻辑的效果，以及整体流程。
+2.  **优化 Agent Prompts 和数据源**: (优先级次高) 在核心 Bug 修复并通过测试后，重新审视并优化各个 Agent (特别是 `CompanionAgent`, `RefereeAgent`, `NarrativeAgent`) 的 Prompt，并确认它们获取的数据源是否准确、充分。
+3.  **更新测试用例**: (优先级中) 修改或添加测试用例以覆盖新的逻辑和修复。
 4.  **更新测试用例**: (优先级中) 修改或添加测试用例以覆盖新的逻辑和修复。
 5.  **实现未完成的 Handler**: (优先级中)
     *   实现 `TriggerEventHandler` 。
