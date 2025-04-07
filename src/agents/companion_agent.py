@@ -250,8 +250,8 @@ class CompanionAgent(BaseAgent):
                 # 筛选出玩家与当前 NPC 的互动
                 player_interactions = [
                     msg for msg in prev_round_messages
-                    if msg.sender_id == player_id and
-                       (self.character_id in msg.recipient_ids or 'all' in msg.recipient_ids) and
+                    if msg.source_id == player_id and  # 使用 source_id
+                       (self.character_id in msg.recipients or 'all' in msg.recipients) and # 使用 recipients
                        msg.content # Ensure there is content to assess
                 ]
 
