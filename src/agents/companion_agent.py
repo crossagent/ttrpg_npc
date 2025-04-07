@@ -266,12 +266,12 @@ class CompanionAgent(BaseAgent):
                         )
                         # 如果评估成功且建议变化不为0，则创建后果
                         if assessment and assessment.suggested_change != 0:
-                            # Create the specific ChangeRelationshipConsequence
+                            # Create the specific ChangeRelationshipConsequence, explicitly setting the type
                             relationship_consequence = ChangeRelationshipConsequence(
-                                # type is set automatically by Literal
+                                type=ConsequenceType.CHANGE_RELATIONSHIP.value, # +++ Explicitly set type +++
                                 target_entity_id=self.character_id, # 目标是自己
                                 secondary_entity_id=player_id,      # 另一方是玩家
-                                value=assessment.suggested_change,
+                                value=float(assessment.suggested_change), # Ensure value is float
                                 metadata={"reason": assessment.reason, "interaction_msg_id": interaction_msg.message_id} # 添加原因和来源消息ID
                             )
                             relationship_consequences.append(relationship_consequence)

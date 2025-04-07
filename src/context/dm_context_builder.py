@@ -81,9 +81,11 @@ def build_narrative_user_prompt(
 
     # --- Extract Narrative Focus Points ---
     focus_points: List[str] = []
-    scenario = scenario_manager.get_scenario(game_state.scenario_id)
+    # Correct method name to get the scenario object
+    scenario = scenario_manager.get_current_scenario()
     if not scenario:
-        print(f"错误：在 dm_context_builder 中无法加载剧本 {game_state.scenario_id}")
+        # Log error if scenario is not loaded in the manager
+        print(f"错误：ScenarioManager 未加载剧本 (ID: {game_state.scenario_id})，无法提取焦点。")
         # Handle error appropriately, maybe add a default focus point
         focus_points.append("错误：无法加载剧本信息。")
     else:
