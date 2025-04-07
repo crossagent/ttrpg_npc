@@ -1,10 +1,11 @@
 # src/engine/consequence_handlers/base_handler.py
 import abc
 import logging
-from typing import Optional
+from typing import Optional, Dict, Any
+import uuid # For generating unique record IDs
 
 # Import necessary models for type hinting
-from src.models.consequence_models import Consequence, AppliedConsequenceRecord
+from src.models.consequence_models import AnyConsequence, AppliedConsequenceRecord, ConsequenceType
 from src.models.game_state_models import GameState
 from datetime import datetime # For timestamp in record
 
@@ -18,12 +19,12 @@ class BaseConsequenceHandler(abc.ABC):
         self.logger = logging.getLogger(self.__class__.__name__)
 
     @abc.abstractmethod
-    async def apply(self, consequence: Consequence, game_state: GameState) -> Optional[str]:
+    async def apply(self, consequence: AnyConsequence, game_state: GameState) -> Optional[str]:
         """
         应用后果到游戏状态，并在成功时记录 AppliedConsequenceRecord。
 
         Args:
-            consequence: 要应用的后果对象。
+            consequence: 要应用的后果对象 (具体类型由 discriminator 'type' 决定)。
             game_state: 当前的游戏状态对象 (将被直接修改)。
 
         Returns:
@@ -32,32 +33,44 @@ class BaseConsequenceHandler(abc.ABC):
         """
         pass
 
-    def _create_record(self, consequence: Consequence, game_state: GameState, success: bool, description: Optional[str] = None) -> AppliedConsequenceRecord:
+    def _create_record(
+        self,
+        consequence: AnyConsequence,
+        game_state: GameState,
+        success: bool,
+        source_description: str, # Source description is now mandatory
+        description: Optional[str] = None
+    ) -> AppliedConsequenceRecord:
         """
-        辅助方法：创建 AppliedConsequenceRecord。
+        辅助方法：创建 AppliedConsequenceRecord 并添加到游戏状态。
         子类应在 apply 方法成功应用后果后调用此方法。
 
         Args:
-            consequence: 应用的后果对象。
+            consequence: 应用的后果对象 (具体类型)。
             game_state: 当前游戏状态 (用于获取 round_number)。
             success: 后果是否成功应用。
+            source_description: 触发此后果的来源描述。
             description: 应用过程的描述 (可选)。
 
         Returns:
-            AppliedConsequenceRecord: 创建的记录对象。
+            AppliedConsequenceRecord: 创建并添加到游戏状态的记录对象。
         """
+        record_id = f"acr_{uuid.uuid4()}"
+        consequence_type = consequence.type
+        # Safely get target_entity_id if it exists on the specific consequence type
+        target_entity_id = getattr(consequence, 'target_entity_id', None)
+
         record = AppliedConsequenceRecord(
-            record_id=f"acr_{datetime.now().strftime('%Y%m%d%H%M%S%f')}", # Unique ID
+            record_id=record_id,
             round_number=game_state.round_number,
-            timestamp=datetime.now().isoformat(),
-            consequence_type=consequence.type,
-            target_entity_id=consequence.target_entity_id,
+            # timestamp is handled by default_factory in the model
+            consequence_type=consequence_type,
+            target_entity_id=target_entity_id,
             success=success,
-            details=consequence.model_dump(), # Store the original consequence details
-            description=description or f"Applied consequence: {consequence.type.value}",
-            # +++ Add missing required fields +++
-            source_description=f"来源于后果对象: {consequence.type.value}", # Placeholder description
-            applied_consequence=consequence # Store the original consequence object
+            source_description=source_description, # Use the provided source description
+            applied_consequence=consequence, # Store the specific consequence object
+            description=description or f"Applied consequence: {consequence_type.value}",
+            details=consequence.model_dump() # Store the specific consequence details
         )
         # Add the record to the game state's list
         game_state.current_round_applied_consequences.append(record)

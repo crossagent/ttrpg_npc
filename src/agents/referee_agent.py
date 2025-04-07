@@ -13,10 +13,13 @@ import logging # Import logging
 from src.models.scenario_models import Scenario, ScenarioCharacterInfo # Keep Scenario for context if needed by prompt, Add ScenarioCharacterInfo
 from src.models.game_state_models import GameState, CharacterInstance # Add CharacterInstance
 from src.models.action_models import PlayerAction, ActionResult, RelationshipImpactAssessment # Add RelationshipImpactAssessment
-from src.models.consequence_models import Consequence, ConsequenceType # Import Consequence and ConsequenceType
+# Import the new union type and specific types if needed for validation/logic
+from src.models.consequence_models import AnyConsequence, ConsequenceType
 from src.agents.base_agent import BaseAgent
 from src.engine.scenario_manager import ScenarioManager # Import ScenarioManager
 from src.engine.chat_history_manager import ChatHistoryManager # Import ChatHistoryManager
+# Import Pydantic for potential parsing helpers if needed (though model_validate should work)
+# from pydantic import TypeAdapter # Example if needed
 # Import prompt builders from the new referee context builder
 from src.context.referee_context_builder import (
     build_action_resolve_system_prompt, # Will be simplified
@@ -128,19 +131,21 @@ class RefereeAgent(BaseAgent):
                 )
 
             # --- 行动属性后果处理 ---
-            attribute_consequences: List[Consequence] = []
+            attribute_consequences: List[AnyConsequence] = [] # Update type hint
             # Expecting "attribute_consequences" key now, instead of "direct_consequences"
             if "attribute_consequences" in response_data and isinstance(response_data["attribute_consequences"], list):
                 for cons_data in response_data["attribute_consequences"]:
                     try:
-                        consequence = Consequence(**cons_data)
+                        # Use model_validate for Pydantic v2 discriminated unions
+                        consequence = AnyConsequence.model_validate(cons_data)
                         # **Crucially, filter out any UPDATE_FLAG consequences here**
+                        # Note: If UPDATE_FLAG is removed from AnyConsequence union, this check becomes unnecessary
                         if consequence.type != ConsequenceType.UPDATE_FLAG:
                             attribute_consequences.append(consequence)
                         else:
                             self.logger.warning(f"judge_action LLM 错误地返回了 UPDATE_FLAG 后果，已忽略: {cons_data}")
-                    except Exception as parse_err:
-                        self.logger.warning(f"解析属性后果失败: {parse_err}. Data: {cons_data}")
+                    except Exception as parse_err: # Catch broader validation errors
+                        self.logger.warning(f"解析或验证属性后果失败: {parse_err}. Data: {cons_data}")
             else:
                  self.logger.warning(f"judge_action LLM响应JSON缺少 'attribute_consequences' 列表。响应数据: {response_data}")
 

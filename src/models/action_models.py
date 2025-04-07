@@ -3,7 +3,8 @@ from typing import List, Optional, Dict, Any, Union
 from enum import Enum
 from datetime import datetime
 
-from src.models.consequence_models import Consequence
+# Import the new union type
+from src.models.consequence_models import AnyConsequence
 # +++ 添加 Literal 导入 +++
 from typing import List, Optional, Dict, Any, Union, Literal
 
@@ -94,7 +95,7 @@ class PlayerAction(BaseModel):
     action_type: ActionType = Field(..., description="行动类型")
     content: str = Field(..., description="行动内容")
     target: Optional[Union[str, List[str]]] = Field(None, description="行动目标，可以是单个角色ID、多个角色ID列表或None") # 允许None并设为可选
-    generated_consequences: List[Consequence] = Field(default_factory=list, description="由Agent内部状态变化（如关系评估）产生的后果") # 新增字段
+    generated_consequences: List[AnyConsequence] = Field(default_factory=list, description="由Agent内部状态变化（如关系评估）产生的后果") # 新增字段, 更新类型
 
 
 
@@ -112,7 +113,7 @@ class ActionResult(BaseModel):
     success: bool = Field(..., description="行动是否成功")
     narrative: str = Field(..., description="结果叙述")
     dice_result: Optional[DiceResult] = Field(None, description="如果涉及掷骰，则包含骰子结果")
-    consequences: List[Consequence] = Field(default_factory=list, description="行动导致的结构化后果列表")
+    consequences: List[AnyConsequence] = Field(default_factory=list, description="行动导致的结构化后果列表") # 更新类型
 
 
 class ActionResolutionRequest(BaseModel):

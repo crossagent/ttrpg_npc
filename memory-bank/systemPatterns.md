@@ -21,11 +21,13 @@
 *   **游戏状态管理器 (Game State Manager)**:
     *   **职责**: 存储和管理核心游戏的**机制状态**和**全局信息**（角色属性、技能、健康、位置、物品、事件实例、进度、Flags 等），作为当前世界的“快照”。是规则判断和应用**硬性后果**的基础。**负责即时应用**经过校验的后果到游戏状态。提供状态的保存和加载接口（包括回合快照）。处理阶段检查与推进。
     *   **模式**: 单一事实来源 (Single Source of Truth)，数据库模式。
-    *   **后果处理**: 通过调用注册的 **后果处理器 (Consequence Handlers)** 来应用状态变更。每个 Handler 负责一种特定类型的后果，封装其应用逻辑和记录逻辑 (`AppliedConsequenceRecord`)。`GameStateManager` 本身不包含具体的应用逻辑细节。
+    *   **后果处理**: 通过调用注册的 **后果处理器 (Consequence Handlers)** 来应用状态变更。`GameStateManager` 根据后果的 `type` 字段查找对应的 Handler 并调用其 `apply` 方法。
+    *   **后果模型**: 后果使用 Pydantic 的 **Discriminated Unions** (`AnyConsequence` in `src/models/consequence_models.py`) 进行建模。每种 `ConsequenceType` 对应一个具体的模型（如 `AddItemConsequence`），只包含该类型必需的字段，由 `type` 字段区分。这提供了类型安全和精确的数据结构。
     *   **注意**: `GameState` 模型包含临时的回合作用域字段（如 `current_round_actions`, `current_round_applied_consequences`, `current_round_triggered_events`），用于回合结束快照。这些字段在新回合开始时清空。
-*   **后果处理器 (Consequence Handlers)**: (新组件)
+*   **后果处理器 (Consequence Handlers)**:
     *   **位置**: `src/engine/consequence_handlers/`
     *   **职责**: 实现具体的后果应用逻辑和记录逻辑。每个 Handler 继承自 `BaseConsequenceHandler` 并处理一种 `ConsequenceType`。
+    *   **接口**: `apply` 方法接收 `AnyConsequence` 类型的参数，Handler 内部可以直接访问对应具体后果类型的字段。
     *   **模式**: 策略模式 (Strategy Pattern)。通过注册表 (`HANDLER_REGISTRY` in `__init__.py`) 进行分发。
 *   **剧本管理器 (Scenario Manager)**:
     *   **职责**: 加载、存储和提供对当前游戏剧本（`Scenario` 对象）及其内部结构（角色模板、地点、物品、事件定义、故事结构等）的访问。

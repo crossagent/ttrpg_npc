@@ -2,8 +2,8 @@
 from pydantic import BaseModel, Field
 from typing import List, Dict, Any, Optional, Union
 
-# +++ 添加导入 +++
-from src.models.consequence_models import Consequence
+# Import the new union type and specific types if needed
+from src.models.consequence_models import AnyConsequence, SendMessageConsequence, ConsequenceType
 
 # +++ 新增模型定义 +++
 class AttributeSet(BaseModel):
@@ -44,7 +44,7 @@ class EventOutcome(BaseModel):
     """事件结局模型"""
     id: str = Field(..., description="结局唯一标识符")
     description: str = Field(..., description="结局描述")
-    consequences: List[Consequence] = Field(..., description="结局导致的结构化后果列表")
+    consequences: List[AnyConsequence] = Field(..., description="结局导致的结构化后果列表") # Updated type hint
 
 class ScenarioEvent(BaseModel):
     """剧本事件模型"""
@@ -199,17 +199,20 @@ class Scenario(BaseModel):
                             for cons_data in raw_consequences:
                                 if isinstance(cons_data, dict): # Ensure it's a dictionary
                                     try:
-                                        # Attempt to parse the dictionary into a Consequence object
-                                        consequence_list.append(Consequence(**cons_data))
+                                        # Use model_validate for discriminated unions
+                                        consequence_list.append(AnyConsequence.model_validate(cons_data))
                                     except Exception as e:
-                                        print(f"警告: 解析事件 {event_data.get('id', '未知事件ID')} 结局 {outcome_data.get('id', '未知结局ID')} 的结构化后果失败: {e}, 数据: {cons_data}")
+                                        print(f"警告: 解析或验证事件 {event_data.get('id', '未知事件ID')} 结局 {outcome_data.get('id', '未知结局ID')} 的结构化后果失败: {e}, 数据: {cons_data}")
                                 else:
                                      print(f"警告: 事件 {event_data.get('id', '未知事件ID')} 结局 {outcome_data.get('id', '未知结局ID')} 的后果列表包含非字典元素: {cons_data}")
                         # Fallback for old string format (consider removing later)
                         elif isinstance(raw_consequences, str):
-                             print(f"警告: 事件 {event_data.get('id', '未知事件ID')} 结局 {outcome_data.get('id', '未知结局ID')} 使用了旧的字符串后果格式: '{raw_consequences}'. 将尝试创建 send_message 后果。")
-                             # You might want a more robust fallback or error handling here
-                             consequence_list.append(Consequence(type="send_message", message_content=f"结局效果: {raw_consequences}"))
+                             print(f"警告: 事件 {event_data.get('id', '未知事件ID')} 结局 {outcome_data.get('id', '未知结局ID')} 使用了旧的字符串后果格式: '{raw_consequences}'. 将创建 SendMessageConsequence。")
+                             # Create a specific SendMessageConsequence
+                             consequence_list.append(SendMessageConsequence(
+                                 message_content=f"结局效果: {raw_consequences}",
+                                 # type is automatically set by Literal
+                             ))
                         elif raw_consequences is not None:
                              print(f"警告: 事件 {event_data.get('id', '未知事件ID')} 结局 {outcome_data.get('id', '未知结局ID')} 的后果格式未知: {type(raw_consequences)}")
 

@@ -10,7 +10,7 @@ from src.models.message_models import Message, MessageType, MessageVisibility, S
 from src.models.scenario_models import Scenario, EventOutcome # Ensure Scenario is imported for type hinting
 # +++ Import consequence and record models +++
 from src.models.consequence_models import (
-    Consequence, ConsequenceType,
+    AnyConsequence, ConsequenceType, # Updated import
     AppliedConsequenceRecord, TriggeredEventRecord
 )
 from src.models.game_state_models import GameState
@@ -57,7 +57,7 @@ class JudgementPhase(BaseRoundPhase):
         self.logger.info(f"步骤 1 完成: 获得 {len(action_results)} 个行动的属性后果。")
 
         # 2. 【应用】行动产生的后果 (包括属性后果和 Agent 内部生成的后果)
-        all_action_consequences: List[Consequence] = []
+        all_action_consequences: List[AnyConsequence] = [] # Updated type hint
         for ar in action_results:
             # 添加裁判判定的属性后果
             all_action_consequences.extend(ar.consequences)
@@ -94,7 +94,7 @@ class JudgementPhase(BaseRoundPhase):
              self.logger.info("步骤 3: 无活跃事件需要检查触发。")
 
         # 4. 【应用】触发事件的后果，并【记录】触发的事件
-        all_event_consequences: List[Consequence] = []
+        all_event_consequences: List[AnyConsequence] = [] # Updated type hint
         if triggered_events_with_outcomes:
             self.logger.info(f"步骤 4: 准备应用 {len(triggered_events_with_outcomes)} 个触发事件的后果并记录事件...")
             for event_trigger in triggered_events_with_outcomes:

@@ -9,7 +9,8 @@ import logging
 from src.models.game_state_models import GameState
 from src.models.message_models import Message, MessageType, MessageVisibility
 from src.models.action_models import PlayerAction, ActionResult, ItemQuery, DiceResult
-from src.models.consequence_models import Consequence # Import Consequence
+# Removed direct import of Consequence, AnyConsequence is used via other models
+# from src.models.consequence_models import Consequence
 from src.models.context_models import StateUpdateRequest # May need adjustment later if state_changes format changes
 from src.engine.game_state_manager import GameStateManager
 from src.communication.message_dispatcher import MessageDispatcher
@@ -26,7 +27,8 @@ import logging
 from src.models.game_state_models import GameState
 from src.models.message_models import Message, MessageType, MessageVisibility # Keep Message imports if needed elsewhere
 from src.models.action_models import PlayerAction, ActionResult, ActionType # Keep Action imports
-from src.models.consequence_models import Consequence # Keep Consequence import if needed elsewhere
+# Removed direct import of Consequence
+# from src.models.consequence_models import Consequence
 # from src.models.context_models import StateUpdateRequest # Likely no longer needed here
 from src.engine.game_state_manager import GameStateManager
 from src.communication.message_dispatcher import MessageDispatcher

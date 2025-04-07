@@ -11,7 +11,8 @@ from datetime import datetime
 from src.models.scenario_models import ScenarioCharacterInfo
 from src.models.game_state_models import GameState, MessageReadMemory, CharacterInstance
 from src.models.action_models import PlayerAction, RelationshipImpactAssessment # Add RelationshipImpactAssessment
-from src.models.consequence_models import Consequence, ConsequenceType # Add Consequence, ConsequenceType
+# Import the new union type and specific types needed
+from src.models.consequence_models import AnyConsequence, ConsequenceType, ChangeRelationshipConsequence
 from src.agents.base_agent import BaseAgent
 from src.models.action_models import ActionType
 from src.models.llm_validation import create_validator_for, LLMOutputError
@@ -238,7 +239,7 @@ class CompanionAgent(BaseAgent):
             PlayerAction: AI 角色的行动，包含其内部产生的关系变化后果
         """
         # +++ 新增：关系评估逻辑 +++
-        relationship_consequences: List[Consequence] = []
+        relationship_consequences: List[AnyConsequence] = [] # Update type hint
         player_id = game_state.player_character_id
         player_instance = game_state.characters.get(player_id) if player_id else None
 
@@ -265,8 +266,9 @@ class CompanionAgent(BaseAgent):
                         )
                         # 如果评估成功且建议变化不为0，则创建后果
                         if assessment and assessment.suggested_change != 0:
-                            relationship_consequence = Consequence(
-                                type=ConsequenceType.CHANGE_RELATIONSHIP,
+                            # Create the specific ChangeRelationshipConsequence
+                            relationship_consequence = ChangeRelationshipConsequence(
+                                # type is set automatically by Literal
                                 target_entity_id=self.character_id, # 目标是自己
                                 secondary_entity_id=player_id,      # 另一方是玩家
                                 value=assessment.suggested_change,

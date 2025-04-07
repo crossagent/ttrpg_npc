@@ -15,7 +15,8 @@ from src.models.game_state_models import (
 from src.models.scenario_models import Scenario, StoryStage # Import StoryStage
 from src.models.context_models import StateChanges, Inconsistency
 from src.models.action_models import ItemResult
-from src.models.consequence_models import Consequence, ConsequenceType # Import Consequence models
+# Import the new union type and specific types if needed
+from src.models.consequence_models import AnyConsequence, ConsequenceType
 import uuid # Import uuid for message IDs
 from datetime import datetime # Import datetime for timestamps
 
@@ -341,7 +342,7 @@ class GameStateManager:
 
     # --- 阶段三: 后果应用核心逻辑 ---
 
-    async def apply_consequences(self, consequences: List[Consequence]) -> List[str]:
+    async def apply_consequences(self, consequences: List[AnyConsequence]) -> List[str]: # Updated type hint
         """
         应用一系列结构化的后果到当前游戏状态，使用注册的 Handler 处理。
 
