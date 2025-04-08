@@ -79,7 +79,7 @@ class GameEngine:
         self._record_handler = record_handler
         self._record_file_handle = record_file_handle
         self._input_handler = input_handler # Store input_handler
-        self._record_path: Optional[str] = None # +++ Add instance variable for record path +++
+        self._saves_path: Optional[str] = None # +++ Add instance variable for record path +++
 
     async def _run_game_loop(self,
                              game_state: GameState,
@@ -168,11 +168,11 @@ class GameEngine:
         timestamp_str = datetime.now().strftime("%Y%m%d_%H%M%S") # For filename and start message
 
         # Define record path for the new game
-        record_dir = "game_records"
-        record_filename = f"record_{timestamp_str}.json"
-        self._record_path = os.path.join(record_dir, record_filename) # Store path in instance variable
-        print(f"本局新游戏记录将保存至: {self._record_path}")
-        os.makedirs(record_dir, exist_ok=True)
+        save_dir = "game_saves"
+        save_filename = f"record_{timestamp_str}.json"
+        self._saves_path = os.path.join(save_dir, save_filename) # Store path in instance variable
+        print(f"本局新游戏记录将保存至: {self._saves_path}")
+        os.makedirs(save_dir, exist_ok=True)
 
         game_state_manager: Optional[GameStateManager] = None
         chat_history_manager: Optional[ChatHistoryManager] = None
@@ -281,7 +281,7 @@ class GameEngine:
                 chat_history_manager=chat_history_manager,
                 round_manager=round_manager,
                 start_round=1,
-                record_path=self._record_path
+                record_path=self._saves_path
             )
 
             end_message = f"--- Game Ended: 共进行了{final_state.round_number}回合 ---"
@@ -319,7 +319,7 @@ class GameEngine:
             start_round: The round number to begin execution from.
             record_path: Path to the JSON record file for continued saving.
         """
-        self._record_path = record_path # Store record path for saving
+        self._saves_path = record_path # Store record path for saving
         agent_manager: Optional[AgentManager] = None
         round_manager: Optional[RoundManager] = None
 
@@ -380,7 +380,7 @@ class GameEngine:
                 chat_history_manager=chat_history_manager,
                 round_manager=round_manager,
                 start_round=start_round,
-                record_path=self._record_path
+                record_path=self._saves_path
             )
 
             end_message = f"--- Game Ended: 共进行了{final_state.round_number}回合 (从回合 {start_round} 继续) ---"
@@ -405,7 +405,7 @@ class GameEngine:
         # 清理消息组件
         self.round_manager = None
         self.message_dispatcher = None # Clear dispatcher reference
-        self._record_path = None # Clear record path
+        self._saves_path = None # Clear record path
 
     # Removed log_file parameter
     async def _show_player_history(self, player_id: str) -> None:

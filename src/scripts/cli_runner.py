@@ -230,7 +230,7 @@ async def main() -> None:
 
             game_output_log_file.flush()
             # Set the record path on the engine instance before running
-            engine._record_path = save_path_json # Assuming GameEngine uses this internal var now
+            engine._saves_path = save_path_json # Assuming GameEngine uses this internal var now
             # Call the original run_game which handles all initializations
             await engine.run_game()
             # --- End Start New Game ---
