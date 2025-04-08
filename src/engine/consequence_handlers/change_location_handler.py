@@ -23,7 +23,7 @@ class ChangeLocationHandler(BaseConsequenceHandler):
         new_location_id = consequence.value # Value now represents the new location ID
 
         # Placeholder for source description
-        source_description = f"来源: {consequence.type.value}"
+        source_description = f"来源: {consequence.type}"
 
         character_instance = game_state.characters.get(character_id)
         if not character_instance:

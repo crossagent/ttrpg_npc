@@ -24,7 +24,7 @@ class UpdateCharacterSkillHandler(BaseConsequenceHandler):
         value_change = consequence.value # This can be a change amount or a new value
 
         # Placeholder for source description
-        source_description = f"来源: {consequence.type.value}"
+        source_description = f"来源: {consequence.type}"
 
         character_instance = game_state.characters.get(character_id)
         if not character_instance:

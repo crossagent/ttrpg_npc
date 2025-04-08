@@ -124,17 +124,23 @@ def build_decision_user_prompt(
     
     # 获取最近的内部思考记录(如果有)
     recent_thoughts_text = ""
-    if hasattr(game_state, 'character_internal_thoughts') and isinstance(game_state.character_internal_thoughts, dict):
-        recent_thoughts = game_state.character_internal_thoughts.get(character_id)
-        if recent_thoughts and isinstance(recent_thoughts, list) and recent_thoughts: 
-            latest_thought = recent_thoughts[-1]
-            recent_thoughts_text = f"""
-你的最近思考记录:
+    # +++ 从 character_instance.internal_thoughts 获取 +++
+    if character_instance.internal_thoughts:
+        latest_thought = character_instance.internal_thoughts
+        # Format goals, risks, opportunities safely
+        goals_str = ', '.join(latest_thought.short_term_goals) if latest_thought.short_term_goals else "无"
+        risks_str = ', '.join(latest_thought.perceived_risks) if latest_thought.perceived_risks else "无"
+        opps_str = ', '.join(latest_thought.perceived_opportunities) if latest_thought.perceived_opportunities else "无"
+        
+        recent_thoughts_text = f"""
+你的最近思考记录 (回合 {latest_thought.last_updated_round}):
 - 主要情绪: {latest_thought.primary_emotion}
-- 短期目标: {', '.join(latest_thought.short_term_goals)}
-- 感知的风险: {', '.join(latest_thought.perceived_risks)}
-- 感知的机会: {', '.join(latest_thought.perceived_opportunities)}
+- 短期目标: {goals_str}
+- 感知的风险: {risks_str}
+- 感知的机会: {opps_str}
 """
+    else:
+        recent_thoughts_text = "\n你最近没有深入思考记录。" # Provide default text if no thoughts
     
     return f"""
 【第{game_state.round_number}回合】
@@ -393,6 +399,11 @@ def build_goal_generation_user_prompt(
     # 获取角色当前状态和关键记忆 (如果存在)
     status_text = f"你当前的状态是：{character_instance.status if character_instance.status else '正常'}"
     memories_text = "关键记忆：\n  - " + "\n  - ".join(character_instance.key_memories) if character_instance.key_memories else "无关键记忆"
+    # +++ 添加目标信息到 Prompt +++
+    long_term_goal_text = character_info.secret_goal if character_info.secret_goal else '未明确'
+    current_short_goals_text = "无"
+    if character_instance.internal_thoughts and character_instance.internal_thoughts.short_term_goals:
+        current_short_goals_text = "\n  - ".join(character_instance.internal_thoughts.short_term_goals)
 
     return f"""
 【深度思考：规划短期目标】
@@ -404,7 +415,9 @@ def build_goal_generation_user_prompt(
 
 你的状态: {status_text}
 {memories_text}
-你的长期目标: {character_info.secret_goal if character_info.secret_goal else '未明确'}
+你的长期目标: {long_term_goal_text}
+你当前的短期目标:
+  - {current_short_goals_text}
 
 最近的对话/事件回顾:
 {history_text}

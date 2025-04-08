@@ -28,9 +28,11 @@ HANDLER_REGISTRY = {
 }
 
 # Optional: Define a function to get a handler instance
-def get_handler(consequence_type: ConsequenceType) -> Optional[BaseConsequenceHandler]:
-    """Gets an instance of the handler for the given consequence type."""
-    handler_class = HANDLER_REGISTRY.get(consequence_type)
-    if handler_class:
-        return handler_class() # Instantiate the handler
+def get_handler(consequence_type: str) -> Optional[BaseConsequenceHandler]: # Changed type hint to str
+    """Gets an instance of the handler for the given consequence type string."""
+    # Iterate through the registry to find a match based on the enum's value
+    for enum_key, handler_class in HANDLER_REGISTRY.items():
+        if enum_key.value == consequence_type:
+            return handler_class() # Instantiate the handler
+    # If no match is found
     return None

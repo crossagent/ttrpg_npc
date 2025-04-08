@@ -57,6 +57,7 @@ class PlayerAssessment(BaseModel):
 class InternalThoughts(BaseModel):
     """角色内心世界模型，表示角色的心理状态、观察和分析"""
     # 背景与目标
+    long_term_goal: Optional[str] = Field(None, description="角色的长期目标或核心动机") # Added field
     short_term_goals: List[str] = Field(default_factory=list, description="短期目标")
     
     # 情绪与心理状态
@@ -91,7 +92,7 @@ class ActionOption(BaseModel):
 class PlayerAction(BaseModel):
     """玩家行动模型，表示玩家在回合中采取的行动"""
     character_id: str = Field(..., description="玩家ID")
-    internal_thoughts: Optional[InternalThoughts] = Field(None, description="行动背后的内心活动") # 修正拼写错误
+    # internal_thoughts: Optional[InternalThoughts] = Field(None, description="行动背后的内心活动") # Removed field
     action_type: ActionType = Field(..., description="行动类型")
     content: str = Field(..., description="行动内容")
     target: Optional[Union[str, List[str]]] = Field(None, description="行动目标，可以是单个角色ID、多个角色ID列表或None") # 允许None并设为可选

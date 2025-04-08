@@ -26,7 +26,7 @@ class RemoveItemHandler(BaseConsequenceHandler):
         description = None
         success = False
         # Placeholder for source description
-        source_description = f"来源: {consequence.type.value}"
+        source_description = f"来源: {consequence.type}"
 
         # Remove from character inventory
         if target_id in game_state.characters:

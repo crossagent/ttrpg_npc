@@ -24,7 +24,7 @@ class UpdateAttributeHandler(BaseConsequenceHandler):
         new_value = consequence.value # The new value is directly provided
 
         # Placeholder for source description
-        source_description = f"来源: {consequence.type.value}"
+        source_description = f"来源: {consequence.type}"
 
         target_obj = None
         entity_type = "未知实体"

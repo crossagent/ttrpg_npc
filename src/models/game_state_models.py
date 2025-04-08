@@ -93,15 +93,17 @@ class CharacterInstance(BaseModel):
     relationship_player: int = Field(0, description="对玩家的好感度/关系值 (-100 到 100)")
     attitude_description: str = Field("中立", description="对玩家态度的简短描述 (例如: 警惕, 友好, 怀疑)")
 
-    # 目标 (Goals)
-    long_term_goal: Optional[str] = Field(None, description="角色的长期目标或核心动机 (来自剧本)")
-    short_term_goals: List[str] = Field(default_factory=list, description="当前情境下的短期目标列表 (可动态变化)")
+    # 目标 (Goals) - Moved to InternalThoughts
+    # long_term_goal: Optional[str] = Field(None, description="角色的长期目标或核心动机 (来自剧本)")
+    # short_term_goals: List[str] = Field(default_factory=list, description="当前情境下的短期目标列表 (可动态变化)")
 
     # 记忆 (Memory)
     key_memories: List[str] = Field(default_factory=list, description="关于玩家或其他关键事件的重要记忆摘要 (由 Context Builder 更新)")
 
     # 宏观状态 (Status)
     status: str = Field("正常", description="角色的宏观状态 (例如: 疲惫, 警觉, 受伤, 困惑)")
+    # +++ 添加内心思考字段 +++
+    internal_thoughts: Optional[InternalThoughts] = Field(None, description="角色的最新内心思考状态")
 
 class GameState(BaseModel):
     """完整游戏状态模型，表示游戏的当前状态"""
@@ -136,7 +138,7 @@ class GameState(BaseModel):
     # 游戏交互历史 (已移除，将由独立机制管理)
     # chat_history: List[Message] = Field(default_factory=list, description="完整消息历史记录列表")
     revealed_secrets: List[str] = Field(default_factory=list, description="已揭示的秘密")
-    character_internal_thoughts: Dict[str, InternalThoughts] = Field(default_factory=dict, description="角色的心理活动记录，键为角色ID")
+    # character_internal_thoughts: Dict[str, InternalThoughts] = Field(default_factory=dict, description="角色的心理活动记录，键为角色ID") # Removed field
 
     # --- 回合内临时记录 (用于快照和叙事) ---
     current_round_actions: List[PlayerAction] = Field(

@@ -24,7 +24,7 @@ class ChangeRelationshipHandler(BaseConsequenceHandler):
         change_value = consequence.value # Value is now float
 
         # Placeholder for source description
-        source_description = f"来源: {consequence.type.value}"
+        source_description = f"来源: {consequence.type}"
 
         target_char = game_state.characters.get(target_id)
         secondary_char = game_state.characters.get(secondary_id)

@@ -32,7 +32,7 @@ class AddItemHandler(BaseConsequenceHandler):
         description = None
         success = False
         # Placeholder for source description - ideally this comes from where the consequence was generated
-        source_description = f"来源: {consequence.type.value}"
+        source_description = f"来源: {consequence.type}"
 
         # Add to character inventory
         if target_id in game_state.characters:
