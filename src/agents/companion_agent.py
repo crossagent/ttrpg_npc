@@ -174,14 +174,25 @@ class CompanionAgent(BaseAgent):
 
         # 1. 准备有限上下文
         goals_text = "\n".join([f"- {goal}" for goal in current_goals])
-        # 获取最近几条相关聊天记录 (示例：最近5条涉及自己的)
+        # 获取最近几条相关聊天记录 (最近1-2回合的)
         # TODO: Refine history retrieval logic if needed
         try:
+            # 修复：根据正确的get_messages接口参数获取消息，指定回合范围
+            recent_rounds = max(0, game_state.round_number - 1)
             recent_history = self.chat_history_manager.get_messages(
-                start_round=max(0, game_state.round_number - 1), # Example: last round + current
-                involved_character_ids=[self.character_id]
+                start_round=recent_rounds,
+                end_round=game_state.round_number
             )
-            history_text = "\n".join([f"{msg.source_name}: {msg.content}" for msg in recent_history[-5:]]) # Limit context size
+            # 手动筛选与当前角色相关的消息
+            character_related_messages = [
+                msg for msg in recent_history 
+                if (msg.source_id == self.character_id or 
+                    self.character_id in msg.recipients or 
+                    'all' in msg.recipients)
+            ]
+            # 限制消息数量，只取最新的5条
+            relevant_messages = character_related_messages[-5:] if character_related_messages else []
+            history_text = "\n".join([f"{msg.source}: {msg.content}" for msg in relevant_messages])
         except Exception as hist_err:
             self.logger.warning(f"快速判断：获取聊天记录时出错: {hist_err}。继续，但可能影响判断准确性。")
             history_text = "无法获取最近的对话记录。"
@@ -237,11 +248,6 @@ class CompanionAgent(BaseAgent):
     ) -> None: # +++ Changed return type to None +++
         """
         (私有方法) 使用LLM评估特定互动对自身关系的影响，并 **立即应用** 产生的后果。
-
-        Args:
-            interacting_actor_instance: 发起互动的角色实例。
-            interaction_content: 具体的行动或对话内容。
-            game_state: 当前游戏状态。
 
         Args:
             interacting_actor_instance: 发起互动的角色实例。
@@ -477,8 +483,8 @@ class CompanionAgent(BaseAgent):
             )
 
         # 2. 快速判断阶段
-        # 检查是否有短期目标
-        if not self_char_instance.short_term_goals:
+        # 检查是否有短期目标 (从 internal_thoughts 读取)
+        if not self_char_instance.internal_thoughts or not self_char_instance.internal_thoughts.short_term_goals:
             self.logger.info(f"{self.agent_name}: 无短期目标，选择等待并进行深度思考。")
             # +++ 触发深度思考 +++
             try:
