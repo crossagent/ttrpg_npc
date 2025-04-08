@@ -4,6 +4,7 @@ from datetime import datetime
 from typing import List, Optional
 
 from src.engine.round_phases.base_phase import BaseRoundPhase, PhaseContext
+from src.models.action_models import ActionType # Add ActionType import
 from src.models.message_models import Message, MessageType, MessageVisibility, SenderRole # Import SenderRole
 from src.models.game_state_models import GameState # +++ Import GameState +++
 
@@ -35,9 +36,14 @@ class NarrationPhase(BaseRoundPhase):
         for prev_round_id in range(round_id - 1, -1, -1):
             snapshot = self.game_state_manager.get_snapshot(prev_round_id)
             if snapshot:
-                # 检查快照中是否有行动、后果或事件记录
+                # 检查快照中是否有非被动行动、后果或事件记录 (方案 B)
+                non_passive_action_exists = any(
+                    action.action_type not in [ActionType.DIALOGUE, ActionType.WAIT]
+                    for action in snapshot.current_round_actions
+                ) if snapshot.current_round_actions else False # 处理列表为空的情况
+
                 is_active = bool(
-                    snapshot.current_round_actions or
+                    non_passive_action_exists or
                     snapshot.current_round_applied_consequences or
                     snapshot.current_round_triggered_events
                 )

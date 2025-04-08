@@ -29,17 +29,20 @@
     *   更新了 `RefereeAgent` 的系统 Prompt，指导其为角色属性/技能生成正确的后果类型，并要求使用有效的实体 ID。
 *   **明确架构职责**: 在 `systemPatterns.md` 和 `activeContext.md` 中明确了 `GameStateManager` (机制状态) 和 `ChatHistoryManager` (交互历史、上下文、可见性) 的职责差异。
 *   **重构活跃回合判断**: 移除了 `GameState.last_active_round` 字段，并更新 `NarrationPhase` 以通过检查历史回合快照中的活动记录来判断活跃度。(已测试通过)
+*   **优化 `NarrationPhase` 活跃度判断逻辑**: 修改了 `src/engine/round_phases/narration_phase.py`，使其只在上一回合有非对话/非等待类型的行动，或者有后果/事件记录时，才认为该回合是活跃的，从而避免在只有对话但没有实质性进展的回合后触发不必要的 DM 叙事。
+*   **优化 DM 叙事准确性**:
+    *   确认 `CharacterInstance` 中已存在 `visited_locations` 字段。
+    *   修改了 `dm_context_builder.py`，使其分析回合内后果和事件，提取关键描述填充到 `narrative_focus_points`。
+    *   修改了 `dm_context_builder.py` 生成的 User Prompt，指示 DM Agent 利用 `narrative_focus_points` 聚焦关键变化。
+*   **修复 DM 叙事角色描述问题**:
+    *   修改了 `src/context/context_utils.py` 中的 `format_current_stage_characters` 函数，使其总是包含玩家和伙伴角色，并结合剧本阶段定义的 NPC，同时移除了会导致问题的角色类型标签输出。
+    *   修改了 `src/context/dm_context_builder.py` 中的 `build_narrative_user_prompt` 函数，优化了 Prompt 指令，明确告知 DM 如何处理提供的角色列表和未列出的背景人物（使用通用代称，禁止虚构名字），避免了指令中的标签被直接输出。
 
 ## 进行中 / 下一步 (按优先级)
 
-1.  **优化 DM 叙事准确性**: (当前最高优先级)
-    *   **实现 `GameState` 地点追踪**: (如果尚未实现) 在 `GameState` 或 `CharacterInstance` 中添加 `visited_locations: Set[str]` 字段及相关更新逻辑。
-    *   **修改 `dm_context_builder.py`**: 实现分析 `current_round_applied_consequences` 和 `current_round_triggered_events`，并从中提取具体描述/摘要填充到 `narrative_focus_points` 字段。
-    *   **修改 `agents/dm_agent.py`**: 更新 System Prompt 以利用 `narrative_focus_points`。
-    *   **测试**: 运行游戏，验证 DM 叙事是否更准确聚焦关键变化。
-2.  **优化其他 Agent Prompts 和数据源**: (优先级次高) 在 DM 叙事优化后，重新审视并优化 `CompanionAgent`, `RefereeAgent` 等的 Prompt 和数据源。
-3.  **更新测试用例**: (优先级中) 修改或添加测试用例以覆盖新的逻辑和修复。
-4.  **实现未完成的 Handler**: (优先级中)
+1.  **优化其他 Agent Prompts 和数据源**: (当前最高优先级) 在 DM 叙事优化后，重新审视并优化 `CompanionAgent`, `RefereeAgent` 等的 Prompt 和数据源。
+2.  **更新测试用例**: (优先级次高) 修改或添加测试用例以覆盖新的逻辑和修复。
+3.  **实现未完成的 Handler**: (优先级中)
     *   实现 `TriggerEventHandler`。
     *   将它们添加到 `HANDLER_REGISTRY`。
 5.  **更新数据模型 (Models):** (优先级中)

@@ -95,7 +95,7 @@
         "stealth": 0,
         "combat": 1
       },
-      "is_playable": true
+      "is_playable": false
     },
     {
       "id": "char_004",
@@ -134,6 +134,27 @@
       },
       "base_skills": {
         "persuasion": 3,
+        "stealth": 0,
+        "combat": 0
+      },
+      "is_playable": false
+    },
+    {
+      "id": "char_006",
+      "name": "老王",
+      "public_identity": "酒保",
+      "secret_goal": "暗中观察俱乐部的一切，等待机会",
+      "background": "在俱乐部工作多年的老酒保，见证了无数秘密，性格沉稳，深藏不露。",
+      "special_ability": "听得多，说得少，能从闲聊中获取信息",
+      "weakness": "有赌博的恶习",
+      "base_attributes": {
+        "strength": 8,
+        "dexterity": 10,
+        "intelligence": 12,
+        "charisma": 10
+      },
+      "base_skills": {
+        "persuasion": 1,
         "stealth": 0,
         "combat": 0
       },
@@ -864,9 +885,9 @@
                   "loc_002"
                 ],
                 "characters": [
-                  "char_001",
-                  "char_002",
-                  "char_003"
+                  "char_004",
+                  "char_005",
+                  "char_006"
                 ],
                 "events": [
                   "evt_001",
@@ -921,8 +942,6 @@
                   "loc_004"
                 ],
                 "characters": [
-                  "char_001",
-                  "char_002",
                   "char_004",
                   "char_005"
                 ],
@@ -981,9 +1000,6 @@
                   "loc_005"
                 ],
                 "characters": [
-                  "char_001",
-                  "char_002",
-                  "char_003",
                   "char_004",
                   "char_005"
                 ],
@@ -1036,9 +1052,6 @@
                   "loc_005"
                 ],
                 "characters": [
-                  "char_001",
-                  "char_002",
-                  "char_003",
                   "char_004",
                   "char_005"
                 ],

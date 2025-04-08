@@ -6,6 +6,10 @@ import re
 import json
 from typing import TypeVar, Type, Dict, Any, Optional, Generic
 from pydantic import BaseModel, ValidationError
+import logging
+
+# 获取日志记录器
+logger = logging.getLogger(__name__)
 
 # 定义泛型类型变量，表示任何Pydantic模型
 T = TypeVar('T', bound=BaseModel)
@@ -47,11 +51,35 @@ def extract_json_from_llm_response(response: str) -> str:
         except json.JSONDecodeError:
             # 如果Markdown块内容无效，则返回空字符串，表示提取失败
             print(f"Warning: Found Markdown block, but content is not valid JSON: {json_str[:100]}...")
-            return "" 
-    
+            logger.warning(f"Markdown block content is not valid JSON after preprocessing: {json_str[:100]}...")
+            return ""
+            
     # 2. 如果没有找到Markdown代码块，直接返回空字符串
     # 这将强制要求LLM必须使用Markdown块输出JSON
+    logger.warning("No valid JSON Markdown block found in LLM response.")
     return ""
+
+def _preprocess_json_string(json_str: str) -> str:
+    """
+    预处理JSON字符串，修复常见的LLM生成错误，例如尾随逗号。
+    
+    Args:
+        json_str: 原始JSON字符串
+        
+    Returns:
+        str: 预处理后的JSON字符串
+    """
+    # 移除对象末尾的逗号: ,} -> }
+    processed_str = re.sub(r",\s*}", "}", json_str)
+    # 移除数组末尾的逗号: ,] -> ]
+    processed_str = re.sub(r",\s*]", "]", processed_str)
+    
+    # 可以在这里添加更多预处理规则
+    
+    if processed_str != json_str:
+        logger.debug("JSON string preprocessed to remove trailing commas.")
+        
+    return processed_str
 
 
 class ModelValidator(Generic[T]):
@@ -109,10 +137,21 @@ class ModelValidator(Generic[T]):
         # 提取JSON字符串
         json_str = extract_json_from_llm_response(response)
         
-        # 尝试解析JSON
+        if not json_str:
+             raise LLMOutputError(
+                "未能从LLM响应中提取有效的JSON内容。",
+                self.model_class,
+                response
+            )
+
+        # 预处理JSON字符串以修复常见错误
+        preprocessed_json_str = _preprocess_json_string(json_str)
+
+        # 尝试解析预处理后的JSON
         try:
-            data = json.loads(json_str)
+            data = json.loads(preprocessed_json_str)
         except json.JSONDecodeError as e:
+            # 如果预处理后仍然解析失败，则抛出错误
             raise LLMOutputError(
                 f"JSON解析错误: {str(e)}", 
                 self.model_class, 

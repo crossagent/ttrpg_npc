@@ -144,67 +144,106 @@ def format_current_stage_characters(game_state: GameState, scenario_manager: 'Sc
     
     Args:
         game_state: 游戏状态实例
+        scenario_manager: ScenarioManager 实例
         
     Returns:
         str: 格式化后的角色公开信息文本
     """
     scenario = scenario_manager.get_current_scenario()
-    if not game_state or not game_state.progress or not scenario or not scenario.story_structure:
+    # Check if essential data is available
+    if not game_state or not game_state.characters or not scenario:
         return "角色信息不可用"
-    
-    # 获取当前阶段
-    progress = game_state.progress
-    story_structure = scenario.story_structure # Get from scenario object via manager
-    
-    current_chapter_id = progress.current_chapter_id
-    current_section_id = progress.current_section_id
-    current_stage_id = progress.current_stage_id
+
+    # --- Identify all relevant character IDs ---
+    relevant_char_ids = set()
+
+    # 1. Add Player Character
+    if game_state.player_character_id and game_state.player_character_id in game_state.characters:
+        relevant_char_ids.add(game_state.player_character_id)
+
+    # 2. Add Companion Characters (Playable but not the player)
+    # Need scenario character definitions to check is_playable
+    # Iterate over values (ScenarioCharacterInfo objects) and use character_id
+    scenario_chars_map = {char.character_id: char for char in scenario.characters.values()} if scenario.characters else {}
+    for char_id, char_instance in game_state.characters.items():
+        # Check if the character exists in the scenario definition and is playable
+        if char_id in scenario_chars_map and scenario_chars_map[char_id].is_playable:
+            # Add if it's not the player character
+            if char_id != game_state.player_character_id:
+                relevant_char_ids.add(char_id)
+
+    # 3. Add NPCs defined in the current stage
     current_stage = None
+    if game_state.progress and scenario.story_structure:
+        progress = game_state.progress
+        story_structure = scenario.story_structure
+        current_chapter_id = progress.current_chapter_id
+        current_section_id = progress.current_section_id
+        current_stage_id = progress.current_stage_id
+
+        # Find the current stage definition
+        for chapter in story_structure.chapters:
+            if chapter.id == current_chapter_id:
+                for section in chapter.sections:
+                    if section.id == current_section_id:
+                        for stage in section.stages:
+                            if stage.id == current_stage_id:
+                                current_stage = stage
+                                break
+                        break
+                break
     
-    # 遍历查找当前阶段
-    for chapter in story_structure.chapters:
-        if chapter.id == current_chapter_id:
-            for section in chapter.sections:
-                if section.id == current_section_id:
-                    for stage in section.stages:
-                        if stage.id == current_stage_id:
-                            current_stage = stage
-                            break
-                    break
-            break
-    
-    if not current_stage or not hasattr(current_stage, 'characters') or not current_stage.characters:
-        return "当前阶段没有关联角色"
-    
-    # 获取阶段相关角色的详细信息
+    # Add NPCs from the stage definition if found
+    if current_stage and hasattr(current_stage, 'characters') and current_stage.characters:
+        for npc_id in current_stage.characters:
+             # Only add if they actually exist in the current game state
+             if npc_id in game_state.characters:
+                 relevant_char_ids.add(npc_id)
+
+    # --- Format information for relevant characters ---
     character_info_list = []
-    
-    for char_id in current_stage.characters:
-        # 检查角色是否存在于游戏状态中
+    # Sort IDs for consistent output order (optional but good practice)
+    sorted_char_ids = sorted(list(relevant_char_ids)) 
+
+    for char_id in sorted_char_ids:
+        # Double-check existence in game_state (should be redundant but safe)
         if char_id not in game_state.characters:
             continue
             
         char_instance = game_state.characters[char_id]
+        
+        # Add a tag indicating player/companion/NPC status
+        char_type_tag = "[NPC]" # Default to NPC
+        if char_id == game_state.player_character_id:
+            char_type_tag = "[玩家]"
+        elif char_id in scenario_chars_map and scenario_chars_map[char_id].is_playable:
+             # Companion character, no specific tag needed in output now
+             pass # Keep default char_type_tag as "[NPC]" conceptually, but don't output it
+
+        # Construct char_info without the tag
         char_info = f"- {char_instance.name} ({char_instance.public_identity})\n"
         
-        # 直接访问location属性而不是通过status
+        # Location info
         if hasattr(char_instance, 'location') and char_instance.location:
-            # 获取位置名称 using ScenarioManager
             location_name = char_instance.location
             location_obj = scenario_manager.get_location_info(char_instance.location)
             if location_obj and hasattr(location_obj, 'name'):
                 location_name = location_obj.name
-            
             char_info += f"  当前位置: {location_name}\n"
         
-        # 如果需要添加其他属性，如健康状态等
+        # Health info
         if hasattr(char_instance, 'health'):
             char_info += f"  健康值: {char_instance.health}\n"
         
-        character_info_list.append(char_info)
-    
+        # Add other relevant public info if needed (e.g., visible status)
+        if hasattr(char_instance, 'status') and char_instance.status:
+             char_info += f"  状态: {char_instance.status}\n"
+
+        character_info_list.append(char_info.strip()) # Use strip() to remove trailing newline if any
+
     if not character_info_list:
-        return "未找到角色详细信息"
+        # Adjust message if no characters are relevant/found
+        return "当前场景无重要角色信息" 
     
     return "\n".join(character_info_list)
 
