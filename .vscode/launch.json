@@ -90,7 +90,7 @@
             "id": "recordFilePath",
             "type": "promptString",
             "description": "请输入存档文件路径",
-            "default": "game_records/debug_20250408_174755.log"
+            "default": "game_records/record_20250408_212337.json"
         }
     ]
 }
