@@ -38,7 +38,7 @@ class NarrationPhase(BaseRoundPhase):
             if snapshot:
                 # 检查快照中是否有非被动行动、后果或事件记录 (方案 B)
                 non_passive_action_exists = any(
-                    action.action_type not in [ActionType.DIALOGUE, ActionType.WAIT]
+                    action.action_type not in [ActionType.TALK, ActionType.WAIT]
                     for action in snapshot.current_round_actions
                 ) if snapshot.current_round_actions else False # 处理列表为空的情况
 

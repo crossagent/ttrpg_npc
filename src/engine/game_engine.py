@@ -143,7 +143,8 @@ class GameEngine:
             agent_manager = AgentManager(
                 game_state=game_state,
                 scenario_manager=scenario_manager,
-                chat_history_manager=chat_history_manager # Pass chat_history_manager instance
+                chat_history_manager=chat_history_manager, # Pass chat_history_manager instance
+                game_state_manager=game_state_manager
             )
             agent_manager.initialize_agents_from_characters(scenario)
 
