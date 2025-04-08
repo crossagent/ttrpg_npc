@@ -416,7 +416,8 @@ class GameStateManager:
             self.logger.error("无法立即应用后果：传入的游戏状态为 None。")
             return None
 
-        self.logger.info(f"尝试立即应用单个后果: {consequence.type.value} - {consequence.target_entity_id}")
+        # Use consequence.type directly as it's already a string
+        self.logger.info(f"尝试立即应用单个后果: {consequence.type} - {consequence.target_entity_id}")
         description = None
         handler = None
         try:
