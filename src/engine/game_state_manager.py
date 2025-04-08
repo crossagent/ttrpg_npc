@@ -8,7 +8,7 @@ import logging # Add logging import
 import copy # +++ Import copy for deepcopy +++
 
 from src.models.game_state_models import (
-    GameState, CharacterInstance,
+    GameState, CharacterInstance, GameRecord, # Add GameRecord
     EnvironmentStatus, EventInstance, ProgressStatus,
     LocationStatus, ItemInstance # Add ItemInstance
 )
@@ -623,30 +623,62 @@ class GameStateManager:
         return [char_id for char_id, char_instance in self.game_state.characters.items()
                 if char_instance.location == location_id]
 
-    # +++ 新增保存和加载状态的方法 +++
-    def save_state(self, file_path: str):
+    # +++ Modified save_state method +++
+    def save_state(self, record_path: str, current_snapshot: GameState):
         """
-        将当前游戏状态（不含聊天记录）保存到 JSON 文件。
+        Saves the provided GameState snapshot into the GameRecord file.
+        If the file exists, it updates the snapshots dictionary.
+        If not, it creates a new GameRecord file.
 
         Args:
-            file_path: 保存文件的路径。
+            record_path: The path to the GameRecord JSON file.
+            current_snapshot: The GameState object for the current round to be saved.
         """
-        if not self.game_state:
-            self.logger.error("无法保存状态：游戏状态未初始化。")
+        if not current_snapshot:
+            self.logger.error("无法保存状态：提供的 current_snapshot 为 None。")
             return
 
         try:
-            # 确保目录存在
-            os.makedirs(os.path.dirname(file_path), exist_ok=True)
-            # 使用 Pydantic 的 model_dump_json 进行序列化
-            state_json = self.game_state.model_dump_json(indent=4)
-            with open(file_path, 'w', encoding='utf-8') as f:
-                f.write(state_json)
-            self.logger.info(f"游戏状态已保存到: {file_path}")
-        except Exception as e:
-            self.logger.exception(f"保存游戏状态到 '{file_path}' 时出错: {e}")
+            record: Optional[GameRecord] = None
+            # Ensure directory exists
+            os.makedirs(os.path.dirname(record_path), exist_ok=True)
 
-    # +++ 新增快照管理方法 +++
+            if os.path.exists(record_path):
+                try:
+                    with open(record_path, 'r', encoding='utf-8') as f:
+                        record_data = json.load(f)
+                    record = GameRecord.model_validate(record_data)
+                    self.logger.debug(f"已加载现有游戏记录: {record_path}")
+                except (json.JSONDecodeError, FileNotFoundError, Exception) as e:
+                    self.logger.warning(f"无法加载或解析现有记录文件 '{record_path}' ({e})。将创建一个新记录。")
+                    record = None # Ensure we create a new one
+
+            if record is None:
+                # Create a new record if it doesn't exist or failed to load
+                record = GameRecord(
+                    game_id=current_snapshot.game_id, # Use game_id from the first snapshot
+                    scenario_id=current_snapshot.scenario_id,
+                    snapshots={},
+                    chat_history={} # Initialize chat history dict
+                )
+                self.logger.info(f"创建新的游戏记录: {record_path}")
+
+            # Add or update the snapshot for the current round
+            round_number = current_snapshot.round_number
+            record.snapshots[round_number] = current_snapshot
+            record.last_saved_at = datetime.now() # Update last saved time
+
+            # Write the updated record back to the file
+            record_json = record.model_dump_json(indent=4)
+            with open(record_path, 'w', encoding='utf-8') as f:
+                f.write(record_json)
+
+            self.logger.info(f"回合 {round_number} 的游戏状态快照已保存到记录: {record_path}")
+
+        except Exception as e:
+            self.logger.exception(f"保存游戏状态快照到记录 '{record_path}' 时出错: {e}")
+
+    # +++ 快照管理方法 (保持不变) +++
     def create_snapshot(self) -> Optional[GameState]:
         """
         创建当前游戏状态的深拷贝快照。
@@ -694,42 +726,58 @@ class GameStateManager:
             self.logger.warning(f"未找到回合 {round_number} 的游戏状态快照。")
         return snapshot
 
-    def load_state(self, file_path: str) -> bool:
+    # +++ Modified load_state method +++
+    def load_state(self, record_path: str, target_round: int) -> bool:
         """
-        从 JSON 文件加载游戏状态（不含聊天记录）。
+        Loads a specific GameState snapshot from a GameRecord file and sets it
+        as the current game state for the manager.
 
         Args:
-            file_path: 加载文件的路径。
+            record_path: The path to the GameRecord JSON file.
+            target_round: The round number of the snapshot to load.
 
         Returns:
-            bool: 如果加载成功则返回 True，否则返回 False。
+            bool: True if loading was successful, False otherwise.
         """
-        if not os.path.exists(file_path):
-            self.logger.error(f"加载状态失败：文件未找到 '{file_path}'。")
+        if not os.path.exists(record_path):
+            self.logger.error(f"加载状态失败：记录文件未找到 '{record_path}'。")
             return False
 
         try:
-            with open(file_path, 'r', encoding='utf-8') as f:
-                state_json = f.read()
-            # 使用 Pydantic 的 model_validate_json 进行反序列化和验证
-            loaded_state = GameState.model_validate_json(state_json)
-            
-            # 验证加载的 scenario_id 是否与 ScenarioManager 中的一致
-            current_scenario = self.scenario_manager.get_current_scenario()
-            if not current_scenario or loaded_state.scenario_id != current_scenario.story_info.id:
-                 self.logger.warning(f"加载状态警告：加载的剧本ID '{loaded_state.scenario_id}' 与 ScenarioManager 当前加载的剧本ID '{current_scenario.story_info.id if current_scenario else 'None'}' 不匹配。请确保加载了正确的剧本。")
-                 # 可以选择在这里停止加载或继续，取决于设计决策
-                 # return False # Example: Stop loading if scenario mismatch
+            with open(record_path, 'r', encoding='utf-8') as f:
+                record_data = json.load(f)
+            record = GameRecord.model_validate(record_data)
 
-            self.game_state = loaded_state
-            self.logger.info(f"游戏状态已从 '{file_path}' 加载。")
-            # 加载后可能需要重新初始化某些运行时状态或检查一致性
-            # 例如，重新计算活动事件
+            # Check if the target round snapshot exists
+            loaded_snapshot = record.snapshots.get(target_round)
+            if not loaded_snapshot:
+                self.logger.error(f"加载状态失败：在记录 '{record_path}' 中未找到回合 {target_round} 的快照。可用回合: {list(record.snapshots.keys())}")
+                return False
+
+            # Validate scenario ID consistency
+            current_scenario = self.scenario_manager.get_current_scenario()
+            if not current_scenario or loaded_snapshot.scenario_id != current_scenario.story_info.id:
+                loaded_scenario_id = loaded_snapshot.scenario_id
+                manager_scenario_id = current_scenario.story_info.id if current_scenario else 'None'
+                self.logger.warning(f"加载状态警告：加载的剧本ID '{loaded_scenario_id}' 与 ScenarioManager 当前加载的剧本ID '{manager_scenario_id}' 不匹配。请确保加载了正确的剧本。")
+                # Decide whether to proceed or fail based on project requirements.
+                # For now, we'll proceed but log the warning.
+
+            # Set the loaded snapshot as the current game state
+            self.game_state = loaded_snapshot
+            # Clear any existing in-memory snapshots as they are now invalid
+            self.round_snapshots = {}
+            self.logger.info(f"已从记录 '{record_path}' 加载回合 {target_round} 的游戏状态。")
+
+            # Update active events based on the loaded state
             self.update_active_events()
+            self.logger.info("已根据加载的状态更新活动事件列表。")
+
             return True
+
         except json.JSONDecodeError:
-            self.logger.error(f"加载状态失败：文件 '{file_path}' 格式错误。")
+            self.logger.error(f"加载状态失败：记录文件 '{record_path}' 格式错误。")
             return False
         except Exception as e: # Catch Pydantic validation errors and others
-            self.logger.exception(f"加载游戏状态从 '{file_path}' 时发生错误: {e}")
+            self.logger.exception(f"从记录 '{record_path}' 加载游戏状态时发生错误: {e}")
             return False

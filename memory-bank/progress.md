@@ -40,11 +40,19 @@
 *   **实现 CompanionAgent 两阶段思考逻辑**:
     *   在 `src/agents/companion_agent.py` 中添加了 `_trigger_deep_thinking` 方法，用于在决定等待时生成下一回合的短期目标。
     *   在 `src/context/player_context_builder.py` 中添加了相应的 Prompt 构建函数 (`build_goal_generation_system_prompt`, `build_goal_generation_user_prompt`) 并修复了导入错误。
+*   **实现游戏状态自动存档与加载**:
+    *   定义了 `GameRecord` 模型 (`src/models/game_state_models.py`) 用于存储回合快照和聊天记录到单个 JSON 文件。
+    *   修改了 `GameStateManager` 和 `ChatHistoryManager` 的 `save_state`/`load_state` 和 `save_history`/`load_history` 方法以使用 `GameRecord`。
+    *   在 `GameEngine` 的回合结束时集成了自动保存逻辑。
+    *   修改了 `GameEngine` 和 `cli_runner.py` 以支持通过命令行参数 (`--load-record`, `--load-round`) 加载指定回合的状态和历史记录并继续游戏。
 
 ## 进行中 / 下一步 (按优先级)
 
-1.  **测试 CompanionAgent 修复**: (当前最高优先级) 运行游戏，观察 `CompanionAgent` 是否能在等待后生成新目标并继续行动。
-2.  **对话生成优化**: (优先级次高)
+1.  **测试游戏存档与加载功能**: (当前最高优先级)
+    *   运行新游戏，检查 `game_records/` 目录下是否正确生成 `.json` 存档文件。
+    *   使用 `--load-record` 和 `--load-round` 参数启动游戏，验证是否能从指定回合正确恢复状态和聊天记录，并继续游戏。
+2.  **测试 CompanionAgent 修复**: (优先级次高) 运行游戏，观察 `CompanionAgent` 是否能在等待后生成新目标并继续行动。
+3.  **对话生成优化**: (优先级中)
     *   修改 `DialogueAction` 模型 (`src/models/action_models.py`)，增加 `minor_action: Optional[str]` 字段。
     *   修改 `CompanionAgent` 生成对话的 Prompt (`build_decision_system_prompt`)，要求直接输出对话内容，并鼓励根据情境填充 `minor_action`。
     *   更新 `CompanionAgent` 代码以解析和填充新的 `DialogueAction` 字段。
@@ -62,9 +70,7 @@
 8.  **细化 `Context Builders` 逻辑:** (优先级中)
     *   实现从 `ChatHistoryManager` 智能提取/总结关键近期互动信息（记忆）的策略。
     *   确保能将 NPC 的目标、态度（关系值、内在设定）、状态 (`status`) 和关键记忆有效整合进给 Agent 的 Prompt。
-9.  **实现完整的保存/加载流程**: (优先级中)
-    *   在 `GameEngine` 中集成 `GameStateManager` 和 `ChatHistoryManager` 的保存/加载调用。
-    *   确定保存时机和文件结构。
+9.  **(已完成)** 实现完整的保存/加载流程。
 10. **(稍后)** 检查并清理可能冗余的 `src/models/record_models.py`。
 
 ## 已知问题 / 待办

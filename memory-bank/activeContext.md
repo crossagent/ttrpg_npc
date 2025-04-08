@@ -1,6 +1,6 @@
-# Active Context: 完成 DM 叙事角色描述修复，准备优化其他 Agent Prompts
+# Active Context: 实现游戏状态自动存档与加载功能
 
-## 当前工作焦点: 完成 CompanionAgent 两阶段思考逻辑实现
+## 当前工作焦点: 实现游戏状态自动存档与加载功能
 
 *   **背景**: 之前 `CompanionAgent` 会因为没有短期目标或目标不可行而陷入无限等待的循环。
 *   **已完成任务**: 修复了 `CompanionAgent` 的行动宣告逻辑，完整实现了两阶段思考模式：
@@ -16,8 +16,25 @@
     3.  **行动选择 (Action Selection)**: (已有逻辑)
         *   若快速判断成功，则继续执行现有的行动选择逻辑（调用 LLM 使用 `build_decision_...` prompts 生成具体 `DialogueAction`, `MoveAction` 等）。
 *   **目标**: 解决了 `CompanionAgent` 无限等待的问题，使其在需要时能够主动规划下一步目标。
+*   **实现游戏状态自动存档与加载**: (刚刚完成)
+    *   **目标**: 方便调试，允许从任意回合的状态继续游戏。
+    *   **实现**:
+        *   在 `src/models/game_state_models.py` 中定义了 `GameRecord` 模型，用于存储单局游戏的所有回合快照 (`GameState`) 和聊天记录 (`List[Message]`) 到单个 JSON 文件。
+        *   修改了 `src/engine/game_state_manager.py`：
+            *   `save_state` 方法现在接收 `GameState` 快照和记录文件路径，读取现有 `GameRecord`（如果存在），添加/更新快照，然后写回整个 `GameRecord`。
+            *   `load_state` 方法现在接收记录文件路径和目标回合数，读取 `GameRecord`，提取指定回合的 `GameState` 快照并设置为当前状态。
+        *   修改了 `src/engine/chat_history_manager.py`：
+            *   添加 `save_history` 方法，接收记录文件路径、回合数和当前回合消息列表，读取现有 `GameRecord`，添加/更新聊天记录，然后写回整个 `GameRecord`。
+            *   添加 `load_history` 方法，接收记录文件路径和目标回合数，读取 `GameRecord`，加载到目标回合为止的所有聊天记录以初始化管理器。
+        *   修改了 `src/engine/game_engine.py`：
+            *   在 `run_game` 方法的回合循环结束后，调用 `game_state_manager.save_state` 和 `chat_history_manager.save_history` 将当前回合的状态和聊天记录保存到 `game_records/record_YYMMDD_HHMMSS.json` 文件。
+            *   添加了 `start_from_loaded_state` 方法，用于接收预加载的管理器和状态，并从指定回合开始游戏循环。
+            *   重构了 `run_game`，将核心循环提取到 `_run_game_loop` 方法。
+        *   修改了 `src/scripts/cli_runner.py`：
+            *   添加了 `--load-record <path>` 和 `--load-round <number>` 命令行参数。
+            *   在检测到加载参数时，初始化必要的管理器，调用 `load_state` 和 `load_history`，然后调用 `engine.start_from_loaded_state` 启动游戏。
 
-## 近期变更
+## 近期变更 (先前)
 
 *   修改了 `src/models/game_state_models.py`：移除 `scenario`, `chat_history`, `item_states` 等字段，添加 `scenario_id`。清理冗余模型。
 *   创建了 `src/engine/chat_history_manager.py`。
@@ -51,8 +68,11 @@
 
 ## 下一步计划
 
-1.  **测试 CompanionAgent 修复**: 运行游戏，观察 `CompanionAgent` 是否能在等待后生成新目标并继续行动。
-2.  **对话生成优化**: (原计划中的下一步)
+1.  **测试游戏存档与加载功能**:
+    *   运行新游戏，检查 `game_records/` 目录下是否正确生成 `.json` 存档文件。
+    *   使用 `--load-record` 和 `--load-round` 参数启动游戏，验证是否能从指定回合正确恢复状态和聊天记录，并继续游戏。
+2.  **测试 CompanionAgent 修复**: (优先级次高) 运行游戏，观察 `CompanionAgent` 是否能在等待后生成新目标并继续行动。
+3.  **对话生成优化**: (后续任务)
     *   修改 `DialogueAction` 模型 (`src/models/action_models.py`)，增加 `minor_action: Optional[str]` 字段。
     *   修改 `CompanionAgent` 生成对话的 Prompt (`build_decision_system_prompt`)，要求直接输出对话内容，并鼓励根据情境填充 `minor_action`。
     *   更新 `CompanionAgent` 代码以解析和填充新的 `DialogueAction` 字段。

@@ -153,3 +153,13 @@ class GameState(BaseModel):
         default_factory=list,
         description="本回合实际触发的事件记录列表"
     )
+
+
+class GameRecord(BaseModel):
+    """Represents a complete game record, including all snapshots and chat history."""
+    game_id: str = Field(..., description="Unique identifier for this game session")
+    scenario_id: str = Field(..., description="ID of the scenario being played")
+    snapshots: Dict[int, GameState] = Field(default_factory=dict, description="Game state snapshots, keyed by round number")
+    chat_history: Dict[int, List[Message]] = Field(default_factory=dict, description="Chat history, keyed by round number")
+    created_at: datetime = Field(default_factory=datetime.now, description="Timestamp when the record was first created")
+    last_saved_at: datetime = Field(default_factory=datetime.now, description="Timestamp when the record was last saved")

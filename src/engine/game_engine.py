@@ -3,7 +3,7 @@ from typing import Dict, List, Any, Callable, Optional, TextIO # Re-added TextIO
 import asyncio
 from datetime import datetime
 import uuid
-# Removed os import, no longer needed here
+import os # +++ Import os +++
 
 # 导入我们的数据模型和Agent
 from src.models.schema import AgentConfig
@@ -22,7 +22,7 @@ from src.io.input_handler import UserInputHandler # Import UserInputHandler
 from src.config.color_utils import (
     format_dm_message, format_player_message, format_observation,
     format_state, format_thinking, print_colored,
-    Color, green_text, yellow_text, gray_text
+    Color, green_text, yellow_text, gray_text, red_text # Added red_text import
 )
 
 # 默认配置
@@ -79,23 +79,113 @@ class GameEngine:
         self._record_handler = record_handler
         self._record_file_handle = record_file_handle
         self._input_handler = input_handler # Store input_handler
+        self._record_path: Optional[str] = None # +++ Add instance variable for record path +++
+
+    async def _run_game_loop(self,
+                             game_state: GameState,
+                             game_state_manager: GameStateManager,
+                             chat_history_manager: ChatHistoryManager,
+                             round_manager: RoundManager,
+                             start_round: int,
+                             record_path: str) -> GameState:
+        """
+        Internal game loop logic.
+
+        Args:
+            game_state: The initial or loaded game state.
+            game_state_manager: Initialized GameStateManager.
+            chat_history_manager: Initialized ChatHistoryManager.
+            round_manager: Initialized RoundManager.
+            start_round: The round number to start from.
+            record_path: Path to the JSON record file for saving.
+
+        Returns:
+            GameState: The final game state after the loop finishes.
+        """
+        current_game_state = game_state
+        # Adjust round number if starting from loaded state
+        current_game_state.round_number = start_round - 1
+
+        while not round_manager.should_terminate(current_game_state):
+            # Execute the round logic (execute_round increments the round number internally)
+            current_game_state = await round_manager.execute_round(current_game_state)
+
+            # +++ Save state and history after round execution +++
+            completed_round_number = current_game_state.round_number # Round number is updated in start_round
+            # Get snapshot from memory (created by end_round)
+            final_snapshot = game_state_manager.get_snapshot(completed_round_number)
+            # Get messages from memory (added during the round)
+            round_messages = chat_history_manager.get_messages(completed_round_number)
+
+            if final_snapshot:
+                # Save the state snapshot to the record file
+                game_state_manager.save_state(record_path, final_snapshot)
+                # Save the chat history for this round to the record file
+                chat_history_manager.save_history(record_path, completed_round_number, round_messages)
+            else:
+                # Log an error if snapshot wasn't found (shouldn't happen if end_round worked)
+                print(red_text(f"错误：未能获取回合 {completed_round_number} 的快照，无法保存！"))
+            # --- End saving logic ---
+
+
+            # 检查是否有命令
+            cmd_prompt = "输入命令(例如 /history warrior /chat)或按回车继续: "
+            print(cmd_prompt, end="") # Print prompt without newline
+
+            cmd = (await asyncio.to_thread(input)).strip()
+
+            if cmd.startswith("/"):
+                parts = cmd.split()
+                command = parts[0]
+                args = parts[1:] if len(parts) > 1 else []
+
+                # Log command execution attempt (to console only)
+                cmd_log_msg = f"Executing command: {cmd}"
+                print(gray_text(cmd_log_msg))
+
+                if command == "/history" and args:
+                    await self._show_player_history(args[0])
+                elif command == "/chat":
+                    await self._show_chat_history()
+                elif command == "/quit":
+                    quit_msg = "Quitting game via command."
+                    print(yellow_text(quit_msg))
+                    break
+                else:
+                    unknown_cmd_msg = "未知命令，可用命令: /history [玩家名称], /chat, /quit"
+                    print(yellow_text(unknown_cmd_msg))
+
+        return current_game_state
+
 
     async def run_game(self) -> None:
         """
-        启动游戏，执行回合流程
+        启动新游戏，初始化所有内容并执行回合流程。
 
         Returns:
-            GameState: 游戏结束后的最终状态
+            None: This method now orchestrates setup and calls the loop.
         """
-        # --- Game Record Setup Removed - To be handled by runner ---
-        timestamp_str = datetime.now().strftime("%Y%m%d_%H%M%S") # Keep timestamp for start message
+        timestamp_str = datetime.now().strftime("%Y%m%d_%H%M%S") # For filename and start message
+
+        # Define record path for the new game
+        record_dir = "game_records"
+        record_filename = f"record_{timestamp_str}.json"
+        self._record_path = os.path.join(record_dir, record_filename) # Store path in instance variable
+        print(f"本局新游戏记录将保存至: {self._record_path}")
+        os.makedirs(record_dir, exist_ok=True)
+
+        game_state_manager: Optional[GameStateManager] = None
+        chat_history_manager: Optional[ChatHistoryManager] = None
+        round_manager: Optional[RoundManager] = None
+        initial_game_state: Optional[GameState] = None
 
         try:
-            # 加载剧本
+            # --- Start Initialization for New Game ---
+            # 1. Load Scenario
             scenario_manager = ScenarioManager()
-            scenario = scenario_manager.load_scenario("default")
+            scenario = scenario_manager.load_scenario("default") # Assuming default for new games
 
-            # --- 角色选择 ---
+            # 2. Character Selection
             playable_characters = {
                 char_id: char_info
                 for char_id, char_info in scenario.characters.items()
@@ -124,133 +214,189 @@ class GameEngine:
                         print(yellow_text("无效的选择，请输入列表中的编号。"))
                 except ValueError:
                     print(yellow_text("无效的输入，请输入数字编号。"))
-            # --- 角色选择结束 ---
+            # --- End Character Selection ---
 
-
-            # 初始化游戏状态，传入 scenario_manager
+            # 3. Initialize Managers
             game_state_manager = GameStateManager(scenario_manager=scenario_manager)
-            # initialize_game_state 现在不再需要 scenario 参数，因为它会从 scenario_manager 获取
-            game_state = game_state_manager.initialize_game_state()
+            initial_game_state = game_state_manager.initialize_game_state()
 
-            # !!! 设置玩家选择的角色ID到游戏状态中 !!!
-            game_state.player_character_id = chosen_id
-            print(f"游戏状态已设置玩家角色ID: {game_state.player_character_id}")
+            # Set player character ID
+            initial_game_state.player_character_id = chosen_id
+            print(f"游戏状态已设置玩家角色ID: {initial_game_state.player_character_id}")
 
-            # 初始化聊天记录管理器 (必须在 AgentManager 和 MessageDispatcher 之前)
-            chat_history_manager = ChatHistoryManager() # Instantiate ChatHistoryManager
+            chat_history_manager = ChatHistoryManager()
 
-            # 创建代理管理器 (现在可以传递 chat_history_manager)
+            # 4. Initialize AgentManager
             agent_manager = AgentManager(
-                game_state=game_state,
+                game_state=initial_game_state,
                 scenario_manager=scenario_manager,
-                chat_history_manager=chat_history_manager, # Pass chat_history_manager instance
+                chat_history_manager=chat_history_manager,
                 game_state_manager=game_state_manager
             )
             agent_manager.initialize_agents_from_characters(scenario)
 
-            # 初始化通信组件 (传入 game_state_manager 和 chat_history_manager)
-            message_dispatcher = MessageDispatcher(
-                game_state_manager=game_state_manager, # Pass manager
+            # 5. Initialize MessageDispatcher
+            self.message_dispatcher = MessageDispatcher(
+                game_state_manager=game_state_manager,
                 agent_manager=agent_manager,
-                chat_history_manager=chat_history_manager # Pass chat history manager
+                chat_history_manager=chat_history_manager
             )
-            self.message_dispatcher = message_dispatcher # Store reference
 
-            # Register the simple console display handler (always active)
-            message_dispatcher.register_message_handler(
+            # Register console handler
+            self.message_dispatcher.register_message_handler(
                 simple_console_display_handler,
                 list(MessageType)
             )
 
-            # --- Register the external record handler if provided ---
+            # Register external .log handler
             if self._record_handler and self._record_file_handle:
                 try:
-                    # Use lambda to pass the file handle stored in self
-                    message_dispatcher.register_message_handler(
+                    self.message_dispatcher.register_message_handler(
                         lambda msg: self._record_handler(msg, self._record_file_handle),
-                        list(MessageType) # Register for all message types
+                        list(MessageType)
                     )
-                    # Logging this registration might be better done in the runner
-                    # print(f"External record handler registered.")
                 except Exception as e:
-                    # Log error if registration fails
                     print(f"Error registering external record handler: {e}")
-            # --- End record handler registration ---
 
-
-            # 创建回合管理器
+            # 6. Initialize RoundManager
             round_manager = RoundManager(
-                game_state_manager = game_state_manager,
-                message_dispatcher = message_dispatcher,
-                agent_manager = agent_manager,
-                scenario_manager = scenario_manager,
-                chat_history_manager = chat_history_manager, # Pass chat_history_manager
-                input_handler = self._input_handler) # Pass input_handler
+                game_state_manager=game_state_manager,
+                message_dispatcher=self.message_dispatcher,
+                agent_manager=agent_manager,
+                scenario_manager=scenario_manager,
+                chat_history_manager=chat_history_manager,
+                input_handler=self._input_handler
+            )
+            self.round_manager = round_manager # Store reference
+            # --- End Initialization for New Game ---
 
-            # 保存回合管理器的引用，以便CLI可以访问
-            self.round_manager = round_manager
-
-            # Log game start (to console only now)
-            start_message = f"--- Game Started: {timestamp_str} ---"
+            # Log game start to console
+            start_message = f"--- New Game Started: {timestamp_str} ---"
             print(green_text(start_message))
-            # Removed log_file.write
 
-            # 执行游戏循环
-            while not round_manager.should_terminate(game_state):
-                game_state = await round_manager.execute_round(game_state)
+            # Execute the game loop
+            final_state = await self._run_game_loop(
+                game_state=initial_game_state,
+                game_state_manager=game_state_manager,
+                chat_history_manager=chat_history_manager,
+                round_manager=round_manager,
+                start_round=1,
+                record_path=self._record_path
+            )
 
-                # 检查是否有命令
-                cmd_prompt = "输入命令(例如 /history warrior /chat)或按回车继续: "
-                print(cmd_prompt, end="") # Print prompt without newline
-                # Removed log_file.write
-
-                cmd = (await asyncio.to_thread(input)).strip()
-                # Removed log_file.write
-
-                if cmd.startswith("/"):
-                    parts = cmd.split()
-                    command = parts[0]
-                    args = parts[1:] if len(parts) > 1 else []
-
-                    # Log command execution attempt (to console only)
-                    cmd_log_msg = f"Executing command: {cmd}"
-                    print(gray_text(cmd_log_msg))
-                    # Removed log_file.write
-
-                    if command == "/history" and args:
-                        # Removed log_file argument
-                        await self._show_player_history(args[0])
-                    elif command == "/chat":
-                         # Removed log_file argument
-                        await self._show_chat_history()
-                    elif command == "/quit":
-                        quit_msg = "Quitting game via command."
-                        print(yellow_text(quit_msg))
-                        # Removed log_file.write
-                        break
-                    else:
-                        unknown_cmd_msg = "未知命令，可用命令: /history [玩家名称], /chat, /quit"
-                        print(yellow_text(unknown_cmd_msg))
-                        # Removed log_file.write
-
-            end_message = f"--- Game Ended: 共进行了{game_state.round_number}回合 ---"
+            end_message = f"--- Game Ended: 共进行了{final_state.round_number}回合 ---"
             print(green_text(end_message))
-            # Removed log_file.write
 
         except KeyboardInterrupt:
-            interrupt_msg = "\n游戏被用户中断"
-            print(yellow_text(interrupt_msg))
-            # Removed log writing attempt
+            print(yellow_text("\n游戏被用户中断"))
         except Exception as e:
-            error_msg = f"\n游戏出错: {str(e)}"
-            # Assuming red_text exists or use yellow
-            print(red_text(error_msg))
-            # Removed log writing attempt
+            print(red_text(f"\n游戏运行出错: {str(e)}"))
+            # Log the exception traceback for debugging
+            import traceback
+            traceback.print_exc()
         finally:
-            # 清理资源
+            await self.cleanup()
+
+        # run_game doesn't need to return state anymore
+        return
+
+
+    async def start_from_loaded_state(self,
+                                      loaded_state: GameState,
+                                      game_state_manager: GameStateManager,
+                                      chat_history_manager: ChatHistoryManager,
+                                      scenario_manager: ScenarioManager,
+                                      start_round: int,
+                                      record_path: str) -> None:
+        """
+        Starts the game engine with pre-loaded state and managers.
+
+        Args:
+            loaded_state: The GameState loaded from the record.
+            game_state_manager: Initialized GameStateManager containing the loaded state.
+            chat_history_manager: Initialized ChatHistoryManager containing loaded history.
+            scenario_manager: Initialized ScenarioManager with the correct scenario loaded.
+            start_round: The round number to begin execution from.
+            record_path: Path to the JSON record file for continued saving.
+        """
+        self._record_path = record_path # Store record path for saving
+        agent_manager: Optional[AgentManager] = None
+        round_manager: Optional[RoundManager] = None
+
+        try:
+            # --- Initialize components with loaded data ---
+            # 1. AgentManager (needs loaded state)
+            agent_manager = AgentManager(
+                game_state=loaded_state,
+                scenario_manager=scenario_manager,
+                chat_history_manager=chat_history_manager,
+                game_state_manager=game_state_manager
+            )
+            # Need to get scenario object to initialize agents
+            scenario = scenario_manager.get_current_scenario()
+            if not scenario:
+                 raise ValueError("无法从 ScenarioManager 获取当前剧本以初始化 Agent")
+            agent_manager.initialize_agents_from_characters(scenario)
+
+            # 2. MessageDispatcher
+            self.message_dispatcher = MessageDispatcher(
+                game_state_manager=game_state_manager,
+                agent_manager=agent_manager,
+                chat_history_manager=chat_history_manager
+            )
+            # Register handlers
+            self.message_dispatcher.register_message_handler(
+                simple_console_display_handler, list(MessageType)
+            )
+            if self._record_handler and self._record_file_handle:
+                try:
+                    self.message_dispatcher.register_message_handler(
+                        lambda msg: self._record_handler(msg, self._record_file_handle),
+                        list(MessageType)
+                    )
+                except Exception as e:
+                    print(f"Error registering external record handler in loaded game: {e}")
+
+            # 3. RoundManager
+            round_manager = RoundManager(
+                game_state_manager=game_state_manager,
+                message_dispatcher=self.message_dispatcher,
+                agent_manager=agent_manager,
+                scenario_manager=scenario_manager,
+                chat_history_manager=chat_history_manager,
+                input_handler=self._input_handler
+            )
+            self.round_manager = round_manager # Store reference
+            # --- End Initialization ---
+
+            # Log game resume
+            start_message = f"--- Game Resumed from Record: {record_path}, Round: {start_round} ---"
+            print(green_text(start_message))
+
+            # Execute the game loop starting from the specified round
+            final_state = await self._run_game_loop(
+                game_state=loaded_state,
+                game_state_manager=game_state_manager,
+                chat_history_manager=chat_history_manager,
+                round_manager=round_manager,
+                start_round=start_round,
+                record_path=self._record_path
+            )
+
+            end_message = f"--- Game Ended: 共进行了{final_state.round_number}回合 (从回合 {start_round} 继续) ---"
+            print(green_text(end_message))
+
+        except KeyboardInterrupt:
+            print(yellow_text("\n游戏被用户中断"))
+        except Exception as e:
+            print(red_text(f"\n游戏运行出错: {str(e)}"))
+            import traceback
+            traceback.print_exc()
+        finally:
             await self.cleanup()
 
         return
+
 
     async def cleanup(self) -> None:
         """
@@ -259,6 +405,7 @@ class GameEngine:
         # 清理消息组件
         self.round_manager = None
         self.message_dispatcher = None # Clear dispatcher reference
+        self._record_path = None # Clear record path
 
     # Removed log_file parameter
     async def _show_player_history(self, player_id: str) -> None:
@@ -349,6 +496,4 @@ class GameEngine:
         print(footer)
         # Removed log writing
 
-# Helper function for red text (assuming it might be missing)
-def red_text(text):
-    return f"\033[91m{text}\033[0m"
+# Removed red_text helper function definition, assuming it's imported from color_utils
