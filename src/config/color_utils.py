@@ -12,6 +12,8 @@ class Color(Enum):
     RESET = '\033[0m'    # 重置颜色
     BOLD = '\033[1m'     # 粗体
     UNDERLINE = '\033[4m'  # 下划线
+    RED = '\033[91m'  # 红色 - 错误信息
+    BLUE = '\033[94m'  # 蓝色 - 其他信息
 
 def print_colored(text: str, color: Color, end: str = '\n') -> None:
     """
@@ -47,6 +49,18 @@ def yellow_text(text: str) -> str:
         str: 着色后的文本
     """
     return f"{Color.YELLOW.value}{text}{Color.RESET.value}"
+
+def red_text(text: str) -> str:
+    """
+    返回灰色文本
+    
+    Args:
+        text: 要着色的文本
+        
+    Returns:
+        str: 着色后的文本
+    """
+    return f"{Color.RED.value}{text}{Color.RESET.value}"
 
 def gray_text(text: str) -> str:
     """
