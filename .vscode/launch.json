@@ -26,6 +26,23 @@
             }
         },
         {
+            "name": "从存档加载游戏",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "src.scripts.cli_runner",
+            "console": "integratedTerminal",
+            "cwd": "${workspaceFolder}",
+            "args": [
+                "--load-record",
+                "${input:recordFilePath}",
+                "--load-round",
+                "${input:roundNumber}"
+            ],
+            "env": {
+                "PYTHONPATH": "${workspaceFolder}"
+            }
+        },
+        {
             "name": "Run Pytest: test_dm_agent",
             "type": "debugpy",
             "request": "launch",
@@ -60,6 +77,20 @@
             "env": {
                 "PYTHONPATH": "${workspaceFolder}"
             }
+        }
+    ],
+    "inputs": [
+        {
+            "id": "roundNumber",
+            "type": "promptString",
+            "description": "请输入要加载的回合数",
+            "default": "1"
+        },
+        {
+            "id": "recordFilePath",
+            "type": "promptString",
+            "description": "请输入存档文件路径",
+            "default": "logs/debug_20250408_174755.log"
         }
     ]
 }
