@@ -114,7 +114,7 @@ class CompanionAgent(BaseAgent):
 
                     # 5. 生成更新后果
                     goal_consequence = UpdateCharacterAttributeConsequence(
-                        type=ConsequenceType.UPDATE_CHARACTER_ATTRIBUTE.value,
+                        type=ConsequenceType.UPDATE_CHARACTER_ATTRIBUTE, # Removed .value
                         target_entity_id=self.character_id,
                         attribute_name="short_term_goals",
                         value=new_goals, # Changed 'new_value' to 'value'
