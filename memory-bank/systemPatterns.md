@@ -21,7 +21,8 @@
 *   **游戏状态管理器 (Game State Manager)**:
     *   **职责**: 存储和管理核心游戏的**机制状态**和**全局信息**（角色属性、技能、健康、位置、物品、事件实例、进度、Flags 等），作为当前世界的“快照”。是规则判断和应用**硬性后果**的基础。**负责即时应用**经过校验的后果到游戏状态。提供状态的保存和加载接口（包括回合快照）。处理阶段检查与推进。
     *   **模式**: 单一事实来源 (Single Source of Truth)，数据库模式。
-    *   **后果处理**: 通过调用注册的 **后果处理器 (Consequence Handlers)** 来应用状态变更。`GameStateManager` 根据后果的 `type` 字段查找对应的 Handler 并调用其 `apply` 方法。
+    *   **后果处理**: `GameStateManager` 负责通过调用注册的 **后果处理器 (Consequence Handlers)** 来应用状态变更。
+        *   **核心机制**: 通过 `GameStateManager` 分发给相应的 `Consequence Handler` 来完成，确保了处理逻辑的一致性。
     *   **后果模型**: 后果使用 Pydantic 的 **Discriminated Unions** (`AnyConsequence` in `src/models/consequence_models.py`) 进行建模。每种 `ConsequenceType` 对应一个具体的模型（如 `AddItemConsequence`），只包含该类型必需的字段，由 `type` 字段区分。这提供了类型安全和精确的数据结构。
     *   **注意**: `GameState` 模型包含临时的回合作用域字段（如 `current_round_actions`, `current_round_applied_consequences`, `current_round_triggered_events`），用于回合结束快照。这些字段在新回合开始时清空。
 *   **后果处理器 (Consequence Handlers)**:

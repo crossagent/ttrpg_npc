@@ -400,6 +400,52 @@ class GameStateManager:
         # 因为 Handler 可能在失败时也创建记录。
         return change_descriptions
 
+    async def apply_single_consequence_immediately(self, consequence: AnyConsequence, game_state: GameState) -> Optional[str]:
+        """
+        立即应用单个后果到游戏状态，通过对应的 Handler 处理。
+        主要用于 Agent 内部评估产生的、需要即时反馈的后果（如关系变化）。
+
+        Args:
+            consequence: 要应用的后果对象。
+            game_state: 当前游戏状态。
+
+        Returns:
+            Optional[str]: 如果 Handler 成功应用并返回描述，则返回描述字符串，否则返回 None。
+        """
+        if not game_state: # Check the passed game_state argument
+            self.logger.error("无法立即应用后果：传入的游戏状态为 None。")
+            return None
+
+        self.logger.info(f"尝试立即应用单个后果: {consequence.type.value} - {consequence.target_entity_id}")
+        description = None
+        handler = None
+        try:
+            handler = get_handler(consequence.type)
+            if handler:
+                # 调用 Handler 的 apply 方法
+                description = await handler.apply(consequence, game_state) # Pass the provided game_state
+                if description:
+                    self.logger.info(f"立即应用后果成功: {description}")
+                    # 注意：这里应用的是传入的 game_state，如果需要同步到 self.game_state，
+                    # 且 game_state 不是 self.game_state 的引用，则需要额外处理。
+                    # 但通常 Agent 调用时会传入 self.game_state_manager.get_state()。
+                    # 同时，Handler 内部应该已经修改了传入的 game_state 对象。
+                    # Handler 内部也负责记录 AppliedConsequenceRecord 到 game_state.current_round_applied_consequences
+                else:
+                    self.logger.warning(f"立即应用后果 '{consequence.type.value}' 时，Handler 未返回描述 (可能应用失败或无描述)。")
+            else:
+                self.logger.warning(f"未找到后果类型 '{consequence.type.value}' 的处理程序。无法立即应用。")
+
+        except Exception as e:
+            self.logger.exception(f"立即应用后果 '{consequence.type.value}' 时发生意外错误: {e}")
+            # 可以在这里尝试记录失败，如果 Handler 支持的话
+
+        # 更新最后修改时间 (即使只应用一个后果也更新)
+        game_state.last_updated = datetime.now() # Update the passed game_state
+
+        return description
+
+
     # --- 移除旧的 update_state 方法 ---
     # def update_state(self, state_changes: Dict[str, Any]) -> GameState:
     #     """

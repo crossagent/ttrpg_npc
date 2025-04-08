@@ -1,13 +1,22 @@
 # Active Context: 完成 DM 叙事角色描述修复，准备优化其他 Agent Prompts
 
-## 当前工作焦点: 优化其他 Agent 的 Prompt 和数据源
+## 当前工作焦点: 修改 CompanionAgent 行动宣告逻辑，引入两阶段思考
 
-*   **背景**: 上一个任务“优化 DM 叙事准确性”已完成，并且后续修复了由此引发的角色描述问题（如 DM 输出中出现 `[玩家]` 标签，以及对背景人物描述不当可能导致的“自创角色”感觉）。
-*   **当前任务**: 在 DM 叙事上下文和 Prompt 得到改进后，现在需要将注意力转向其他核心 Agent，特别是 `CompanionAgent` 和 `RefereeAgent`。目标是审视它们当前的 Prompt 设计和所依赖的数据源（上下文），进行必要的优化，以确保它们的行为（思考、行动生成、判定）与更新后的系统架构和数据流保持一致，并尽可能提高其智能表现。
-*   **关键考虑**:
-    *   **CompanionAgent**: 如何更好地利用 `GameState` 中的 NPC 核心要素（目标、态度、记忆、状态）和 `ChatHistoryManager` 提供的对话历史来生成更符合角色个性和当前情境的思考与行动？Prompt 是否需要调整以引导其进行更深度的“感知-思考-行动”循环？
-    *   **RefereeAgent**: 当前的判定 Prompt 是否足够清晰和鲁棒？在处理行动后果和事件触发时，是否能有效利用 `GameState` 和 `Scenario` 信息？特别是对于后续计划中的“基于 LLM 的关系评估”，需要思考如何设计 Prompt 和数据流。
-    *   **数据源一致性**: 确保所有 Agent 使用的上下文信息来源（`GameState`, `ChatHistoryManager`, `ScenarioManager`）是一致且准确的。
+*   **背景**: 完成了 DM 叙事优化及相关修复。当前焦点是改进 Agent 行为，特别是 `CompanionAgent`。
+*   **当前任务**: 重构 `CompanionAgent` 的行动宣告逻辑，实现两阶段思考模式：
+    1.  **快速判断 (Fast Check)**:
+        *   检查 `CharacterInstance.short_term_goals` 是否存在。
+        *   若存在，使用 **轻量级 LLM 调用** 进行可行性判断。
+        *   **关键限制**: 此 LLM 调用**仅能访问** Agent 的 `short_term_goals` 和近期聊天记录 (`ChatHistoryManager`)，**不能访问**完整的 `GameState`，以模拟基于角色主观感知的快速直觉。
+        *   Prompt 需引导 LLM 简单回答“可行”或“不可行”。
+        *   若无目标或 LLM 判断不可行，则宣告 `WaitAction`。
+    2.  **深度思考 / 行动选择 (Deep Thinking / Action Selection)**:
+        *   若快速判断失败并宣告 `WaitAction`，则**触发** Agent 内部的深度思考/计划生成逻辑，为下一回合更新 `short_term_goals`。
+        *   若快速判断成功，则继续执行现有的行动选择逻辑（选择 `DialogueAction`, `MoveAction` 等）。
+*   **对话生成优化**:
+    *   修改 `DialogueAction` 模型 (`src/models/action_models.py`)，增加 `minor_action: Optional[str]` 字段。
+    *   修改 `CompanionAgent` 生成对话的 Prompt，要求直接输出对话内容，并鼓励根据情境填充 `minor_action`（如“叹气”），禁止输出模拟性描述（如“走向...”）。
+*   **目标**: 使 `CompanionAgent` 的决策更符合角色心智模型，区分快速反应和深度规划，并使对话更自然生动。
 
 ## 近期变更
 
@@ -38,19 +47,20 @@
     *   修改了 `src/context/context_utils.py` (`format_current_stage_characters`)，确保其包含玩家、伙伴和阶段 NPC，并移除了输出中的角色类型标签。
     *   修改了 `src/context/dm_context_builder.py` (`build_narrative_user_prompt`)，优化了 Prompt 指令，明确了对角色列表和背景人物的处理规则。
 
-## 下一步计划 (Agent Prompts 优化)
+## 下一步计划 (CompanionAgent 两阶段思考实现)
 
-1.  **审阅 `CompanionAgent`**:
-    *   检查其 `think` 或类似方法的 Prompt，评估其对 NPC 核心要素和聊天记录的利用程度。
-    *   识别可优化点，例如改进思考逻辑引导、增强情境感知等。
-    *   (如有必要) 提出具体的 Prompt 修改建议。
-2.  **审阅 `RefereeAgent`**:
-    *   检查其 `judge_action` 或相关判定方法的 Prompt。
-    *   评估其规则理解、后果生成和事件触发判断的准确性。
-    *   思考如何为后续的“关系评估”功能设计 Prompt 框架。
-    *   (如有必要) 提出具体的 Prompt 修改建议。
-3.  **检查数据源**: 确认 `Context Builders` 为这些 Agent 提供了所需且准确的数据。
-4.  **更新 Memory Bank**: 根据审阅和优化结果，更新相关文档。
+1.  **更新 Memory Bank**: (当前步骤) 更新 `activeContext.md` 和 `progress.md` 以反映新的任务计划。
+2.  **修改 `DialogueAction` 模型**: 在 `src/models/action_models.py` 中为 `DialogueAction` 添加 `minor_action: Optional[str]` 字段。
+3.  **修改 `CompanionAgent`**:
+    *   在 `src/agents/companion_agent.py` 中实现两阶段思考逻辑：
+        *   实现快速判断（检查目标 + LLM 可行性判断，限制上下文）。
+        *   实现失败时的 `WaitAction` 返回和深度思考触发。
+        *   实现成功时的行动选择流程衔接。
+    *   修改对话生成部分：
+        *   更新 Prompt 以生成直接对话和 `minor_action`。
+        *   更新代码以解析和填充新的 `DialogueAction` 字段。
+4.  **审阅 `RefereeAgent`**: (后续任务) 检查其 Prompt 和数据源。
+5.  **检查数据源**: (穿插进行) 确认 `Context Builders` 提供正确数据。
 
 ## 待解决/考虑事项
 

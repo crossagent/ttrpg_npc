@@ -95,6 +95,7 @@ class PlayerAction(BaseModel):
     action_type: ActionType = Field(..., description="行动类型")
     content: str = Field(..., description="行动内容")
     target: Optional[Union[str, List[str]]] = Field(None, description="行动目标，可以是单个角色ID、多个角色ID列表或None") # 允许None并设为可选
+    minor_action: Optional[str] = Field(None, description="伴随对话的微小动作 (例如: 叹气, 撩头发), 主要用于 TALK 类型")
     generated_consequences: List[AnyConsequence] = Field(default_factory=list, description="由Agent内部状态变化（如关系评估）产生的后果") # 新增字段, 更新类型
 
 

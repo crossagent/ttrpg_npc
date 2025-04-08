@@ -5,8 +5,9 @@ from autogen_agentchat.agents import BaseChatAgent
 
 from src.models.game_state_models import GameState
 from src.models.scenario_models import Scenario
-from src.engine.scenario_manager import ScenarioManager # Import ScenarioManager
-from src.engine.chat_history_manager import ChatHistoryManager # Import ChatHistoryManager
+from src.engine.scenario_manager import ScenarioManager
+from src.engine.chat_history_manager import ChatHistoryManager
+from src.engine.game_state_manager import GameStateManager # +++ Import GameStateManager +++
 from src.models.action_models import PlayerAction, ActionResult
 from src.agents.dm_agent import DMAgent
 from src.agents.companion_agent import CompanionAgent
@@ -21,23 +22,25 @@ class AgentManager:
     """
     Agent管理器类，负责管理DM和玩家的AI代理，处理决策生成。
     """
-    
-    def __init__(self, game_state: GameState, scenario_manager: ScenarioManager, chat_history_manager: ChatHistoryManager): # Add chat_history_manager
+
+    def __init__(self, game_state: GameState, scenario_manager: ScenarioManager, chat_history_manager: ChatHistoryManager, game_state_manager: GameStateManager): # +++ Add game_state_manager +++
         """
         初始化Agent系统
-        
+
         Args:
             game_state: 游戏状态
             scenario_manager: ScenarioManager 实例
-            chat_history_manager: ChatHistoryManager 实例 # Add doc
+            chat_history_manager: ChatHistoryManager 实例
+            game_state_manager: GameStateManager 实例 # +++ Add doc +++
         """
         self.dm_agent: Optional[DMAgent] = None
         # 这个字典现在会存储 PlayerAgent 和 CompanionAgent 实例
         self.player_agents: Dict[str, Union[PlayerAgent, CompanionAgent]] = {}
         self.referee_agent: Optional[RefereeAgent] = None # 添加 referee_agent 属性
         self.game_state = game_state
-        self.scenario_manager = scenario_manager # Store scenario_manager
-        self.chat_history_manager = chat_history_manager # Store chat_history_manager
+        self.scenario_manager = scenario_manager
+        self.chat_history_manager = chat_history_manager
+        self.game_state_manager = game_state_manager # +++ Store game_state_manager +++
         self.all_agents: Dict[str, BaseAgent] = {}  # 存储所有Agent实例，键为agent_id
 
         # 加载LLM配置
@@ -111,7 +114,8 @@ class AgentManager:
                     agent_name=char_info.name,
                     character_id=character_id,
                     scenario_manager=self.scenario_manager,
-                    chat_history_manager=self.chat_history_manager, # Pass chat_history_manager
+                    chat_history_manager=self.chat_history_manager,
+                    # PlayerAgent 可能不需要 GameStateManager，暂时不传
                     model_client=self.model_client
                 )
             elif char_info.is_playable:
@@ -122,7 +126,8 @@ class AgentManager:
                     agent_name=char_info.name,
                     character_id=character_id,
                     scenario_manager=self.scenario_manager,
-                    chat_history_manager=self.chat_history_manager, # Pass chat_history_manager
+                    chat_history_manager=self.chat_history_manager,
+                    game_state_manager=self.game_state_manager, # +++ Pass game_state_manager +++
                     model_client=self.model_client
                 )
             else:

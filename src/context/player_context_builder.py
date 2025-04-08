@@ -58,18 +58,25 @@ def build_decision_system_prompt(charaInfo: ScenarioCharacterInfo) -> str:
    - 表达你真实的情绪和想法
    - 揭示你的担忧、希望或疑虑
 
-5. 行动 (action)：
-   - 清晰描述你决定采取的行动
-   - 包括行动目标、方式和预期效果
-   - 确保行动符合你的角色性格和动机
+5. 行动 (action) 与 微小动作 (minor_action):
+   - **如果 `action_type` 是 "主要行动" (ACTION):** 在 `action` 字段中清晰描述你决定采取的行动，包括目标、方式和预期效果。`minor_action` 字段应为 `null`。
+   - **如果 `action_type` 是 "讨论沟通" (TALK):**
+     - 在 `action` 字段中 **直接输出** 你要说的对话内容，不要添加任何描述性语句（例如，不要写“我说：‘你好’”或“我走向他并说：‘你好’”）。
+     - （可选）在 `minor_action` 字段中，用简短的文字描述一个伴随对话的、非交互性的微小动作（例如：“叹了口气”、“撩了一下头发”、“揉了揉眼睛”）。如果无此动作，则 `minor_action` 字段为 `null`。
+   - **如果 `action_type` 是 "继续旁观" (WAIT):** `action` 字段应简述你的状态（如“继续观察”），`minor_action` 字段应为 `null`。
+   - 确保行动符合你的角色性格和动机。
 
 {model_instruction}
 
-**特别注意：** 在 `internal_thoughts.other_players_assessment` 中，每个角色的 `attitude_toward_self` 字段，其值**必须**严格从以下选项中选择一个：'友好', '中立', '敌对', '未知'。请勿包含任何其他字符或解释。
+**重要输出格式说明：**
+- 你的回应必须是一个包含 `observation`, `internal_thoughts`, `action`, `action_type`, `target`, `minor_action` 字段的 JSON 对象。
+- `internal_thoughts` 必须是一个包含 `short_term_goals`, `primary_emotion`, `psychological_state`, `narrative_analysis`, `other_players_assessment`, `perceived_risks`, `perceived_opportunities` 字段的嵌套 JSON 对象。
+- 在 `internal_thoughts.other_players_assessment` 中，每个角色的 `attitude_toward_self` 字段的值**必须**严格从以下选项中选择一个：'友好', '中立', '敌对', '未知'。
+- `minor_action` 字段**必须**包含在输出中，即使其值为 `null`。
 
-注意：只有"action"部分会被其他人看到，其他部分只有你自己知道。
+注意：只有 `action` 和 `minor_action` 部分会被其他人看到，其他部分只有你自己知道。
 根据当前情境和角色性格来调整你的目标、计划、心情和行动。
-你的回应必须包含上述五个部分，各部分应有明确的逻辑关联，展现角色的思考过程。
+你的回应必须包含上述所有必需的字段，各部分应有明确的逻辑关联，展现角色的思考过程。
 """
 
 def build_decision_user_prompt(

@@ -40,7 +40,9 @@
 
 ## 进行中 / 下一步 (按优先级)
 
-1.  **优化其他 Agent Prompts 和数据源**: (当前最高优先级) 在 DM 叙事优化后，重新审视并优化 `CompanionAgent`, `RefereeAgent` 等的 Prompt 和数据源。
+1.  **实现 CompanionAgent 两阶段思考逻辑**: (当前最高优先级)
+    *   修改 `CompanionAgent` 行动宣告逻辑，引入快速判断（基于目标和受限上下文的 LLM 可行性检查）和深度思考/行动选择。
+    *   优化 `DialogueAction` 模型和生成逻辑（添加 `minor_action`，直接生成对话内容）。
 2.  **更新测试用例**: (优先级次高) 修改或添加测试用例以覆盖新的逻辑和修复。
 3.  **实现未完成的 Handler**: (优先级中)
     *   实现 `TriggerEventHandler`。

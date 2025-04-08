@@ -25,34 +25,37 @@ from src.context.player_context_builder import (
     build_relationship_assessment_system_prompt,
     build_relationship_assessment_user_prompt
 )
-from src.engine.scenario_manager import ScenarioManager # Import ScenarioManager
-from src.engine.chat_history_manager import ChatHistoryManager # Import ChatHistoryManager
-from autogen_agentchat.agents import AssistantAgent # +++ Import AssistantAgent +++
+from src.engine.scenario_manager import ScenarioManager
+from src.engine.chat_history_manager import ChatHistoryManager
+from src.engine.game_state_manager import GameStateManager # +++ Import GameStateManager +++
+from autogen_agentchat.agents import AssistantAgent
 
 class CompanionAgent(BaseAgent):
     """
     AI控制的陪玩角色Agent类，负责生成角色的观察、状态、思考和行动
     """
-    
-    def __init__(self, agent_id: str, agent_name: str, character_id:str, scenario_manager: ScenarioManager, chat_history_manager: ChatHistoryManager, model_client=None): # Add chat_history_manager
+
+    def __init__(self, agent_id: str, agent_name: str, character_id:str, scenario_manager: ScenarioManager, chat_history_manager: ChatHistoryManager, game_state_manager: GameStateManager, model_client=None): # +++ Add game_state_manager +++
         """
         初始化陪玩Agent
-        
+
         Args:
             agent_id: Agent唯一标识符
             agent_name: Agent名称
             character_id: 角色ID
             scenario_manager: ScenarioManager 实例
-            chat_history_manager: ChatHistoryManager 实例 # Add doc
+            chat_history_manager: ChatHistoryManager 实例
+            game_state_manager: GameStateManager 实例 # +++ Add doc +++
             model_client: 模型客户端
         """
         # 初始化BaseAgent
-        super().__init__(agent_id=agent_id, agent_name=agent_name, chat_history_manager=chat_history_manager, model_client=model_client) # Pass chat_history_manager
+        super().__init__(agent_id=agent_id, agent_name=agent_name, chat_history_manager=chat_history_manager, model_client=model_client)
 
         self.character_id = character_id
-        self.scenario_manager = scenario_manager # Store scenario_manager
-        self.chat_history_manager = chat_history_manager # Store chat_history_manager
-        
+        self.scenario_manager = scenario_manager
+        self.chat_history_manager = chat_history_manager
+        self.game_state_manager = game_state_manager # +++ Store game_state_manager +++
+
         # 初始化消息记忆
         self.message_memory: MessageReadMemory = MessageReadMemory(
             player_id=agent_id,
@@ -61,30 +64,111 @@ class CompanionAgent(BaseAgent):
         # +++ Setup logger +++
         self.logger = logging.getLogger(f"CompanionAgent_{agent_name}")
 
+    async def _check_plan_feasibility(
+        self,
+        game_state: GameState,
+        self_char_instance: CharacterInstance
+    ) -> bool:
+        """
+        (私有方法) 使用轻量级LLM调用，基于有限信息（目标+聊天记录）快速判断当前计划是否可行。
+
+        Args:
+            game_state: 当前游戏状态 (主要用于访问 ChatHistoryManager)。
+            self_char_instance: 当前角色的实例。
+
+        Returns:
+            bool: True 如果LLM判断计划可行，False 否则。
+        """
+        if not self_char_instance.short_term_goals:
+            self.logger.info("快速判断：无短期目标，无需判断可行性。")
+            return True # No goals means nothing is infeasible yet
+
+        self.logger.info(f"快速判断：检查目标 {self_char_instance.short_term_goals} 的可行性...")
+
+        # 1. 准备有限上下文
+        goals_text = "\n".join([f"- {goal}" for goal in self_char_instance.short_term_goals])
+        # 获取最近几条相关聊天记录 (示例：最近5条涉及自己的)
+        # TODO: Refine history retrieval logic if needed
+        try:
+            recent_history = self.chat_history_manager.get_messages(
+                start_round=max(0, game_state.round_number - 1), # Example: last round + current
+                involved_character_ids=[self.character_id]
+            )
+            history_text = "\n".join([f"{msg.source_name}: {msg.content}" for msg in recent_history[-5:]]) # Limit context size
+        except Exception as hist_err:
+            self.logger.warning(f"快速判断：获取聊天记录时出错: {hist_err}。继续，但可能影响判断准确性。")
+            history_text = "无法获取最近的对话记录。"
+
+        # 2. 构建 Prompt (简化版，未来可移至 context_builder)
+        system_prompt = "你是一个角色的快速直觉判断模块。根据角色当前的短期目标和最近的对话，快速判断继续执行这些目标在当前情境下是否看起来可行。不要进行深入分析，只做快速评估。请只回答 '可行' 或 '不可行'。"
+        user_prompt = f"""
+角色当前的短期目标:
+{goals_text}
+
+最近的相关对话:
+{history_text}
+
+基于以上信息，快速判断现在继续执行这些目标是否看起来可行？请只回答 '可行' 或 '不可行'。
+"""
+
+        # 3. 调用 LLM
+        assistant_name = f"{self.agent_name}_feasibility_checker_{uuid.uuid4().hex}"
+        assistant = AssistantAgent(
+            name=assistant_name,
+            model_client=self.model_client,
+            system_message=system_prompt
+        )
+        user_message = TextMessage(content=user_prompt, source="system")
+        response_content = ""
+
+        try:
+            response = await assistant.on_messages([user_message], CancellationToken())
+            if response and response.chat_message and response.chat_message.content:
+                response_content = response.chat_message.content.strip().lower()
+                self.logger.info(f"快速判断 LLM 响应: '{response_content}'")
+                # 简单判断
+                if "可行" in response_content and "不可行" not in response_content:
+                    return True
+                elif "不可行" in response_content:
+                    return False
+                else:
+                    self.logger.warning(f"快速判断：LLM响应无法明确判断可行性 ('{response_content}')，默认为不可行。")
+                    return False # Default to infeasible if unclear
+            else:
+                self.logger.warning("快速判断：未能从LLM获取有效响应，默认为不可行。")
+                return False # Default to infeasible on LLM error
+
+        except Exception as e:
+            self.logger.exception(f"快速判断：调用LLM时发生意外错误: {str(e)}，默认为不可行。")
+            return False # Default to infeasible on exception
+
     async def _assess_relationship_impact(
         self,
-        interacting_actor_instance: CharacterInstance, # The one who performed the action (e.g., player)
-        interaction_content: str, # The action/dialogue content
+        interacting_actor_instance: CharacterInstance,
+        interaction_content: str,
         game_state: GameState
-    ) -> Optional[RelationshipImpactAssessment]:
+    ) -> None: # +++ Changed return type to None +++
         """
-        (私有方法) 使用LLM评估特定互动对自身关系的影响。
+        (私有方法) 使用LLM评估特定互动对自身关系的影响，并 **立即应用** 产生的后果。
 
         Args:
             interacting_actor_instance: 发起互动的角色实例。
             interaction_content: 具体的行动或对话内容。
             game_state: 当前游戏状态。
 
-        Returns:
-            Optional[RelationshipImpactAssessment]: LLM评估结果，如果评估失败则返回None。
+        Args:
+            interacting_actor_instance: 发起互动的角色实例。
+            interaction_content: 具体的行动或对话内容。
+            game_state: 当前游戏状态。
         """
         # Get self's info
         self_char_instance = game_state.characters.get(self.character_id)
         self_char_info = self.scenario_manager.get_character_info(self.character_id)
+        player_id = interacting_actor_instance.character_id # Get player ID for consequence
 
         if not self_char_instance or not self_char_info:
             self.logger.error(f"无法获取角色 {self.character_id} 的实例或模板信息，无法评估关系影响。")
-            return None
+            return # Return None implicitly
 
         self.logger.info(f"评估 {interacting_actor_instance.name} 对 {self_char_info.name} 的互动影响: '{interaction_content}'")
 
@@ -114,7 +198,7 @@ class CompanionAgent(BaseAgent):
             response = await assistant.on_messages([user_message], CancellationToken())
             if not response or not response.chat_message or not response.chat_message.content:
                 self.logger.warning(f"未能从LLM获取有效的关系影响评估响应。")
-                return None
+                return # Return None implicitly
 
             response_content = response.chat_message.content
 
@@ -131,17 +215,33 @@ class CompanionAgent(BaseAgent):
                 # 验证并创建 RelationshipImpactAssessment 对象
                 assessment = RelationshipImpactAssessment(**response_data)
                 self.logger.info(f"关系影响评估结果: 类型={assessment.interaction_type.value}, 强度={assessment.intensity.value}, 建议变化={assessment.suggested_change}, 原因={assessment.reason}")
-                return assessment
+
+                # +++ 如果评估成功且建议变化不为0，则立即应用后果 +++
+                if assessment and assessment.suggested_change != 0:
+                    relationship_consequence = ChangeRelationshipConsequence(
+                        type=ConsequenceType.CHANGE_RELATIONSHIP.value,
+                        target_entity_id=self.character_id,
+                        secondary_entity_id=player_id,
+                        value=float(assessment.suggested_change),
+                        metadata={"reason": assessment.reason, "interaction_msg_id": "N/A"} # TODO: Pass interaction message ID if available
+                    )
+                    # 调用 GameStateManager 的新方法来立即应用
+                    apply_desc = await self.game_state_manager.apply_single_consequence_immediately(
+                        relationship_consequence, game_state
+                    )
+                    if apply_desc:
+                        self.logger.info(f"立即应用关系变化后果成功: {apply_desc}")
+                    else:
+                        self.logger.warning(f"立即应用关系变化后果时未收到描述 (可能失败或无描述)。")
+                # +++ 立即应用结束 +++
+
             except json.JSONDecodeError as e:
                 self.logger.error(f"_assess_relationship_impact JSON解析失败。错误: {e}。原始JSON: '{json_str}'.")
-                return None
             except Exception as pydantic_err: # Catch Pydantic validation errors
                 self.logger.error(f"_assess_relationship_impact Pydantic模型验证失败: {pydantic_err}. Data: {response_data}")
-                return None
 
         except Exception as e:
             self.logger.exception(f"评估关系影响时发生意外错误: {str(e)}")
-            return None
 
     def update_context(self, message: Message) -> None:
         """
@@ -236,13 +336,13 @@ class CompanionAgent(BaseAgent):
             charaInfo: 当前玩家角色的剧本信息 (注意：这里参数名可能应为 self_charaInfo)
 
         Returns:
-            PlayerAction: AI 角色的行动，包含其内部产生的关系变化后果
+            PlayerAction: AI 角色的行动
         """
-        # +++ 新增：关系评估逻辑 +++
-        relationship_consequences: List[AnyConsequence] = [] # Update type hint
+        # +++ 移除 relationship_consequences 列表初始化 +++
         player_id = game_state.player_character_id
         player_instance = game_state.characters.get(player_id) if player_id else None
 
+        # +++ 关系评估逻辑现在只调用评估和应用，不收集后果 +++
         if player_instance and game_state.round_number > 0:
             try:
                 # 获取上一回合的消息
@@ -258,24 +358,13 @@ class CompanionAgent(BaseAgent):
                 if player_interactions:
                     self.logger.info(f"找到 {len(player_interactions)} 条上一回合来自玩家 {player_instance.name} 的互动，开始评估关系影响...")
                     for interaction_msg in player_interactions:
-                        # 调用评估方法
-                        assessment = await self._assess_relationship_impact(
+                        # 调用评估方法，该方法内部会尝试立即应用后果
+                        await self._assess_relationship_impact(
                             interacting_actor_instance=player_instance,
                             interaction_content=interaction_msg.content,
                             game_state=game_state
                         )
-                        # 如果评估成功且建议变化不为0，则创建后果
-                        if assessment and assessment.suggested_change != 0:
-                            # Create the specific ChangeRelationshipConsequence, explicitly setting the type
-                            relationship_consequence = ChangeRelationshipConsequence(
-                                type=ConsequenceType.CHANGE_RELATIONSHIP.value, # +++ Explicitly set type +++
-                                target_entity_id=self.character_id, # 目标是自己
-                                secondary_entity_id=player_id,      # 另一方是玩家
-                                value=float(assessment.suggested_change), # Ensure value is float
-                                metadata={"reason": assessment.reason, "interaction_msg_id": interaction_msg.message_id} # 添加原因和来源消息ID
-                            )
-                            relationship_consequences.append(relationship_consequence)
-                            self.logger.info(f"生成关系变化后果: 对 {player_instance.name} 关系变化 {assessment.suggested_change}")
+                        # 不再需要在这里收集后果
                 else:
                     self.logger.info(f"上一回合未找到来自玩家 {player_instance.name} 的直接互动。")
 
@@ -285,26 +374,62 @@ class CompanionAgent(BaseAgent):
              self.logger.warning("无法找到玩家实例，跳过关系评估。")
         # +++ 关系评估逻辑结束 +++
 
+        # --- 两阶段思考逻辑开始 ---
+
+        # 1. 获取自身实例和信息
+        self_char_instance = game_state.characters.get(self.character_id)
+        self_chara_info = self.scenario_manager.get_character_info(self.character_id) # charaInfo 参数未使用，直接获取
+
+        if not self_char_instance or not self_chara_info:
+            self.logger.error(f"无法获取角色 {self.character_id} 的实例或模板信息，无法生成行动！")
+            return PlayerAction(
+                character_id=self.character_id,
+                action_type=ActionType.WAIT,
+                content="内部错误：无法获取角色信息",
+                generated_consequences=[] # 移除旧的后果列表
+            )
+
+        # 2. 快速判断阶段
+        # 检查是否有短期目标
+        if not self_char_instance.short_term_goals:
+            self.logger.info(f"{self.agent_name}: 无短期目标，选择等待并进行深度思考。")
+            # TODO: 可以在这里显式触发一次深度思考/计划生成，或者依赖下回合的上下文让主LLM生成
+            return PlayerAction(
+                character_id=self.character_id,
+                action_type=ActionType.WAIT,
+                content="思考下一步计划...", # 或者更符合角色的内心独白
+                internal_thoughts=None, # 稍后由主LLM生成
+                generated_consequences=[] # 移除旧的后果列表
+            )
+
+        # 如果有目标，进行快速可行性判断
+        try:
+            is_feasible = await self._check_plan_feasibility(game_state, self_char_instance)
+        except Exception as feas_err:
+            self.logger.exception(f"快速可行性判断出错: {feas_err}")
+            is_feasible = False # Assume infeasible on error
+
+        if not is_feasible:
+            self.logger.info(f"{self.agent_name}: 快速判断认为目标不可行，选择等待并进行深度思考。")
+            # TODO: 可以在这里显式触发一次深度思考/计划生成，或者依赖下回合的上下文让主LLM生成
+            return PlayerAction(
+                character_id=self.character_id,
+                action_type=ActionType.WAIT,
+                content="重新评估当前情况...", # 或者更符合角色的内心独白
+                internal_thoughts=None, # 稍后由主LLM生成
+                generated_consequences=[] # 移除旧的后果列表
+            )
+
+        # 3. 深度思考 / 行动选择阶段 (快速判断通过)
+        self.logger.info(f"{self.agent_name}: 快速判断通过，进入深度思考/行动选择。")
 
         # 获取未读消息 (This also marks them as read in memory)
-        unread_messages = self.get_unread_messages(game_state)
+        unread_messages = self.get_unread_messages(game_state) # 移到这里，只有在需要深度思考时才获取
 
-        # 生成系统消息 (注意：参数 charaInfo 应该是 self 的信息)
-        # TODO: 确认传入的 charaInfo 是否正确，或者应该从 scenario_manager 获取
-        self_chara_info = self.scenario_manager.get_character_info(self.character_id)
-        if not self_chara_info:
-             self.logger.error(f"无法获取角色 {self.character_id} 的模板信息，无法生成行动！")
-             # 返回一个表示错误的默认行动
-             return PlayerAction(
-                 character_id=self.character_id,
-                 action_type=ActionType.WAIT,
-                 content="内部错误：无法获取角色信息",
-                 generated_consequences=relationship_consequences # 即使出错也附加已生成的关系后果
-             )
-        system_message = build_decision_system_prompt(self_chara_info) # 使用 self_chara_info
+        # 生成系统消息
+        system_message = build_decision_system_prompt(self_chara_info)
 
-        # 直接创建新的AssistantAgent实例
-        # from autogen_agentchat.agents import AssistantAgent # 已在文件顶部导入
+        # 创建主决策 AssistantAgent 实例
         assistant = AssistantAgent(
             name=f"{self.agent_name}_action_decider_{uuid.uuid4().hex}", # 更明确的名称
             model_client=self.model_client,
@@ -339,12 +464,12 @@ class CompanionAgent(BaseAgent):
                     # +++ 注意：移除 timestamp，通常在更高层处理 +++
                     return PlayerAction(
                         character_id=self.character_id,
-                        internal_thoughts=validated_data.internal_thoughts, # 使用 internal_thoughts
+                        internal_thoughts=validated_data.internal_thoughts,
                         action_type=validated_data.action_type,
-                        content=validated_data.action,
+                        content=validated_data.action, # This is the main dialogue/action content
                         target=validated_data.target,
-                        # timestamp=datetime.now().isoformat() # Timestamp 通常在更高层添加或不需要
-                        generated_consequences=relationship_consequences # +++ 附加后果 +++
+                        minor_action=validated_data.minor_action, # +++ 添加 minor_action +++
+                        generated_consequences=[] # 移除旧的后果列表
                     )
                 except LLMOutputError as e:
                     # 处理验证错误，使用默认值
@@ -359,12 +484,12 @@ class CompanionAgent(BaseAgent):
                     # +++ 注意：修复 internal_thoughts 拼写，设为 None +++
                     return PlayerAction(
                         character_id=self.character_id,
-                        internal_thoughts=None, # 设置为 None 或默认 InternalThoughts
-                        action_type=ActionType.WAIT, # Default to WAIT on error
+                        internal_thoughts=None,
+                        action_type=ActionType.WAIT,
                         content=action_content,
-                        target=None, # Default target
-                        # timestamp=datetime.now().isoformat()
-                        generated_consequences=relationship_consequences # +++ 附加后果 +++
+                        target=None,
+                        minor_action=None, # +++ 添加 minor_action (None on error) +++
+                        generated_consequences=[] # 移除旧的后果列表
                     )
             else:
                  self.logger.warning(f"CompanionAgent {self.agent_id} received no valid response from LLM assistant.")
@@ -373,13 +498,14 @@ class CompanionAgent(BaseAgent):
                  return PlayerAction(
                         character_id=self.character_id,
                         internal_thoughts=None,
-                        action_type=ActionType.WAIT, # Default to WAIT
-                        content="...", # Indicate waiting or observing
+                        action_type=ActionType.WAIT,
+                        content="...",
                         target=None,
-                        # timestamp=datetime.now().isoformat()
-                        generated_consequences=relationship_consequences # +++ 附加后果 +++
+                        minor_action=None, # +++ 添加 minor_action (None on error) +++
+                        generated_consequences=[] # 移除旧的后果列表
                     )
 
+        # --- 两阶段思考逻辑结束 ---
 
         except Exception as e:
             # Log the full error and the response content if available
@@ -396,5 +522,6 @@ class CompanionAgent(BaseAgent):
                    action_type=ActionType.WAIT,
                    content="内部错误：决策时发生异常",
                    target=None,
-                   generated_consequences=relationship_consequences # +++ 附加后果 +++
+                   minor_action=None, # +++ 添加 minor_action (None on error) +++
+                   generated_consequences=[] # 移除旧的后果列表
                )
