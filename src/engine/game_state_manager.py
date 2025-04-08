@@ -433,12 +433,15 @@ class GameStateManager:
                     # 同时，Handler 内部应该已经修改了传入的 game_state 对象。
                     # Handler 内部也负责记录 AppliedConsequenceRecord 到 game_state.current_round_applied_consequences
                 else:
-                    self.logger.warning(f"立即应用后果 '{consequence.type.value}' 时，Handler 未返回描述 (可能应用失败或无描述)。")
+                    # Use consequence.type directly as it's already a string
+                    self.logger.warning(f"立即应用后果 '{consequence.type}' 时，Handler 未返回描述 (可能应用失败或无描述)。")
             else:
-                self.logger.warning(f"未找到后果类型 '{consequence.type.value}' 的处理程序。无法立即应用。")
+                 # Use consequence.type directly as it's already a string
+                self.logger.warning(f"未找到后果类型 '{consequence.type}' 的处理程序。无法立即应用。")
 
         except Exception as e:
-            self.logger.exception(f"立即应用后果 '{consequence.type.value}' 时发生意外错误: {e}")
+             # Use consequence.type directly as it's already a string
+            self.logger.exception(f"立即应用后果 '{consequence.type}' 时发生意外错误: {e}")
             # 可以在这里尝试记录失败，如果 Handler 支持的话
 
         # 更新最后修改时间 (即使只应用一个后果也更新)
