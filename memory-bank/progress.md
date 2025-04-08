@@ -37,14 +37,19 @@
 *   **修复 DM 叙事角色描述问题**:
     *   修改了 `src/context/context_utils.py` 中的 `format_current_stage_characters` 函数，使其总是包含玩家和伙伴角色，并结合剧本阶段定义的 NPC，同时移除了会导致问题的角色类型标签输出。
     *   修改了 `src/context/dm_context_builder.py` 中的 `build_narrative_user_prompt` 函数，优化了 Prompt 指令，明确告知 DM 如何处理提供的角色列表和未列出的背景人物（使用通用代称，禁止虚构名字），避免了指令中的标签被直接输出。
+*   **实现 CompanionAgent 两阶段思考逻辑**:
+    *   在 `src/agents/companion_agent.py` 中添加了 `_trigger_deep_thinking` 方法，用于在决定等待时生成下一回合的短期目标。
+    *   在 `src/context/player_context_builder.py` 中添加了相应的 Prompt 构建函数 (`build_goal_generation_system_prompt`, `build_goal_generation_user_prompt`) 并修复了导入错误。
 
 ## 进行中 / 下一步 (按优先级)
 
-1.  **实现 CompanionAgent 两阶段思考逻辑**: (当前最高优先级)
-    *   修改 `CompanionAgent` 行动宣告逻辑，引入快速判断（基于目标和受限上下文的 LLM 可行性检查）和深度思考/行动选择。
-    *   优化 `DialogueAction` 模型和生成逻辑（添加 `minor_action`，直接生成对话内容）。
-2.  **更新测试用例**: (优先级次高) 修改或添加测试用例以覆盖新的逻辑和修复。
-3.  **实现未完成的 Handler**: (优先级中)
+1.  **测试 CompanionAgent 修复**: (当前最高优先级) 运行游戏，观察 `CompanionAgent` 是否能在等待后生成新目标并继续行动。
+2.  **对话生成优化**: (优先级次高)
+    *   修改 `DialogueAction` 模型 (`src/models/action_models.py`)，增加 `minor_action: Optional[str]` 字段。
+    *   修改 `CompanionAgent` 生成对话的 Prompt (`build_decision_system_prompt`)，要求直接输出对话内容，并鼓励根据情境填充 `minor_action`。
+    *   更新 `CompanionAgent` 代码以解析和填充新的 `DialogueAction` 字段。
+3.  **更新测试用例**: (优先级中) 修改或添加测试用例以覆盖新的逻辑和修复。
+4.  **实现未完成的 Handler**: (优先级中)
     *   实现 `TriggerEventHandler`。
     *   将它们添加到 `HANDLER_REGISTRY`。
 5.  **更新数据模型 (Models):** (优先级中)

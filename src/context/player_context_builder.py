@@ -1,11 +1,13 @@
 """
 玩家上下文构建模块，负责构建玩家Agent所需的各类上下文文本。
 """
+import logging # +++ Add logging import +++
 from typing import List, Dict, Any, Optional
 # +++ 添加 CharacterInstance 导入 +++
 from src.models.game_state_models import GameState, CharacterInstance
 from src.models.message_models import Message
 from src.engine.scenario_manager import ScenarioManager # Import ScenarioManager
+from src.engine.chat_history_manager import ChatHistoryManager # +++ Add ChatHistoryManager import +++
 from src.context.context_utils import format_messages
 # +++ 添加 RelationshipImpactAssessment 导入 +++
 from src.models.action_models import RelationshipImpactAssessment
@@ -303,5 +305,110 @@ def build_relationship_assessment_user_prompt(
 
 {context_summary}
 
-请根据你的内在设定和当前好感度，评估这次互动对你与 {interacting_actor_instance.name} 关系的影响。
+    请根据你的内在设定和当前好感度，评估这次互动对你与 {interacting_actor_instance.name} 关系的影响。
+"""
+
+
+# +++ 新增：目标生成 Prompt 构建函数 +++
+
+def build_goal_generation_system_prompt(charaInfo: ScenarioCharacterInfo) -> str:
+    """
+    构建目标生成的系统提示。
+    指示 LLM (扮演 NPC 自身) 基于长期目标、当前状态和情境生成短期目标。
+    """
+    # TODO: Refine this prompt based on desired goal generation behavior
+    return f"""你正在扮演角色 {charaInfo.name} ({charaInfo.public_identity})。
+你的长期目标是：{charaInfo.secret_goal if charaInfo.secret_goal else '未明确'}
+你的背景：{charaInfo.background}
+你的性格特点：{charaInfo.personality_summary if charaInfo.personality_summary else '未明确'}
+你的核心价值观：{', '.join(charaInfo.values) if charaInfo.values else '未明确'}
+你的喜好：{', '.join(charaInfo.likes) if charaInfo.likes else '未明确'}
+你的厌恶：{', '.join(charaInfo.dislikes) if charaInfo.dislikes else '未明确'}
+
+当前你因为没有明确的短期计划或之前的计划不可行而进入了思考状态。
+你需要根据你的长期目标、性格、价值观以及当前的游戏情境，生成 1-3 个具体的、可在接下来一两个回合内尝试执行的短期目标。
+
+重要要求：
+- 目标应该是具体的行动步骤，而不是模糊的意图。
+- 目标应该与你的长期目标和角色设定相关。
+- 考虑当前环境、在场人物和最近发生的事件。
+- 每个目标占一行，直接输出目标文本，不要添加序号或其他标记。
+
+示例输出格式：
+找到维克多的办公室钥匙
+向瑞秋打听卡特最近的行踪
+检查吧台下面是否有隐藏的开关
+"""
+
+def build_goal_generation_user_prompt(
+    game_state: GameState,
+    scenario_manager: ScenarioManager,
+    chat_history_manager: "ChatHistoryManager", # Forward reference if needed
+    character_id: str
+) -> str:
+    """
+    构建目标生成的用户提示。
+    提供 LLM (扮演 NPC 自身) 进行规划所需的上下文。
+    """
+    # 获取角色实例和静态信息
+    character_instance = game_state.characters.get(character_id)
+    character_info = scenario_manager.get_character_info(character_id)
+    if not character_instance or not character_info:
+        return "错误：无法获取角色信息，无法生成目标。"
+
+    # 获取当前位置信息
+    current_location_id = character_instance.location
+    location_desc = "未知地点"
+    current_location = scenario_manager.get_location_info(current_location_id)
+    if current_location:
+        location_desc = current_location.description
+
+    # 获取同一位置的其他角色
+    other_characters = []
+    for char_id, char in game_state.characters.items():
+        if char_id != character_id and char.location == current_location_id:
+            # 获取更详细的信息，例如状态或与自己的关系
+            other_char_info = scenario_manager.get_character_info(char_id)
+            other_char_desc = f"{char.name} ({other_char_info.public_identity if other_char_info else '未知身份'})"
+            if char.status:
+                 other_char_desc += f" [状态: {char.status}]"
+            # 可以考虑添加关系值，如果需要的话
+            # rel_value = character_instance.relationships.get(char_id, 0) # Assuming relationships dict exists
+            # other_char_desc += f" [关系: {rel_value}]"
+            other_characters.append(other_char_desc)
+
+    other_chars_text = "\n  - ".join(other_characters) if other_characters else "无"
+
+    # 获取最近的聊天记录 (示例：最近2轮)
+    try:
+        recent_history = chat_history_manager.get_messages(
+            start_round=max(0, game_state.round_number - 2) # Example: last 2 rounds
+            # Removed limit=10 argument as it's not supported by the method
+        )
+        history_text = format_messages(recent_history) # Use existing formatter
+    except Exception as hist_err:
+        logging.warning(f"目标生成：获取聊天记录时出错: {hist_err}。")
+        history_text = "无法获取最近的对话记录。"
+
+    # 获取角色当前状态和关键记忆 (如果存在)
+    status_text = f"你当前的状态是：{character_instance.status if character_instance.status else '正常'}"
+    memories_text = "关键记忆：\n  - " + "\n  - ".join(character_instance.key_memories) if character_instance.key_memories else "无关键记忆"
+
+    return f"""
+【深度思考：规划短期目标】
+
+当前回合: {game_state.round_number}
+你当前位置: {current_location_id} ({location_desc})
+当前在场角色:
+  - {other_chars_text}
+
+你的状态: {status_text}
+{memories_text}
+你的长期目标: {character_info.secret_goal if character_info.secret_goal else '未明确'}
+
+最近的对话/事件回顾:
+{history_text}
+
+基于以上信息，特别是你的长期目标、当前状态、记忆和周围环境，请生成 1-3 个具体的短期目标，供你在接下来的一两个回合尝试执行。
+请直接输出目标列表，每个目标占一行。
 """
