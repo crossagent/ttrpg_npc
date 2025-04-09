@@ -79,7 +79,7 @@ class JudgementPhase(BaseRoundPhase):
                 all_action_consequences.extend(ar.action.generated_consequences)
 
         if all_action_consequences:
-            self.logger.info(f"步骤 3: 准备应用 {len(all_action_consequences)} 条行动产生的后果...")
+            self.logger.info1(f"步骤 3: 准备应用 {len(all_action_consequences)} 条行动产生的后果...")
             try:
                 # 调用 GameStateManager 应用后果 (假设它会处理记录 AppliedConsequenceRecord)
                 await self.game_state_manager.apply_consequences(all_action_consequences)
