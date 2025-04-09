@@ -36,6 +36,67 @@ class ActionDeclarationPhase(BaseRoundPhase):
     def __init__(self, context: PhaseContext):
         super().__init__(context)
 
+    # +++ 修改：合并广播和记录到同一个辅助函数 +++
+    async def _broadcast_and_record_action(self, player_action: PlayerAction, game_state: GameState):
+        """Helper method to broadcast the action and record it to game state."""
+        # 1. Broadcast the message
+        if not self.context.message_dispatcher:
+            self.logger.warning(f"角色 {player_action.character_id} 无法发送行动宣告：未找到 message_dispatcher。")
+            # Continue to record even if broadcast fails
+        else:
+            character_state = game_state.characters.get(player_action.character_id)
+            character_name = character_state.name if character_state else player_action.character_id
+            message_id = str(uuid.uuid4())
+            timestamp = datetime.now().isoformat() # Use broadcast/record time
+            sender_role = SenderRole.PLAYER_CHARACTER
+
+            if player_action.action_type == ActionType.TALK:
+                message_type = MessageType.DIALOGUE
+            elif player_action.action_type == ActionType.ACTION:
+                message_type = MessageType.ACTION_DECLARATION
+            elif player_action.action_type == ActionType.WAIT:
+                message_type = MessageType.WAIT_NOTIFICATION
+            else:
+                message_type = MessageType.SYSTEM_INFO
+                self.logger.warning(f"未知的 ActionType '{player_action.action_type}' (角色: {player_action.character_id})，消息类型设为 SYSTEM_INFO。")
+
+            action_message = Message(
+                message_id=message_id,
+                sender_role=sender_role,
+                type=message_type,
+                source=character_name,
+                source_id=player_action.character_id,
+                content=player_action.content,
+                timestamp=timestamp,
+                visibility=MessageVisibility.PUBLIC,
+                recipients=self.agent_manager.get_all_agent_ids(),
+                round_id=self.current_round_id
+            )
+            try:
+                all_agent_ids = self.agent_manager.get_all_agent_ids()
+                if hasattr(self.context.message_dispatcher, 'broadcast_message'):
+                    self.context.message_dispatcher.broadcast_message(action_message)
+                elif hasattr(self.context.message_dispatcher, 'send_message'):
+                    self.context.message_dispatcher.send_message(action_message, recipients=all_agent_ids)
+                else:
+                    self.logger.error(f"Message dispatcher for {player_action.character_id} has no suitable send method.")
+
+                self.logger.debug(f"角色 {player_action.character_id} 的行动宣告消息已发送。")
+            except Exception as send_err:
+                self.logger.error(f"为角色 {player_action.character_id} 发送行动宣告消息时出错: {send_err}")
+
+        # 2. Record the action to game_state
+        if game_state:
+            # Ensure the list exists. This check is slightly redundant if execute() guarantees init, but safe.
+            if not hasattr(game_state, 'current_round_actions') or game_state.current_round_actions is None:
+                self.logger.warning("'_broadcast_and_record_action' 发现 'current_round_actions' 未初始化，正在创建。")
+                game_state.current_round_actions = []
+            game_state.current_round_actions.append(player_action)
+            self.logger.debug(f"角色 {player_action.character_id} 的行动已记录到 GameState ({len(game_state.current_round_actions)} total)。")
+        else:
+            self.logger.error(f"无法记录角色 {player_action.character_id} 的行动：GameState 为 None。")
+    # +++ 修改结束 +++
+
     async def _get_player_agent_action(
         self,
         agent: PlayerAgent,
@@ -43,19 +104,20 @@ class ActionDeclarationPhase(BaseRoundPhase):
         game_state: GameState,
         character_info: ScenarioCharacterInfo
     ) -> Optional[PlayerAction]:
-        """获取单个 PlayerAgent 的行动。"""
-        self.logger.debug(f"玩家代理 {agent.agent_id} 正在生成行动选项...")
+        """获取单个 PlayerAgent 的行动，并广播/记录。"""
+        self.logger.debug(f"玩家代理 {agent.agent_id} ({character_id}) 正在生成行动选项...")
+        options: List[ActionOption] = []
         try:
             options = await agent.generate_action_options(game_state, character_info)
         except Exception as gen_err:
             self.logger.error(f"玩家代理 {character_id} 生成选项时出错: {gen_err}")
-            options = [] # 出错则无选项
+            options = []
 
         chosen_option: Optional[ActionOption] = None
         input_handler = self.context.input_handler
 
         if input_handler and options:
-            self.logger.info(f"使用 Input Handler ({type(input_handler).__name__}) 获取角色 {character_id} 的选择...")
+            self.logger.info(f"使用 Input Handler 获取角色 {character_id} 的选择...")
             try:
                 chosen_option = await input_handler.get_player_choice(
                     options=options,
@@ -64,35 +126,41 @@ class ActionDeclarationPhase(BaseRoundPhase):
                 )
             except Exception as input_err:
                 self.logger.error(f"从 Input Handler 获取角色 {character_id} 选择时出错: {input_err}")
-                chosen_option = options[0] # 备选：选第一个
-                self.logger.warning(f"Input Handler 出错，自动选择第一个选项: {chosen_option}")
+                if options:
+                    chosen_option = options[0]
+                    self.logger.warning(f"Input Handler 出错，自动选择第一个选项: {chosen_option}")
         elif options:
             self.logger.warning(f"未配置 Input Handler 或选项为空，将自动为角色 {character_id} 选择第一个选项。")
             chosen_option = options[0]
-            print(f"警告：未配置 Input Handler 或选项为空，自动为角色 {character_id} 选择第一个选项。")
 
+        player_action: Optional[PlayerAction] = None
         if chosen_option:
             self.logger.info(f"角色 {character_id} 选择了行动: [{chosen_option.action_type.name}] {chosen_option.content}")
-            return PlayerAction(
+            player_action = PlayerAction(
                 character_id=character_id,
                 action_type=chosen_option.action_type,
                 content=chosen_option.content,
                 target=chosen_option.target,
-                # Use helper function for default thoughts
                 internal_thoughts=create_default_thoughts(reason="行动由玩家选择。", round_id=self.current_round_id),
-                timestamp=datetime.now().isoformat() # Keep timestamp as ISO string for PlayerAction model if needed, or adjust model
+                timestamp=datetime.now().isoformat()
             )
         else:
             self.logger.error(f"玩家代理 {character_id} 未能生成有效选项或接收选择。创建默认等待行动。")
-            return PlayerAction(
+            player_action = PlayerAction(
                 character_id=character_id,
                 action_type=ActionType.WAIT,
                 content="...",
                 target="environment",
-                 # Use helper function for default thoughts
                 internal_thoughts=create_default_thoughts(reason="未能选择行动。", round_id=self.current_round_id),
                 timestamp=datetime.now().isoformat()
             )
+
+        # --- 修改：调用新的合并辅助函数 ---
+        if player_action:
+            await self._broadcast_and_record_action(player_action, game_state)
+        # --- 修改结束 ---
+
+        return player_action # 返回创建的行动对象 (用于 gather 的结果收集)
 
     async def _get_companion_agent_action(
         self,
@@ -101,41 +169,60 @@ class ActionDeclarationPhase(BaseRoundPhase):
         game_state: GameState,
         character_info: ScenarioCharacterInfo
     ) -> Optional[PlayerAction]:
-        """获取单个 CompanionAgent 的行动。"""
-        self.logger.debug(f"陪玩代理 {agent.agent_id} 正在决定行动...")
+        """获取单个 CompanionAgent 的行动，并广播/记录。"""
+        self.logger.debug(f"陪玩代理 {agent.agent_id} ({character_id}) 正在决定行动...")
+        player_action: Optional[PlayerAction] = None
         try:
             player_action = await agent.player_decide_action(game_state, character_info)
             if player_action:
                  self.logger.info(f"陪玩代理 {character_id} 决定了行动: [{player_action.action_type.name}] {player_action.content[:50]}...")
-            return player_action
+            # else: player_action remains None
+
         except Exception as decide_err:
             self.logger.error(f"陪玩代理 {character_id} 决定行动时出错: {decide_err}")
-            # 出错时创建默认等待行动
-            return PlayerAction(
-                character_id=character_id,
-                action_type=ActionType.WAIT,
-                content="...",
-                target="environment",
-                # Use helper function for default thoughts
-                internal_thoughts=create_default_thoughts(reason=f"决定行动时出错: {decide_err}", round_id=self.current_round_id),
-                timestamp=datetime.now().isoformat()
-            )
+            player_action = None # Ensure default action is created below
+
+        if player_action is None:
+             self.logger.warning(f"陪玩代理 {character_id} 未能决定行动或出错。创建默认等待行动。")
+             player_action = PlayerAction(
+                 character_id=character_id,
+                 action_type=ActionType.WAIT,
+                 content="...",
+                 target="environment",
+                 internal_thoughts=create_default_thoughts(reason="未能决定行动或出错。", round_id=self.current_round_id),
+                 timestamp=datetime.now().isoformat()
+             )
+
+        # --- 修改：调用新的合并辅助函数 ---
+        if player_action: # Should always be true here
+            await self._broadcast_and_record_action(player_action, game_state)
+        # --- 修改结束 ---
+
+        return player_action # 返回创建的行动对象 (用于 gather 的结果收集)
 
     async def execute(self) -> List[PlayerAction]:
         """
-        执行行动宣告阶段逻辑（并行）。
+        执行行动宣告阶段逻辑（并行，消息广播和状态记录在任务内部完成）。
 
         Returns:
-            List[PlayerAction]: 本回合所有宣告的玩家/陪玩行动列表。
+            List[PlayerAction]: 本回合所有宣告的玩家/陪玩行动列表 (主要用于日志或返回值)。
         """
-        self.logger.info("--- 开始行动宣告阶段 (并行) ---")
+        self.logger.info("--- 开始行动宣告阶段 (并行, 广播与记录在任务内) ---")
         tasks = []
         game_state = self.get_current_state()
-        all_agent_ids = self.agent_manager.get_all_agent_ids() # 获取一次接收者列表
 
-        # 1. 创建所有代理的行动决定任务
+        # --- 新增：在任务开始前确保 GameState 和行动列表存在并初始化 ---\n
+        if not game_state:
+            self.logger.error("无法执行行动宣告阶段：GameState 未初始化。")
+            return [] # Cannot proceed without game state
+        # Ensure current_round_actions exists and is cleared for the new phase
+        self.logger.info("初始化/清空 GameState.current_round_actions。")
+        game_state.current_round_actions = []
+        # --- 新增结束 ---
+
+        # 1. 创建所有代理的行动决定、广播和记录任务
         for character_id, agent in self.agent_manager.player_agents.items():
-            self.logger.debug(f"为角色 {character_id} ({type(agent).__name__}) 创建行动任务...")
+            self.logger.debug(f"为角色 {character_id} ({type(agent).__name__}) 创建行动决定、广播与记录任务...")
             character_info = self.scenario_manager.get_character_info(character_id)
             if not character_info:
                 self.logger.warning(f"无法获取角色 {character_id} 的信息，跳过其行动任务创建。")
@@ -156,118 +243,39 @@ class ActionDeclarationPhase(BaseRoundPhase):
             else:
                 self.logger.warning(f"未知的 Agent 类型: {type(agent).__name__} for character {character_id}")
 
-        # 2. 并发执行所有任务并收集结果
-        self.logger.info(f"并发执行 {len(tasks)} 个行动决定任务...")
+        # 2. 并发执行所有任务并收集结果 (主要用于日志和返回)
+        self.logger.info(f"并发执行 {len(tasks)} 个行动决定、广播与记录任务...")
         results: List[Union[PlayerAction, Exception, None]] = await asyncio.gather(*tasks, return_exceptions=True)
-        self.logger.info("所有行动决定任务已完成。开始处理并立刻广播结果...")
+        self.logger.info("所有行动决定、广播与记录任务已完成。开始收集返回结果...")
 
-        # 3. 处理结果并收集有效行动，【同时立刻广播】
-        player_actions: List[PlayerAction] = []
-        all_agent_ids = self.agent_manager.get_all_agent_ids() # 获取一次接收者列表
+        # 3. 处理 gather 的返回结果 (主要用于日志和构建返回值列表)
+        returned_actions: List[PlayerAction] = []
+        failed_tasks = 0
         for i, result in enumerate(results):
-            task_name = tasks[i].get_name() # 获取任务名称以识别角色
-            character_id_from_task = task_name.split('_')[-1] # 从任务名提取 character_id
-            processed_action: Optional[PlayerAction] = None # 用于存储处理后的有效行动或默认行动
+            task = tasks[i]
+            task_name = task.get_name() if hasattr(task, 'get_name') else f"Task_{i}"
+            character_id_from_task = task_name.split('_')[-1] if '_' in task_name else f"UnknownChar_{i}"
 
             if isinstance(result, Exception):
-                self.logger.error(f"角色 {character_id_from_task} 的行动任务失败: {result}")
-                # 可以选择创建一个默认的 WAIT 行动
-                default_action = PlayerAction(
-                    character_id=character_id_from_task,
-                    action_type=ActionType.WAIT,
-                    content="...",
-                    target="environment",
-                    # Use helper function for default thoughts
-                    internal_thoughts=create_default_thoughts(reason=f"行动任务执行出错: {result}", round_id=self.current_round_id),
-                    timestamp=datetime.now().isoformat()
-                )
-                processed_action = default_action # Assign default action
-                player_actions.append(default_action)
+                self.logger.error(f"角色 {character_id_from_task} 的行动任务在 gather 后检测到失败: {result}")
+                # Note: The default action should have been created and attempted broadcast/record within the task.
+                # We log the failure here. We might not get a valid PlayerAction object in 'result' to return.
+                failed_tasks += 1
             elif isinstance(result, PlayerAction):
-                processed_action = result # Assign the valid action
-                player_actions.append(result)
-                # +++ 添加日志记录检查 generated_consequences +++
-                if result.generated_consequences:
-                    self.logger.debug(f"角色 {character_id_from_task} 的行动包含 {len(result.generated_consequences)} 条生成的后果。")
+                returned_actions.append(result) # Collect successful action returns
             elif result is None:
-                 self.logger.warning(f"角色 {character_id_from_task} 的行动任务返回 None。")
-                 # 可以选择创建一个默认的 WAIT 行动
-                 default_action = PlayerAction(
-                    character_id=character_id_from_task,
-                    action_type=ActionType.WAIT,
-                    content="...",
-                    target="environment",
-                    # Use helper function for default thoughts
-                    internal_thoughts=create_default_thoughts(reason="行动任务返回 None。", round_id=self.current_round_id),
-                    timestamp=datetime.now().isoformat()
-                 )
-                 processed_action = default_action # Assign default action
-                 player_actions.append(default_action)
+                 # This case should ideally not happen if _get_*_action always returns a PlayerAction (even default)
+                 self.logger.warning(f"角色 {character_id_from_task} 的行动任务返回 None (意外情况)。")
+                 failed_tasks += 1
             else:
                 self.logger.error(f"角色 {character_id_from_task} 的行动任务返回未知类型: {type(result)}")
-                # 也可以创建一个默认行动
-                # Create default action using helper function
-                default_action = PlayerAction(
-                    character_id=character_id_from_task,
-                    action_type=ActionType.WAIT,
-                    content="...",
-                    target="environment",
-                    internal_thoughts=create_default_thoughts(reason=f"行动任务返回未知类型: {type(result)}", round_id=self.current_round_id),
-                    timestamp=datetime.now().isoformat()
-                 )
-                processed_action = default_action # Assign default action
+                failed_tasks += 1
 
-            if processed_action:
-                # 【新增】立刻广播这个行动意图
-                # Note: player_actions.append(processed_action) was removed from here as it's already added above.
-                character_state = game_state.characters.get(processed_action.character_id) # game_state is available from outer scope
-                character_name = character_state.name if character_state else processed_action.character_id
-                message_id = str(uuid.uuid4())
-                timestamp = datetime.now().isoformat() # 或者使用 processed_action.timestamp? 考虑一致性. Let's use a new timestamp for broadcast time.
+        # --- 移除：不再需要在这里统一记录行动到 GameState ---
+        # (Code block removed)
 
-                # --- 设置 sender_role 和新的 message_type ---
-                sender_role = SenderRole.PLAYER_CHARACTER # 无论是 PlayerAgent 还是 CompanionAgent，角色都是 PLAYER_CHARACTER
-
-                if processed_action.action_type == ActionType.TALK:
-                    message_type = MessageType.DIALOGUE
-                elif processed_action.action_type == ActionType.ACTION:
-                    message_type = MessageType.ACTION_DECLARATION
-                elif processed_action.action_type == ActionType.WAIT:
-                    message_type = MessageType.WAIT_NOTIFICATION
-                else:
-                    # 处理未知 ActionType 的情况
-                    message_type = MessageType.SYSTEM_INFO # 默认为 SYSTEM_INFO
-                    self.logger.warning(f"未知的 ActionType '{processed_action.action_type}'，消息类型设为 SYSTEM_INFO。")
-
-                action_message = Message(
-                    message_id=message_id,
-                    sender_role=sender_role, # 设置 sender_role
-                    type=message_type,       # 设置新的 message_type
-                    source=character_name,
-                    source_id=processed_action.character_id,
-                    content=processed_action.content,
-                    timestamp=timestamp,
-                    visibility=MessageVisibility.PUBLIC,
-                    recipients=all_agent_ids,
-                    round_id=self.current_round_id
-                )
-                try:
-                    self.message_dispatcher.broadcast_message(action_message)
-                    self.logger.debug(f"【立刻广播】了角色 {processed_action.character_id} 的行动宣告: {action_message.content[:50]}...")
-                except Exception as broadcast_error:
-                    self.logger.error(f"【立刻广播】角色 {processed_action.character_id} 行动宣告消息时出错: {broadcast_error}")
-
-        # 4. 【移除】原有的统一广播逻辑
-
-        # 5. 【新增】将收集到的所有行动记录到当前 GameState
-        current_game_state = self.get_current_state()
-        if current_game_state:
-            # 使用 extend 添加列表中的所有元素
-            current_game_state.current_round_actions.extend(player_actions)
-            self.logger.info(f"已将 {len(player_actions)} 个行动宣告记录到 GameState.current_round_actions。")
-        else:
-            self.logger.error("无法记录行动宣告：获取当前 GameState 失败。")
-
-
-        self.logger.info(f"--- 结束行动宣告阶段 (立刻广播)，共处理 {len(player_actions)} 个行动意图 ---")
-        return player_actions
+        final_recorded_count = len(game_state.current_round_actions) if game_state else 0
+        self.logger.info(f"收集到 {len(returned_actions)} 个有效的行动任务返回值。{failed_tasks} 个任务遇到问题。GameState 中最终记录了 {final_recorded_count} 个行动。")
+        self.logger.info(f"--- 行动宣告阶段结束 ---")
+        # Decide what to return. Returning the successfully gathered actions might be useful.
+        return returned_actions
