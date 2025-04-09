@@ -161,7 +161,7 @@ class RoundManager:
                 agent_manager=self.agent_manager,
                 message_dispatcher=self.message_dispatcher,
                 scenario_manager=self.scenario_manager,
-                referee_agent=self.referee_agent,
+                #referee_agent=self.referee_agent,
                 chat_history_manager=self.chat_history_manager, # Pass chat_history_manager
                 current_round_id=self.current_round_id,
                 input_handler=self._input_handler # Pass input_handler to context

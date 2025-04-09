@@ -31,7 +31,7 @@ class JudgementPhase(BaseRoundPhase):
     def __init__(self, context: PhaseContext):
         super().__init__(context)
         # Store referee agent for convenience
-        self.referee = self.referee_agent # Assuming context provides referee_agent
+        self.referee = self.agent_manager.get_referee_agent() # Assuming context provides referee_agent
 
     async def execute(self, declared_actions: List[PlayerAction]) -> JudgementOutput:
         """

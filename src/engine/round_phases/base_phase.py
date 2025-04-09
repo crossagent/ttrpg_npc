@@ -26,7 +26,7 @@ class PhaseContext(BaseModel):
     agent_manager: AgentManager = Field(...) # Direct type hint
     message_dispatcher: MessageDispatcher = Field(...) # Direct type hint
     scenario_manager: ScenarioManager = Field(...) # Direct type hint
-    referee_agent: RefereeAgent = Field(...) # Direct type hint
+    #referee_agent: RefereeAgent = Field(...) # Direct type hint
     chat_history_manager: ChatHistoryManager = Field(...) # Add chat_history_manager
     current_round_id: int = Field(...)
     input_handler: Optional[UserInputHandler] = Field(None, description="处理器，用于获取用户输入") # Add input_handler
@@ -47,7 +47,7 @@ class BaseRoundPhase(ABC):
         self.agent_manager = context.agent_manager
         self.message_dispatcher = context.message_dispatcher
         self.scenario_manager = context.scenario_manager
-        self.referee_agent = context.referee_agent
+        #self.referee_agent = context.referee_agent
         self.current_round_id = context.current_round_id
 
     @abstractmethod
