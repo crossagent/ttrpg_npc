@@ -193,8 +193,7 @@ async def main() -> None:
 
             # +++ Generate NEW save path for this loaded session +++
             timestamp_str_save = datetime.now().strftime("%Y%m%d_%H%M%S")
-            original_filename = os.path.basename(full_load_path).replace('.json', '')
-            save_filename = f"{original_filename}_resumed_{timestamp_str_save}.json"
+            save_filename = f"record_{timestamp_str_save}.json"
             save_path_json = os.path.join(save_dir, save_filename)
             print(f"本次加载后的游戏将保存至新存档文件: {save_path_json}")
             game_output_log_file.write(f"--- Session Resumed (Loaded from: {full_load_path}) ---\n") # Log resume to game output log
