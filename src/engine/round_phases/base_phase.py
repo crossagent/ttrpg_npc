@@ -62,4 +62,4 @@ class BaseRoundPhase(ABC):
     def get_current_state(self) -> 'GameState':
         """辅助方法，获取当前游戏状态"""
         # Assuming get_state() returns the correct type
-        return self.game_state_manager.get_state()
+        return self.game_state_manager.get_cur_state()

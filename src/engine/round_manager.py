@@ -97,7 +97,7 @@ class RoundManager:
         """
         self.current_round_id = round_id
         self.round_start_time = datetime.now()
-        game_state = self.game_state_manager.get_state()
+        game_state = self.game_state_manager.get_cur_state()
         # 确保 game_state 对象存在且有 round_number 属性
         if game_state:
             game_state.round_number = round_id
@@ -120,7 +120,7 @@ class RoundManager:
         Returns:
             GameState: 回合结束时的游戏状态。
         """
-        game_state = self.game_state_manager.get_state()
+        game_state = self.game_state_manager.get_cur_state()
 
         # +++ Create and store snapshot before logging end +++
         if game_state:
@@ -203,7 +203,7 @@ class RoundManager:
         except Exception as e:
             self.logger.exception(f"回合 {self.current_round_id} 执行过程中出现严重错误: {str(e)}")
             # 在严重错误时返回初始状态或当前状态，避免游戏崩溃
-            return self.game_state_manager.get_state() if self.game_state_manager else initial_state
+            return self.game_state_manager.get_cur_state() if self.game_state_manager else initial_state
 
     def should_terminate(self, state: GameState) -> bool:
         """

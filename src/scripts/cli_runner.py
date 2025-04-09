@@ -188,7 +188,7 @@ async def main() -> None:
                 game_output_log_file.write(f"Error loading state or history from '{full_load_path}' for round {target_round}\n") # Log to runner log
                 return # Exit if loading failed
 
-            loaded_state = game_state_manager.get_state()
+            loaded_state = game_state_manager.get_cur_state()
             start_round_engine = target_round + 1 # Start from the next round
 
             # +++ Generate NEW save path for this loaded session +++

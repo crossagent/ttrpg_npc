@@ -82,7 +82,7 @@ class MessageDispatcher:
 
         # --- 添加消息到 ChatHistoryManager ---
         try:
-            current_round = self.game_state_manager.get_state().round_number
+            current_round = self.game_state_manager.get_cur_state().round_number
             self.chat_history_manager.add_message(current_round, message)
         except Exception as e:
             self.logger.exception(f"添加消息到 ChatHistoryManager 时出错: {e}")

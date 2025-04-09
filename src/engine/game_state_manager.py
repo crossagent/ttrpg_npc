@@ -252,7 +252,7 @@ class GameStateManager:
                 # 添加到事件实例字典
                 game_state.event_instances[event_instance.instance_id] = event_instance
 
-    def get_state(self) -> GameState:
+    def get_cur_state(self) -> GameState:
         """
         获取当前游戏状态
         
