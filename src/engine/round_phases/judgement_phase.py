@@ -17,6 +17,16 @@ from src.models.game_state_models import GameState
 # +++ Import Agent types for checking +++
 from src.agents.companion_agent import CompanionAgent
 # PlayerAgent might not be strictly needed if we just check against player_character_id
+from pydantic import BaseModel # +++ Import BaseModel +++
+
+
+# +++ Define Pydantic model for action context +++
+class ActionJudgementContext(BaseModel):
+    action: PlayerAction
+    needs_check: bool
+    check_attribute: Optional[str]
+    dice_roll_result: Optional[int]
+    dice_type: str
 
 
 # Define a type alias for the return value of execute
@@ -171,7 +181,8 @@ class JudgementPhase(BaseRoundPhase):
         ]
         tasks = []
         # Store context needed for the judge_action call after assessment and dice roll
-        action_context_map: Dict[int, Dict[str, Any]] = {}
+        # Use the new Pydantic model for type hinting
+        action_context_map: Dict[int, ActionJudgementContext] = {}
 
         if not substantive_actions:
             self.logger.info("没有实质性行动需要裁判进行属性判定。")
@@ -244,21 +255,22 @@ class JudgementPhase(BaseRoundPhase):
                 self.logger.exception(f"评估行动 '{action.content}' 的检定必要性或获取投骰时出错: {assess_err}")
                 needs_check = False # Skip check on error
 
-            # Store context needed for the judge_action call later
-            action_context_map[i] = {
-                "action": action,
-                "needs_check": needs_check, # Store if check was performed (or intended but skipped)
-                "check_attribute": check_attribute,
-                "dice_roll_result": dice_roll_result,
-                "dice_type": dice_type # Store dice type for potential logging/messaging
-            }
+            # Store context needed for the judge_action call later using the Pydantic model
+            action_context_map[i] = ActionJudgementContext(
+                action=action,
+                needs_check=needs_check, # Store if check was performed (or intended but skipped)
+                check_attribute=check_attribute,
+                dice_roll_result=dice_roll_result,
+                dice_type=dice_type # Store dice type for potential logging/messaging
+            )
 
         # 2. 创建 judge_action 任务
         self.logger.info("准备调用裁判判定行动属性后果...")
         for i, context in action_context_map.items():
-            action = context["action"]
-            dice_roll = context["dice_roll_result"]
-            attribute = context["check_attribute"]
+            # Access context using dot notation
+            action = context.action
+            dice_roll = context.dice_roll_result
+            attribute = context.check_attribute
 
             # TODO: Modify RefereeAgent.judge_action to accept dice_roll_result and check_attribute
             #       and update referee_context_builder prompts accordingly.
@@ -284,7 +296,8 @@ class JudgementPhase(BaseRoundPhase):
         messages_to_broadcast = [] # 收集需要广播的消息
         for i, result_or_exc in enumerate(results_or_exceptions):
             context = action_context_map[i]
-            original_action = context["action"]
+            # Access context using dot notation
+            original_action = context.action
             action_result: Optional[ActionResult] = None
 
             if isinstance(result_or_exc, Exception):
@@ -319,8 +332,9 @@ class JudgementPhase(BaseRoundPhase):
 
                 # --- 准备要广播的消息 (加入投骰信息) ---
                 dice_roll_info = ""
-                if context["needs_check"] and context["dice_roll_result"] is not None:
-                     dice_roll_info = f" (检定: {context['dice_type']}={context['dice_roll_result']})"
+                # Access context using dot notation
+                if context.needs_check and context.dice_roll_result is not None:
+                     dice_roll_info = f" (检定: {context.dice_type}={context.dice_roll_result})"
 
                 # 1. 准备系统效果消息 (简述成功/失败 + 投骰信息)
                 actor_char_instance = current_game_state.characters.get(action_result.action.character_id)
