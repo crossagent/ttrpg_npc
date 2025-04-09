@@ -127,34 +127,6 @@ class GameEngine:
                 print(red_text(f"错误：未能获取回合 {completed_round_number} 的快照，无法保存！"))
             # --- End saving logic ---
 
-
-            # 检查是否有命令
-            cmd_prompt = "输入命令(例如 /history warrior /chat)或按回车继续: "
-            print(cmd_prompt, end="") # Print prompt without newline
-
-            cmd = (await asyncio.to_thread(input)).strip()
-
-            if cmd.startswith("/"):
-                parts = cmd.split()
-                command = parts[0]
-                args = parts[1:] if len(parts) > 1 else []
-
-                # Log command execution attempt (to console only)
-                cmd_log_msg = f"Executing command: {cmd}"
-                print(gray_text(cmd_log_msg))
-
-                if command == "/history" and args:
-                    await self._show_player_history(args[0])
-                elif command == "/chat":
-                    await self._show_chat_history()
-                elif command == "/quit":
-                    quit_msg = "Quitting game via command."
-                    print(yellow_text(quit_msg))
-                    break
-                else:
-                    unknown_cmd_msg = "未知命令，可用命令: /history [玩家名称], /chat, /quit"
-                    print(yellow_text(unknown_cmd_msg))
-
         return current_game_state
 
 
