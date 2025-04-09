@@ -7,497 +7,476 @@ from src.agents.referee_agent import RefereeAgent
 from src.engine.game_state_manager import GameStateManager
 from src.engine.chat_history_manager import ChatHistoryManager
 from src.engine.scenario_manager import ScenarioManager
-from src.io.input_handler import UserInputHandler # Assuming CliInputHandler implements this
-from src.config.config_loader import load_config, load_llm_settings
+from src.engine.agent_manager import AgentManager # +++ Import AgentManager +++
+from src.io.input_handler import UserInputHandler
+from src.config.config_loader import load_llm_settings
 # Corrected model imports
-from src.models.game_state_models import GameState, CharacterInstance, ItemInstance, LocationStatus, TriggeredEventRecord # Removed Attribute, Skill, Item, Location; Added ItemInstance, LocationStatus
-from src.models.scenario_models import Scenario, ScenarioCharacterInfo, LocationInfo, ItemInfo, ScenarioEvent, AttributeSet, SkillSet, StoryInfo # Replaced Template models, removed EventCondition, ConditionType; Added AttributeSet, SkillSet, StoryInfo
+from src.models.game_state_models import GameState, CharacterInstance, ItemInstance, LocationStatus, TriggeredEventRecord, FlagSet
+from src.models.scenario_models import Scenario, ScenarioCharacterInfo, LocationInfo, ItemInfo, ScenarioEvent, AttributeSet, SkillSet, StoryInfo
 from src.models.action_models import PlayerAction, ActionType
 from src.models.consequence_models import AddItemConsequence, UpdateCharacterAttributeConsequence, UpdateFlagConsequence, AppliedConsequenceRecord, ConsequenceType # Replaced SetFlagConsequence with UpdateFlagConsequence, added ConsequenceType
-from src.models.message_models import Message, SenderRole # Replaced Role with SenderRole
-from src.agents.companion_agent import CompanionAgent # Needed for patching simulate_dice_roll if we decide to
+from src.models.message_models import Message, SenderRole
+from src.agents.companion_agent import CompanionAgent
 
 # --- Fixtures ---
 
+# Keep mock_input_handler separate as it's always needed for mocking player input
 @pytest.fixture
 def mock_input_handler():
     """Mocks the user input handler."""
     handler = MagicMock(spec=UserInputHandler)
     return handler
 
-@pytest.fixture(scope="module") # Scope to module to load scenario only once
-def scenario_manager():
-    """Provides a ScenarioManager loaded with the default scenario."""
-    manager = ScenarioManager()
+# New fixture for integrated setup
+@pytest.fixture
+def judgement_phase_integration_setup(mock_input_handler):
+    """
+    Provides a more integrated setup for JudgementPhase tests,
+    using real components where possible, including a real RefereeAgent
+    connected to the configured LLM.
+    """
+    # 1. Scenario Manager
+    scenario_manager = ScenarioManager()
     try:
-        # Load the actual default scenario file
-        # Ensure 'scenarios/default.json' exists and is correctly formatted
-        scenario = manager.load_scenario("default")
-
-        return manager
+        scenario = scenario_manager.load_scenario("default")
     except FileNotFoundError:
-        pytest.skip("scenarios/default.json not found, skipping integration tests dependent on it.")
+        pytest.skip("scenarios/default.json not found, skipping integration tests.")
     except Exception as e:
         pytest.skip(f"Failed to load or validate default scenario: {e}")
 
-@pytest.fixture
-def game_state_manager(scenario_manager):
-    """Provides a GameStateManager initialized with the test scenario."""
-    manager = GameStateManager(scenario_manager)
-    scenario = scenario_manager.get_current_scenario() # Get the scenario object
+    # 2. Game State Manager
+    game_state_manager = GameStateManager(scenario_manager)
+    initial_state = game_state_manager.initialize_game_state() # Initialize state from scenario
 
-    # Initialize the game state using the manager's method.
-    # This should populate characters, locations etc. based on the scenario.
-    manager.initialize_game_state(scenario.id)
+    # --- Apply common modifications needed for tests ---
+    # Ensure player and companion exist and have base skills/items from scenario
+    # (Specific test cases can add more specific items/skills later if needed)
+    player_id = "player_char_id" # Assuming this ID is in default.json
+    companion_id = "companion_char_id" # Assuming this ID is in default.json
 
-    # Get the state *after* initialization
-    current_state = manager.get_cur_state()
+    if player_id not in initial_state.characters:
+         pytest.skip(f"Player character '{player_id}' not found in default scenario.")
+    if companion_id not in initial_state.characters:
+         pytest.skip(f"Companion character '{companion_id}' not found in default scenario.")
 
-    # --- Modifications for Testing ---
-    # Add specific skills needed for tests if not already present from scenario base skills
+    # Example: Ensure player has lockpicking (adjust level if needed by test)
+    player = initial_state.characters[player_id]
+    if not hasattr(player.skills, 'lockpicking'):
+        player.skills.lockpicking = 5 # Default level for tests
 
-    # Add 'lockpicking' skill for the player if missing
-    player_id = "player_char_id"
-    if player_id in current_state.characters:
-        player = current_state.characters[player_id]
-        # Check if skills is a dict-like object and if 'lockpicking' is missing
-        if isinstance(player.skills, SkillSet) and not hasattr(player.skills, 'lockpicking'):
-             player.skills.lockpicking = 5 # Add the skill with level 5
+    # Example: Ensure companion has persuasion
+    companion = initial_state.characters[companion_id]
+    if not hasattr(companion.skills, 'persuasion'):
+        companion.skills.persuasion = 3 # Default level
 
-    # Add 'persuasion' skill for the companion if missing (though it should be in the fixture scenario)
-    companion_id = "companion_char_id"
-    if companion_id in current_state.characters:
-        companion = current_state.characters[companion_id]
-        if isinstance(companion.skills, SkillSet) and not hasattr(companion.skills, 'persuasion'):
-            companion.skills.persuasion = 3 # Add skill with level 3
-
-    # Add initial inventory item (box) for the player if missing
-    # Assuming initialize_new_game doesn't handle initial inventory from a potential scenario field
-    if player_id in current_state.characters:
-        player = current_state.characters[player_id]
-        if not any(item.item_id == "box_item" for item in player.items):
-             box_item_info = scenario.items.get("box_item")
-             if box_item_info:
-                 player.items.append(ItemInstance(item_id="box_item", name=box_item_info.name, quantity=1))
+    # Example: Ensure player starts with the box item if scenario doesn't provide it
+    if not any(item.item_id == "box_item" for item in player.items):
+        box_item_info = scenario.items.get("box_item")
+        if box_item_info:
+            player.items.append(ItemInstance(item_id="box_item", name=box_item_info.name, quantity=1))
+        else:
+            # If box_item isn't even in scenario items, we might need to skip or add it manually
+            print("Warning: 'box_item' info not found in scenario items. Adding manually for test.")
+            player.items.append(ItemInstance(item_id="box_item", name="Sturdy Box", quantity=1))
 
 
-    # Ensure the manager has the potentially modified state
-    manager.set_current_state(current_state)
-    return manager
+    # 3. Chat History Manager
+    chat_history_manager = ChatHistoryManager()
 
-@pytest.fixture
-def chat_history_manager():
-    """Provides a ChatHistoryManager."""
-    return ChatHistoryManager()
-
-@pytest.fixture
-def referee_agent(scenario_manager):
-    """Provides a RefereeAgent instance (requires LLM config)."""
-    # Assumes llm_settings.yaml is configured correctly for tests
-    # In a real CI/CD, API keys might be handled via environment variables
-    try:
-        llm_config = load_llm_settings('config/llm_settings.yaml')
-        # Find a suitable model configuration, e.g., the default one
-        model_config = llm_config['models']['default']
-        api_key = model_config.get('api_key') # Or get from env var
-        model_name = model_config.get('model')
-
-        if not api_key or not model_name:
-             pytest.skip("LLM API key or model name not configured, skipping integration test.")
-
-        # Simplified config for AutoGen agent initialization
-        config_list = [{'model': model_name, 'api_key': api_key}]
-
-        agent = RefereeAgent(
-            name="TestReferee",
-            scenario_manager=scenario_manager,
-            llm_config={"config_list": config_list}
-        )
-        return agent
-    except FileNotFoundError:
-         pytest.skip("config/llm_settings.yaml not found, skipping integration test.")
-    except Exception as e:
-         pytest.skip(f"Failed to initialize RefereeAgent: {e}, skipping integration test.")
-
-
-@pytest.fixture
-def judgement_phase(game_state_manager, chat_history_manager, referee_agent, mock_input_handler, scenario_manager):
-    """Provides a JudgementPhase instance with dependencies."""
-    # Need to ensure all dependencies required by JudgementPhase are provided
-    # This might include AgentManager or MessageDispatcher if JudgementPhase uses them directly
-    # For now, assuming direct dependencies are covered
-    return JudgementPhase(
-        game_state_manager=game_state_manager,
-        chat_history_manager=chat_history_manager,
-        referee_agent=referee_agent,
-        input_handler=mock_input_handler,
+    # 4. Agent Manager (Initializes all agents, including Referee)
+    agent_manager = AgentManager(
+        game_state=initial_state, # Use the state after common modifications
         scenario_manager=scenario_manager,
-        # agent_manager=MagicMock(), # Mock if needed
-        # message_dispatcher=MagicMock(), # Mock if needed
+        chat_history_manager=chat_history_manager,
+        game_state_manager=game_state_manager # Pass GSM to AgentManager
     )
+    try:
+        # This will load llm_settings internally and create agents based on scenario
+        agent_manager.initialize_agents_from_characters(scenario)
+    except FileNotFoundError:
+         pytest.skip("config/llm_settings.yaml not found, skipping agent initialization.")
+    except KeyError as e:
+         pytest.skip(f"Missing key during agent initialization (check llm_settings.yaml and scenario character roles): {e}")
+    except Exception as e:
+         pytest.skip(f"Failed to initialize AgentManager: {e}")
+
+    # 5. Get the Referee Agent instance from AgentManager
+    # Assuming the referee agent's ID/name follows a convention or is defined in the scenario
+    referee_agent_id = "referee_agent" # Adjust if the ID is different in your setup/scenario
+    referee_agent = agent_manager.get_agent(referee_agent_id)
+    if not referee_agent or not isinstance(referee_agent, RefereeAgent):
+        pytest.skip(f"Could not find RefereeAgent with ID '{referee_agent_id}' in AgentManager.")
+
+
+    # Return all initialized components
+    return {
+        "scenario_manager": scenario_manager,
+        "game_state_manager": game_state_manager,
+        "chat_history_manager": chat_history_manager,
+        "agent_manager": agent_manager, # Return the manager
+        "referee_agent": referee_agent, # Return the specific agent instance
+        "mock_input_handler": mock_input_handler,
+        "initial_state": initial_state # Return the state *after* common modifications but *before* agent init
+    }
+
 
 # --- Test Cases ---
 
-def test_judgement_player_action_needs_check_and_succeeds(judgement_phase, game_state_manager, mock_input_handler, referee_agent):
-    """
-    Tests the scenario where a player action requires a check, the player rolls successfully (mocked),
-    and the consequences are applied.
-    """
-    # 1. Arrange: Set up initial GameState and declare the action
-    initial_state = game_state_manager.get_current_state()
-    initial_state.current_round_number = 1 # Set current round
+# Note: These tests now rely on REAL LLM calls and may be slow/non-deterministic.
+# Assertions might need to be adjusted for flexibility.
 
-    # Ensure player exists and has the box
+def test_judgement_player_action_needs_check_and_succeeds(judgement_phase_integration_setup):
+    """
+    Tests the scenario where a player action requires a check (determined by LLM),
+    the player rolls successfully (mocked), and the consequences (determined by LLM) are applied.
+    Relies on the LLM correctly identifying the need for a 'lockpicking' check for the action
+    and generating appropriate consequences (e.g., adding a key).
+    """
+    # 1. Arrange: Get components from fixture and set up specific scenario
+    gsm = judgement_phase_integration_setup["game_state_manager"]
+    # AgentManager is now the source of truth for agents
+    agent_manager = judgement_phase_integration_setup["agent_manager"]
+    referee_agent = judgement_phase_integration_setup["referee_agent"] # Still useful to have direct ref
+    mock_input_handler = judgement_phase_integration_setup["mock_input_handler"]
+    scenario_manager = judgement_phase_integration_setup["scenario_manager"]
+    chat_history_manager = judgement_phase_integration_setup["chat_history_manager"]
+
+    # Get a fresh copy of the initial state *before* agent init for modification
+    # Note: AgentManager was initialized with a state that included common modifications.
+    # We might need to decide if tests modify the state *before* or *after* agent init.
+    # Let's assume we modify *after* agent init for now, using the state from GSM.
+    current_state = gsm.get_current_state().model_copy(deep=True) # Get state potentially modified by agent init
+    current_state.current_round_number = 1
     player_id = "player_char_id"
-    assert player_id in initial_state.characters
-    assert any(item.id == "box_item" for item in initial_state.characters[player_id].inventory)
+
+    # Ensure player has the box (should be handled by fixture, but double-check)
+    assert any(item.item_id == "box_item" for item in current_state.characters[player_id].items), "Player should have 'box_item'"
 
     # Declare the action for the current round
     player_action = PlayerAction(
         actor_id=player_id,
-        type=ActionType.INTERACT_ITEM, # More specific type
+        type=ActionType.ACTION, # Corrected type: Use ACTION for substantial interactions
         description="I attempt to pick the lock on the sturdy box.",
-        target_item_id="box_item", # Target the item
+        target_item_id="box_item", # Keep target_item_id for context if Referee uses it
         round_number=1
     )
-    initial_state.current_round_actions.append(player_action)
-    game_state_manager.set_current_state(initial_state) # Ensure state manager has the updated list
+    current_state.current_round_actions = [player_action] # Reset actions for this test
+    current_state.current_round_applied_consequences = [] # Clear previous test consequences
+    current_state.current_round_triggered_events = [] # Clear previous test events
+    gsm.set_current_state(current_state) # Use the modified state
 
     # Mock the player's successful dice roll input
     mock_input_handler.get_dice_roll_input.return_value = 18 # Assume 18 is a success
 
-    # Mock RefereeAgent's assess_check_necessity to force a check
-    # We patch the specific instance used by the judgement_phase fixture
-    with patch.object(referee_agent, 'assess_check_necessity', return_value=(True, "lockpicking", 12)) as mock_assess:
-        # Mock the actual consequence generation for predictability in this specific test
-        # We expect AddItemConsequence for the key inside the box
-        mock_consequence = AddItemConsequence(
-            type="ADD_ITEM",
-            character_id=player_id,
-            item_id="key_item",
-            item_name="Shiny Key", # Get name from scenario if possible
-            item_description="A small, shiny key." # Get desc from scenario
-        )
-        with patch.object(referee_agent, 'determine_consequences', return_value=([mock_consequence], [])) as mock_determine:
+    # Instantiate JudgementPhase with real components
+    judgement_phase = JudgementPhase(
+        game_state_manager=gsm,
+        chat_history_manager=chat_history_manager,
+        referee_agent=referee_agent,
+        input_handler=mock_input_handler,
+        scenario_manager=scenario_manager,
+    )
 
-            # 2. Act: Execute the JudgementPhase logic
-            judgement_phase.process()
+    # --- REMOVED MOCKS for referee_agent.assess_check_necessity ---
+    # --- REMOVED MOCKS for referee_agent.determine_consequences ---
 
-            # 3. Assert: Check results
-            final_state = game_state_manager.get_current_state()
+    # 2. Act: Execute the JudgementPhase logic (will call real LLM)
+    judgement_phase.process()
 
-            # Check if assess_check_necessity was called correctly
-            mock_assess.assert_called_once_with(player_action, ANY) # Check it was called with the action
+    # 3. Assert: Check results (Assertions need to be more flexible)
+    final_state = gsm.get_current_state()
 
-            # Check if input handler was called for the dice roll
-            mock_input_handler.get_dice_roll_input.assert_called_once_with(
-                character_name="Test Player", # Assuming name is accessible
-                action_description=player_action.description,
-                check_attribute_skill="lockpicking",
-                difficulty_class=12
-            )
+    # Check if input handler was called (implies a check was likely requested by LLM)
+    # We can't easily assert the exact skill/DC requested by the LLM anymore
+    assert mock_input_handler.get_dice_roll_input.called, "get_dice_roll_input should have been called if LLM requested a check."
+    # Optional: Check if *some* check was requested
+    # call_args, _ = mock_input_handler.get_dice_roll_input.call_args
+    # assert call_args[2] is not None # Check if check_attribute_skill was provided
 
-            # Check if determine_consequences was called with roll result
-            # The context passed to determine_consequences will be complex, check key parts
-            mock_determine.assert_called_once()
-            call_args, _ = mock_determine.call_args
-            context_arg = call_args[1] # Assuming context is the second argument
-            assert "Dice Roll Result: 18" in context_arg
-            assert "Check: lockpicking" in context_arg
-            assert "Difficulty: 12" in context_arg
+    # Check if *some* consequence was applied.
+    # The exact consequence (e.g., finding a 'key_item') depends on the LLM.
+    assert len(final_state.current_round_applied_consequences) > 0, "Expected at least one consequence to be applied on success."
+
+    # Flexible check: Did the player gain *an* item? (Common success outcome)
+    # This assumes the box contains an item according to the scenario/LLM logic.
+    player_items_before = {item.item_id for item in current_state.characters[player_id].items}
+    player_items_after = {item.item_id for item in final_state.characters[player_id].items}
+    items_added = player_items_after - player_items_before
+    assert len(items_added) > 0, "Expected player to gain at least one item from the box on successful lockpicking."
+    print(f"Items added: {items_added}") # Log what was actually added
+
+    # Check if the consequence was recorded
+    recorded_consequence = final_state.current_round_applied_consequences[0] # Check the first one
+    assert isinstance(recorded_consequence, AppliedConsequenceRecord)
+    assert recorded_consequence.round_number == 1
+    # We can check the type if the LLM is consistent, e.g., AddItemConsequence
+    # assert isinstance(recorded_consequence.applied_consequence, AddItemConsequence)
+    # Checking specific item_id might be too brittle now.
 
 
-            # Check if the consequence was applied (item added to inventory)
-            player_inventory = final_state.characters[player_id].inventory
-            assert any(item.id == "key_item" for item in player_inventory), "Key item not found in inventory"
-
-            # Check if the applied consequence was recorded
-            assert len(final_state.current_round_applied_consequences) == 1
-            recorded_consequence = final_state.current_round_applied_consequences[0]
-            assert isinstance(recorded_consequence, AppliedConsequenceRecord)
-            assert recorded_consequence.round_number == 1
-            assert isinstance(recorded_consequence.applied_consequence, AddItemConsequence)
-            assert recorded_consequence.applied_consequence.item_id == "key_item"
-            assert recorded_consequence.applied_consequence.character_id == player_id
-
-# Placeholder for other tests
-# def test_judgement_companion_action_needs_check_and_fails(...):
-#     pass
-
-# def test_judgement_action_no_check_needed(...):
-#     pass
-
-def test_judgement_companion_action_needs_check_and_fails(judgement_phase, game_state_manager, mock_input_handler, referee_agent):
+def test_judgement_companion_action_needs_check_and_fails(judgement_phase_integration_setup):
     """
-    Tests the scenario where a companion action requires a check, the companion fails (simulated via consequence mock),
-    and the failure consequences are applied.
+    Tests the scenario where a companion action requires a check (determined by LLM),
+    the companion rolls poorly (mocked), and failure consequences (determined by LLM) are applied.
+    Relies on LLM identifying the check and generating failure consequences (e.g., relationship decrease).
     """
-    # 1. Arrange: Set up initial GameState and declare the companion's action
-    initial_state = game_state_manager.get_current_state()
-    initial_state.current_round_number = 1
+    # 1. Arrange: Get components and set up state
+    gsm = judgement_phase_integration_setup["game_state_manager"]
+    agent_manager = judgement_phase_integration_setup["agent_manager"]
+    referee_agent = judgement_phase_integration_setup["referee_agent"]
+    mock_input_handler = judgement_phase_integration_setup["mock_input_handler"]
+    scenario_manager = judgement_phase_integration_setup["scenario_manager"]
+    chat_history_manager = judgement_phase_integration_setup["chat_history_manager"]
 
+    current_state = gsm.get_current_state().model_copy(deep=True)
+    current_state.current_round_number = 1
     companion_id = "companion_char_id"
-    player_id = "player_char_id"
-    assert companion_id in initial_state.characters
-    assert player_id in initial_state.characters # Ensure player exists for relationship check
-    initial_relationship = initial_state.characters[companion_id].attributes.get("relationship_player", 60) # Get initial relationship
+    player_id = "player_char_id" # Assuming player exists for relationship target
 
-    # Declare the companion's action for the current round
+    # Ensure companion exists
+    assert companion_id in current_state.characters
+    # Record initial relationship (assuming 'relationship_player' attribute exists)
+    initial_relationship = current_state.characters[companion_id].attributes.get("relationship_player", 0) # Default to 0 if not present
+
+    # Declare the companion's action
     companion_action = PlayerAction(
         actor_id=companion_id,
-        type=ActionType.SOCIAL, # Social action
-        description="Tries to persuade the player to give them the box.",
-        target_character_id=player_id, # Target the player
+        type=ActionType.TALK, # Corrected type: Persuasion is typically TALK
+        description="Tries to awkwardly persuade the player to share their food.",
+        target=player_id, # Use 'target' field for character ID
         round_number=1
     )
-    initial_state.current_round_actions.append(companion_action)
-    game_state_manager.set_current_state(initial_state)
+    current_state.current_round_actions = [companion_action]
+    current_state.current_round_applied_consequences = []
+    current_state.current_round_triggered_events = []
+    gsm.set_current_state(current_state)
 
-    # Mock RefereeAgent's assess_check_necessity to force a check
-    with patch.object(referee_agent, 'assess_check_necessity', return_value=(True, "persuasion", 15)) as mock_assess:
-        # Mock the consequence generation to return a *failure* consequence
-        mock_failure_consequence = UpdateCharacterAttributeConsequence(
-            type="UPDATE_CHARACTER_ATTRIBUTE",
-            character_id=companion_id,
-            attribute_name="relationship_player",
-            new_value=initial_relationship - 10, # Decrease relationship
-            reason="Failed persuasion attempt"
+    # Mock the companion's dice roll to ensure failure
+    # We patch the simulate_dice_roll method on the *actual* companion agent instance
+    companion_agent_instance = agent_manager.get_agent(companion_id)
+    if not companion_agent_instance:
+         pytest.skip(f"Companion agent '{companion_id}' not found in AgentManager.")
+
+    # Patch the simulate_dice_roll method on the specific instance
+    with patch.object(companion_agent_instance, 'simulate_dice_roll', return_value=5) as mock_simulate_roll: # Low roll = failure
+
+        # Instantiate JudgementPhase
+        judgement_phase = JudgementPhase(
+            game_state_manager=gsm,
+            chat_history_manager=chat_history_manager,
+            referee_agent=referee_agent,
+            input_handler=mock_input_handler,
+            scenario_manager=scenario_manager,
+            # Pass agent_manager if JudgementPhase needs it to find the agent for rolling
+            # Check JudgementPhase.__init__ and process method implementation
+            # Assuming for now RefereeAgent handles getting the agent instance internally
         )
-        # We use ANY for the dice roll result in the context check
-        def determine_consequences_side_effect(action, context, game_state):
-            # Basic check that context contains dice roll info
-            assert "Dice Roll Result:" in context
-            assert "Check: persuasion" in context
-            assert "Difficulty: 15" in context
-            return ([mock_failure_consequence], []) # Return the failure consequence
 
-        with patch.object(referee_agent, 'determine_consequences', side_effect=determine_consequences_side_effect) as mock_determine:
-            # We also need to ensure simulate_dice_roll is called on the correct agent.
-            # Since RefereeAgent likely gets the agent instance internally, we patch it globally for simplicity here.
-            # This assumes RefereeAgent imports CompanionAgent or gets it via AgentManager.
-            # A more robust approach might involve mocking AgentManager if RefereeAgent uses it.
-            with patch('src.agents.referee_agent.RefereeAgent._get_agent_instance_for_roll', return_value=MagicMock(spec=CompanionAgent)) as mock_get_agent:
-                 mock_companion_instance = mock_get_agent.return_value
-                 mock_companion_instance.simulate_dice_roll.return_value = 5 # Simulate a low roll
+        # 2. Act: Execute the JudgementPhase logic
+        judgement_phase.process()
 
-                 # 2. Act: Execute the JudgementPhase logic
-                 judgement_phase.process()
+        # 3. Assert: Check results
+        final_state = gsm.get_current_state()
 
+        # Check if input handler was *NOT* called (it's a companion)
+        mock_input_handler.get_dice_roll_input.assert_not_called()
 
-            # 3. Assert: Check results
-            final_state = game_state_manager.get_current_state()
+        # Check if simulate_dice_roll was called on the companion instance
+        # We can't easily know the exact skill/DC requested by the LLM
+        assert mock_simulate_roll.called, "Companion's simulate_dice_roll should have been called."
+        # call_args, call_kwargs = mock_simulate_roll.call_args
+        # print(f"Simulate roll called with: args={call_args}, kwargs={call_kwargs}") # Debugging
 
-            # Check if assess_check_necessity was called correctly
-            mock_assess.assert_called_once_with(companion_action, ANY)
+        # Check if *some* consequence was applied (expecting failure consequences)
+        assert len(final_state.current_round_applied_consequences) > 0, "Expected at least one consequence for the failed action."
 
-            # Check if input handler was *NOT* called (it's a companion)
-            mock_input_handler.get_dice_roll_input.assert_not_called()
+        # Flexible check: Did the relationship decrease?
+        final_relationship = final_state.characters[companion_id].attributes.get("relationship_player", initial_relationship)
+        assert final_relationship < initial_relationship, f"Expected relationship to decrease from {initial_relationship}, but it became {final_relationship}."
+        print(f"Relationship changed from {initial_relationship} to {final_relationship}")
 
-            # Check if _get_agent_instance_for_roll was called (indirectly checks if it tried to get companion)
-            mock_get_agent.assert_called_once_with(companion_id, ANY) # Check it tried to get the companion instance
-
-            # Check if simulate_dice_roll was called on the mocked companion instance
-            mock_companion_instance.simulate_dice_roll.assert_called_once_with(check_attribute_skill="persuasion", dc=15)
+        # Check if the consequence was recorded
+        recorded_consequence = final_state.current_round_applied_consequences[0]
+        assert isinstance(recorded_consequence, AppliedConsequenceRecord)
+        assert recorded_consequence.round_number == 1
+        # Check if it was an attribute update (common failure consequence)
+        # assert isinstance(recorded_consequence.applied_consequence, UpdateCharacterAttributeConsequence)
+        # assert recorded_consequence.applied_consequence.attribute_name == "relationship_player" # This might be too brittle
 
 
-            # Check if determine_consequences was called
-            mock_determine.assert_called_once()
-            # Side effect already checked context contains roll info
-
-            # Check if the failure consequence was applied (relationship decreased)
-            final_relationship = final_state.characters[companion_id].attributes.get("relationship_player")
-            assert final_relationship == initial_relationship - 10, f"Relationship should have decreased to {initial_relationship - 10}, but was {final_relationship}"
-
-            # Check if the applied consequence was recorded
-            assert len(final_state.current_round_applied_consequences) == 1
-            recorded_consequence = final_state.current_round_applied_consequences[0]
-            assert isinstance(recorded_consequence, AppliedConsequenceRecord)
-            assert recorded_consequence.round_number == 1
-            assert isinstance(recorded_consequence.applied_consequence, UpdateCharacterAttributeConsequence)
-            assert recorded_consequence.applied_consequence.character_id == companion_id
-            assert recorded_consequence.applied_consequence.attribute_name == "relationship_player"
-            assert recorded_consequence.applied_consequence.new_value == initial_relationship - 10
-
-
-def test_judgement_action_no_check_needed(judgement_phase, game_state_manager, mock_input_handler, referee_agent):
+def test_judgement_action_no_check_needed(judgement_phase_integration_setup):
     """
-    Tests the scenario where an action is simple enough that no check is required.
+    Tests the scenario where an action is simple enough (determined by LLM)
+    that no check is required, and consequences are applied directly.
+    Relies on LLM determining no check needed for picking up a simple item
+    and generating consequences like adding/removing the item.
     """
-    # 1. Arrange: Set up initial GameState and declare a simple action
-    initial_state = game_state_manager.get_current_state()
-    initial_state.current_round_number = 1
+    # 1. Arrange: Get components and set up state for a simple action
+    gsm = judgement_phase_integration_setup["game_state_manager"]
+    agent_manager = judgement_phase_integration_setup["agent_manager"]
+    referee_agent = judgement_phase_integration_setup["referee_agent"]
+    mock_input_handler = judgement_phase_integration_setup["mock_input_handler"]
+    scenario_manager = judgement_phase_integration_setup["scenario_manager"]
+    chat_history_manager = judgement_phase_integration_setup["chat_history_manager"]
 
+    current_state = gsm.get_current_state().model_copy(deep=True)
+    current_state.current_round_number = 1
     player_id = "player_char_id"
-    assert player_id in initial_state.characters
-    scenario = scenario_manager.get_scenario() # Get scenario to access item info
+    player_location_id = current_state.characters[player_id].location # Get player's current location
 
-    # Add a simple item to the location for the player to pick up
-    apple_item_info = ItemInfo(id="apple_item", name="Red Apple", description="A juicy red apple.")
-    # Add the ItemInfo to the scenario manager's internal scenario for consistency if needed, though not strictly necessary for this test setup
-    if "apple_item" not in scenario.items:
-        scenario.items["apple_item"] = apple_item_info
-    # Add ItemInstance to the location status in game state
-    if "start_loc" in initial_state.location_states:
-        initial_state.location_states["start_loc"].available_items.append(
-            ItemInstance(item_id="apple_item", name=apple_item_info.name, quantity=1)
+    # Define the simple item and ensure it exists in the location
+    simple_item_id = "apple_item"
+    simple_item_name = "Red Apple"
+    # Ensure the item definition exists in the scenario for consistency if needed
+    scenario = scenario_manager.get_current_scenario()
+    if simple_item_id not in scenario.items:
+        print(f"Warning: Adding '{simple_item_id}' to scenario items for test.")
+        scenario.items[simple_item_id] = ItemInfo(id=simple_item_id, name=simple_item_name, description="A juicy red apple.")
+
+    # Ensure the item instance is in the player's location state
+    location_state = current_state.location_states.get(player_location_id)
+    if not location_state:
+         pytest.skip(f"Player location '{player_location_id}' state not found.")
+    if not any(item.item_id == simple_item_id for item in location_state.available_items):
+        location_state.available_items.append(
+            ItemInstance(item_id=simple_item_id, name=simple_item_name, quantity=1)
         )
-    game_state_manager.set_current_state(initial_state) # Update state
+        print(f"Added '{simple_item_id}' instance to location '{player_location_id}' for test.")
+
+    # Ensure player doesn't already have the item
+    current_state.characters[player_id].items = [item for item in current_state.characters[player_id].items if item.item_id != simple_item_id]
 
     # Declare the simple action
     simple_action = PlayerAction(
         actor_id=player_id,
-        type=ActionType.INTERACT_ITEM,
-        description="I pick up the red apple from the table.",
-        target_item_id="apple_item", # Target the apple in the location
+        type=ActionType.ACTION, # Picking up an item is an ACTION
+        description=f"I pick up the {simple_item_name} from the ground.",
+        target_item_id=simple_item_id, # Target the item in the location
         round_number=1
     )
-    initial_state.current_round_actions.append(simple_action)
-    game_state_manager.set_current_state(initial_state)
+    current_state.current_round_actions = [simple_action]
+    current_state.current_round_applied_consequences = []
+    current_state.current_round_triggered_events = []
+    gsm.set_current_state(current_state)
 
-    # Mock RefereeAgent's assess_check_necessity to return False (no check needed)
-    with patch.object(referee_agent, 'assess_check_necessity', return_value=(False, None, None)) as mock_assess:
-        # Mock the consequence generation to return the expected consequence
-        mock_consequence = AddItemConsequence(
-            type="ADD_ITEM",
-            character_id=player_id,
-            item_id="apple_item",
-            item_name="Red Apple",
-            item_description="A juicy red apple."
-        )
-        # Also need RemoveItem consequence for the location
-        mock_remove_consequence = MagicMock() # Using MagicMock for simplicity if RemoveItemConsequence is complex
-        mock_remove_consequence.type = "REMOVE_ITEM"
-        # ... set other attributes if needed for validation ...
+    # Instantiate JudgementPhase
+    judgement_phase = JudgementPhase(
+        game_state_manager=gsm,
+        chat_history_manager=chat_history_manager,
+        referee_agent=referee_agent,
+        input_handler=mock_input_handler,
+        scenario_manager=scenario_manager,
+    )
 
-        # Determine consequences should be called without dice roll info
-        def determine_consequences_side_effect(action, context, game_state):
-            assert "Dice Roll Result:" not in context # Ensure no roll info
-            assert "Check:" not in context
-            assert "Difficulty:" not in context
-            # Return picking up the apple and removing it from the location
-            return ([mock_consequence, mock_remove_consequence], [])
+    # 2. Act: Execute the JudgementPhase logic
+    judgement_phase.process()
 
-        with patch.object(referee_agent, 'determine_consequences', side_effect=determine_consequences_side_effect) as mock_determine:
-             # Patch the roll simulation part just to ensure it's NOT called
-             with patch('src.agents.referee_agent.RefereeAgent._get_agent_instance_for_roll', return_value=MagicMock(spec=CompanionAgent)) as mock_get_agent:
-                mock_companion_instance = mock_get_agent.return_value
+    # 3. Assert: Check results
+    final_state = gsm.get_current_state()
 
-                # 2. Act: Execute the JudgementPhase logic
-                judgement_phase.process()
+    # Check if input handler was *NOT* called
+    assert not mock_input_handler.get_dice_roll_input.called, "Input handler should NOT be called for a simple action needing no check."
 
-                # 3. Assert: Check results
-                final_state = game_state_manager.get_current_state()
+    # Check if consequences were applied (item added to player, removed from location)
+    assert len(final_state.current_round_applied_consequences) >= 1, "Expected at least one consequence (e.g., AddItem)."
 
-                # Check if assess_check_necessity was called correctly
-                mock_assess.assert_called_once_with(simple_action, ANY)
+    # Check player inventory
+    player_inventory = final_state.characters[player_id].items
+    assert any(item.item_id == simple_item_id for item in player_inventory), f"'{simple_item_id}' not found in player inventory."
 
-                # Check if input handler was *NOT* called
-                mock_input_handler.get_dice_roll_input.assert_not_called()
+    # Check location items
+    final_location_state = final_state.location_states.get(player_location_id)
+    assert final_location_state is not None
+    assert not any(item.item_id == simple_item_id for item in final_location_state.available_items), f"'{simple_item_id}' should have been removed from location '{player_location_id}'."
 
-                # Check if simulate_dice_roll was *NOT* called
-                mock_get_agent.assert_not_called()
-                mock_companion_instance.simulate_dice_roll.assert_not_called()
-
-                # Check if determine_consequences was called (side effect checks context)
-                mock_determine.assert_called_once()
-
-                # Check if the consequence was applied (item added to inventory)
-                player_inventory = final_state.characters[player_id].inventory
-                assert any(item.id == "apple_item" for item in player_inventory), "Apple item not found in inventory"
-
-                # Check if the item was removed from the location
-                location_items = final_state.locations["start_loc"].items
-                assert not any(item.id == "apple_item" for item in location_items), "Apple item still found in location"
+    # Check if consequences were recorded (expecting AddItem, maybe RemoveItem from location)
+    recorded_consequences = final_state.current_round_applied_consequences
+    assert any(isinstance(r.applied_consequence, AddItemConsequence) and r.applied_consequence.item_id == simple_item_id for r in recorded_consequences), "AddItemConsequence for apple not recorded."
+    # Checking for RemoveItem might depend on how Referee/Handlers implement it
+    # assert any(r.applied_consequence.type == ConsequenceType.REMOVE_ITEM.value ... for r in recorded_consequences)
 
 
-                # Check if the applied consequences were recorded (expecting 2: AddItem, RemoveItem)
-                assert len(final_state.current_round_applied_consequences) == 2
-                add_record = next((r for r in final_state.current_round_applied_consequences if isinstance(r.applied_consequence, AddItemConsequence)), None)
-                remove_record = next((r for r in final_state.current_round_applied_consequences if r.applied_consequence.type == "REMOVE_ITEM"), None) # Check by type due to mock
-
-                assert add_record is not None
-                assert remove_record is not None
-
-                assert add_record.round_number == 1
-                assert add_record.applied_consequence.item_id == "apple_item"
-                assert add_record.applied_consequence.character_id == player_id
-
-                assert remove_record.round_number == 1
-                # Add more specific checks for remove_record if needed
-
-
-def test_judgement_action_triggers_event(judgement_phase, game_state_manager, mock_input_handler, referee_agent, scenario_manager):
+def test_judgement_action_triggers_event(judgement_phase_integration_setup):
     """
-    Tests the scenario where an action's consequence sets a flag, which in turn triggers a scenario event.
+    Tests the scenario where an action's consequence (determined by LLM, e.g., setting a flag)
+    triggers a scenario event.
+    Relies on LLM generating an UpdateFlagConsequence and JudgementPhase correctly
+    identifying and recording the triggered event based on scenario definitions.
     """
-    # 1. Arrange: Set up initial GameState and declare the action
-    initial_state = game_state_manager.get_current_state()
-    initial_state.current_round_number = 1
+    # 1. Arrange: Get components and set up state
+    gsm = judgement_phase_integration_setup["game_state_manager"]
+    agent_manager = judgement_phase_integration_setup["agent_manager"]
+    referee_agent = judgement_phase_integration_setup["referee_agent"]
+    mock_input_handler = judgement_phase_integration_setup["mock_input_handler"]
+    scenario_manager = judgement_phase_integration_setup["scenario_manager"]
+    chat_history_manager = judgement_phase_integration_setup["chat_history_manager"]
 
+    current_state = gsm.get_current_state().model_copy(deep=True)
+    current_state.current_round_number = 1
     player_id = "player_char_id"
-    assert player_id in initial_state.characters
-    assert "secret_button_pressed" not in initial_state.flags # Ensure flag is not set initially
 
-    # Declare the action that will lead to the flag being set
+    # Define the flag and event IDs (ensure these exist in default.json scenario)
+    trigger_flag_name = "secret_button_pressed"
+    triggered_event_id = "secret_revealed_event" # Assumes this event is triggered by the flag
+
+    # Ensure the corresponding event exists in the scenario
+    scenario = scenario_manager.get_current_scenario()
+    event_def = next((e for e in scenario.events if e.id == triggered_event_id), None)
+    if not event_def:
+        pytest.skip(f"Event '{triggered_event_id}' not found in scenario, cannot test triggering.")
+    # Optional: Check if the event condition actually matches the flag
+    # This requires parsing event_def.conditions which might be complex
+
+    # Ensure the flag is initially NOT set
+    if trigger_flag_name in current_state.flags:
+        del current_state.flags[trigger_flag_name]
+        print(f"Removed pre-existing flag '{trigger_flag_name}' for test.")
+
+    # Declare the action expected to trigger the flag
     trigger_action = PlayerAction(
         actor_id=player_id,
-        type=ActionType.INTERACT_GENERAL,
-        description="I press the strange button on the wall.",
-        # target could be location or a specific object if modeled
+        type=ActionType.ACTION, # Interacting with an object is an ACTION
+        description="I press the strange, glowing button on the wall.",
+        # target could be more specific if the button is modeled, e.g., target_object_id="glowing_button"
         round_number=1
     )
-    initial_state.current_round_actions.append(trigger_action)
-    game_state_manager.set_current_state(initial_state)
+    current_state.current_round_actions = [trigger_action]
+    current_state.current_round_applied_consequences = []
+    current_state.current_round_triggered_events = []
+    gsm.set_current_state(current_state)
 
-    # Mock assess_check_necessity to return False (pressing a button likely doesn't need a check)
-    with patch.object(referee_agent, 'assess_check_necessity', return_value=(False, None, None)) as mock_assess:
-        # Mock determine_consequences to return the UpdateFlag consequence AND the triggered event
-        mock_update_flag_consequence = UpdateFlagConsequence( # Changed variable name and class
-            type=ConsequenceType.UPDATE_FLAG.value, # Use enum value for type safety
-            flag_name="secret_button_pressed",
-            flag_value=True
-        )
-        # Get the event definition from the scenario
-        # Need to access events list and find by id
-        triggered_event_def = next((e for e in scenario_manager.get_scenario().events if e.id == "secret_revealed_event"), None)
-        assert triggered_event_def is not None
+    # Instantiate JudgementPhase
+    judgement_phase = JudgementPhase(
+        game_state_manager=gsm,
+        chat_history_manager=chat_history_manager,
+        referee_agent=referee_agent,
+        input_handler=mock_input_handler,
+        scenario_manager=scenario_manager,
+    )
 
-        # Mock determine_consequences to return both the consequence and the event
-        with patch.object(referee_agent, 'determine_consequences', return_value=([mock_update_flag_consequence], [triggered_event_def])) as mock_determine: # Use updated variable
-            # Patch roll simulation just to ensure it's not called
-            with patch('src.agents.referee_agent.RefereeAgent._get_agent_instance_for_roll', return_value=MagicMock(spec=CompanionAgent)) as mock_get_agent:
-                mock_companion_instance = mock_get_agent.return_value
+    # 2. Act: Execute the JudgementPhase logic
+    judgement_phase.process()
 
-                # 2. Act: Execute the JudgementPhase logic
-                judgement_phase.process()
+    # 3. Assert: Check results
+    final_state = gsm.get_current_state()
 
-                # 3. Assert: Check results
-                final_state = game_state_manager.get_current_state()
+    # Check if the flag was set (LLM needs to generate UpdateFlag consequence)
+    assert trigger_flag_name in final_state.flags, f"Flag '{trigger_flag_name}' was not set."
+    assert final_state.flags[trigger_flag_name] is True, f"Flag '{trigger_flag_name}' was not set to True."
 
-                # Check if assess_check_necessity was called
-                mock_assess.assert_called_once_with(trigger_action, ANY)
+    # Check if the UpdateFlag consequence was recorded
+    recorded_consequences = final_state.current_round_applied_consequences
+    assert any(
+        isinstance(r.applied_consequence, UpdateFlagConsequence) and r.applied_consequence.flag_name == trigger_flag_name
+        for r in recorded_consequences
+    ), f"UpdateFlagConsequence for '{trigger_flag_name}' not recorded."
 
-                # Check if input handler/roll simulation were *NOT* called
-                mock_input_handler.get_dice_roll_input.assert_not_called()
-                mock_get_agent.assert_not_called()
-                mock_companion_instance.simulate_dice_roll.assert_not_called()
+    # Check if the event was recorded as triggered
+    assert len(final_state.current_round_triggered_events) == 1, "Expected exactly one event to be triggered."
+    recorded_event = final_state.current_round_triggered_events[0]
+    assert isinstance(recorded_event, TriggeredEventRecord)
+    assert recorded_event.round_number == 1
+    assert recorded_event.event_id == triggered_event_id, f"Expected event '{triggered_event_id}' to be triggered, but got '{recorded_event.event_id}'."
 
-                # Check if determine_consequences was called
-                mock_determine.assert_called_once()
-
-                # Check if the flag was set in the game state
-                assert "secret_button_pressed" in final_state.flags
-                assert final_state.flags["secret_button_pressed"] is True
-
-                # Check if the UpdateFlag consequence was recorded
-                assert any(
-                    isinstance(r.applied_consequence, UpdateFlagConsequence) and r.applied_consequence.flag_name == "secret_button_pressed" # Changed class check
-                    for r in final_state.current_round_applied_consequences
-                ), "UpdateFlag consequence not recorded" # Changed message
-
-                # Check if the event was recorded as triggered
-                assert len(final_state.current_round_triggered_events) == 1
-                recorded_event = final_state.current_round_triggered_events[0]
-                assert isinstance(recorded_event, TriggeredEventRecord)
-                assert recorded_event.round_number == 1
-                assert recorded_event.event_id == "secret_revealed_event"
+    # Check if input handler was likely NOT called (depends on LLM)
+    # assert not mock_input_handler.get_dice_roll_input.called, "Input handler should likely not be called for pressing a button."
