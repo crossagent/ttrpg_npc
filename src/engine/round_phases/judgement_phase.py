@@ -206,7 +206,7 @@ class JudgementPhase(BaseRoundPhase):
                         self.logger.warning(f"行动 '{action.content}' 需要检定，但未指定具体属性，将使用通用检定 ({dice_type})。")
 
                     # Get the agent instance
-                    agent = self.agent_manager.get_agent_by_character_id(action.character_id)
+                    agent = self.agent_manager.get_agent(action.character_id)
                     if not agent:
                         self.logger.warning(f"无法找到行动发起者 {action.character_id} 的 Agent 实例，跳过检定。")
                         needs_check = False # Override needs_check
@@ -217,7 +217,7 @@ class JudgementPhase(BaseRoundPhase):
                         # Check if it's the player character
                         if action.character_id == current_game_state.player_character_id:
                             self.logger.info(f"请求玩家 {actor_name} ({action.character_id}) 进行 {dice_type} 投骰...")
-                            dice_roll_result = await self.input_handler.get_dice_roll_input(
+                            dice_roll_result = await self.context.input_handler.get_dice_roll_input(
                                 character_name=actor_name,
                                 character_id=action.character_id,
                                 dice_type=dice_type,
