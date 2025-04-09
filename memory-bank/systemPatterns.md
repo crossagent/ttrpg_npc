@@ -14,9 +14,17 @@
     *   **模式**: 代理模式 (Agent Pattern)，面向对象设计。
     *   **核心代理类型**:
         *   **PlayerAgent**: 代表人类玩家控制的角色 (PC)。对应玩家在游戏开始时从 `is_playable=True` 列表中选择的角色 (其 ID 存储在 `GameState.player_character_id`)。其行动不由自身生成，而是通过调用 LLM 生成多个行动选项，由玩家通过展现层选择一个。由 `AgentManager` 在初始化时创建。
-        *   **CompanionAgent**: 代表由 AI 驱动的陪玩角色（非玩家控制，但有独立思考和行动能力）。对应未被玩家选择但 `is_playable=True` 的角色。模拟 NPC 思考（感知-思考-行动循环），自主生成行动。由 `AgentManager` 在初始化时创建。（注意：此类由原 `PlayerAgent` 重命名而来）。
+        *   **CompanionAgent**: 代表由 AI 驱动的陪玩角色（非玩家控制，但有独立思考和行动能力）。对应未被玩家选择但 `is_playable=True` 的角色。模拟 NPC 思考（感知-思考-行动循环），自主生成行动。**能够响应 `RefereeAgent` 的请求模拟投骰结果 (例如通过 `simulate_dice_roll` 方法)**。由 `AgentManager` 在初始化时创建。（注意：此类由原 `PlayerAgent` 重命名而来）。
         *   **NarrativeAgent (叙事代理)**: 负责生成环境描述、剧情叙述、普通 NPC 的对话和行为描述（原 DM 叙事部分）。不直接代表某个角色。由 `AgentManager` 在初始化时创建。
-        *   **RefereeAgent (裁判代理)**: 负责判定 Agent 行动的直接**属性后果**（将利用 `CharacterInstance` 中的属性/技能进行更细致的判定），并在回合评估阶段根据剧本和当前状态判断**活跃事件**是否触发。**不直接设置 Flag**，Flag 只能由事件后果设置。由 `AgentManager` 在初始化时创建。
+        *   **RefereeAgent (裁判代理)**:
+            *   **核心职责**: 判定 Agent 行动的成功/失败、直接后果（如属性变化），以及基于当前状态和行动后果判断 `ScenarioEvent` 是否触发及结局。**不直接设置 Flag**，Flag 只能由事件后果设置。
+            *   **检定机制**:
+                *   新增 `assess_check_necessity` 方法：在判定前评估行动是否需要进行检定（基于风险、后果严重性等，通过LLM 推断）。
+                *   若需要检定，负责确定检定的属性，并向相关 Agent 请求投骰：
+                    *   对 `PlayerAgent`: 通过 `GameEngine` 和 `InputHandler` 请求玩家输入投骰结果。
+                    *   对 `CompanionAgent`: 调用其 `simulate_dice_roll` 方法获取模拟结果。
+                *   将获取的投骰结果整合到最终判定的上下文中（由 `RefereeContextBuilder` 处理）。
+            *   由 `AgentManager` 在初始化时创建。
         *   **普通 NPC**: 对应剧本中 `is_playable=False` 的角色。没有对应的 Agent 实例。其行为由 `NarrativeAgent` 描述或由 `RefereeAgent` 在处理后果时触发。
 *   **游戏状态管理器 (Game State Manager)**:
     *   **职责**: 存储和管理核心游戏的**机制状态**和**全局信息**（角色属性、技能、健康、位置、物品、事件实例、进度、Flags 等），作为当前世界的“快照”。是规则判断和应用**硬性后果**的基础。**负责即时应用**经过校验的后果到游戏状态。提供状态的保存和加载接口（包括回合快照）。处理阶段检查与推进。
@@ -57,7 +65,13 @@
     1.  **叙事阶段 (Narration Phase)**: 处理可选的开场 DM 叙事，可能基于上一回合的 `GameState` 快照进行总结。(`narration_phase.py`)
     2.  **行动宣告阶段 (Action Declaration Phase)**: 收集所有 `PlayerAgent` 和 `CompanionAgent` 的行动意图 (`PlayerAction`)，并将这些行动记录到当前 *实时* `GameState` 的临时字段 `current_round_actions` 中。(`action_declaration_phase.py`)
     3.  **判定与应用阶段 (Judgement & Application Phase)**: (原 Judgement Phase 扩展)
-        *   **判定**: `RefereeAgent` 判定宣告行动的成功/失败、直接后果（如属性变化），以及基于当前状态和行动后果判断 `ScenarioEvent` 是否触发及结局。这可能包括由 `CompanionAgent` 在行动宣告时预先生成的后果 (`generated_consequences`)。
+        *   **检定必要性评估 (Check Necessity Assessment)**: (新增步骤) 对于每个宣告的行动 (`PlayerAction`)，`RefereeAgent` 首先调用 `assess_check_necessity` 方法判断是否需要进行检定。
+        *   **跳过检定**: 如果不需要检定，则可能直接判定成功或产生叙述性后果，跳过后续投骰和详细判定。
+        *   **执行检定与判定 (Check Execution & Judgement)**: 如果需要检定：
+            *   `RefereeAgent` 确定检定的属性。
+            *   `RefereeAgent` 请求投骰 (向 `PlayerAgent` 通过 `InputHandler` 或向 `CompanionAgent` 直接调用)。
+            *   `RefereeAgent` 接收投骰结果。
+            *   `RefereeAgent` 结合投骰结果、角色能力、难度等因素，判定行动的最终成功/失败和直接后果（如属性变化）。同时，基于当前状态和行动后果判断 `ScenarioEvent` 是否触发及结局。
         *   **校验**: 对判定的后果和事件进行合法性校验（结构校验、逻辑校验）。
         *   **即时应用**: 对于通过校验的后果和事件，**立即** 调用 `GameStateManager.apply_consequences()` 方法。该方法会查找并调用相应的 **后果处理器 (Consequence Handler)** 来修改 *实时* `GameState`。
         *   **记录已应用变更**: **后果处理器 (Consequence Handler)** 在成功应用后果后，负责创建 `AppliedConsequenceRecord` 并添加到 *实时* `GameState` 的 `current_round_applied_consequences` 列表中。`JudgementPhase` 负责记录触发的事件 (`TriggeredEventRecord`) 到 `current_round_triggered_events`。(`judgement_phase.py`)
@@ -74,7 +88,7 @@
 *   **游戏推进逻辑 (即时应用)**:
     *   **叙事阶段**: `NarrativeAgent` 基于上一回合的 `GameState` 快照和由 `dm_context_builder` 准备的 `narrative_focus_points` 进行总结叙事。
     *   **行动宣告阶段**: 收集意图 (`PlayerAction`) 并记录到当前 `GameState` 的 `current_round_actions`。
-    *   **判定与应用阶段**: `RefereeAgent` 判定后果和事件 -> 校验 -> **立即**调用 `GameStateManager.apply_consequences()` -> `GameStateManager` 分发给对应的 **后果处理器 (Handler)** 应用到当前 `GameState` 并记录 `AppliedConsequenceRecord` -> `JudgementPhase` 记录 `TriggeredEventRecord`。
+    *   **判定与应用阶段**: `RefereeAgent` 评估检定必要性 -> (可选) 请求并获取投骰结果 -> `RefereeAgent` 判定后果和事件 -> 校验 -> **立即**调用 `GameStateManager.apply_consequences()` -> `GameStateManager` 分发给对应的 **后果处理器 (Handler)** 应用到当前 `GameState` 并记录 `AppliedConsequenceRecord` -> `JudgementPhase` 记录 `TriggeredEventRecord`。
     *   **回合结束**: 创建当前 `GameState` 快照并存储，清空临时记录字段。
 
 ## 4. 设计原则

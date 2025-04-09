@@ -1,6 +1,6 @@
-# Active Context: 实现游戏状态自动存档与加载功能
+# Active Context: 实现行动检定与投骰机制
 
-## 当前工作焦点: 实现游戏状态自动存档与加载功能
+## 当前工作焦点: 实现行动检定与投骰机制
 
 *   **背景**: 之前 `CompanionAgent` 会因为没有短期目标或目标不可行而陷入无限等待的循环。
 *   **已完成任务**: 修复了 `CompanionAgent` 的行动宣告逻辑，完整实现了两阶段思考模式：
@@ -66,18 +66,30 @@
     *   在 `src/agents/companion_agent.py` 中添加了 `_trigger_deep_thinking` 方法，用于在决定等待时生成下一回合的短期目标。
     *   在 `src/context/player_context_builder.py` 中添加了相应的 Prompt 构建函数 (`build_goal_generation_system_prompt`, `build_goal_generation_user_prompt`) 并修复了导入错误。
 
-## 下一步计划
+## 下一步计划 (实现行动检定与投骰机制)
 
-1.  **测试游戏存档与加载功能**:
-    *   运行新游戏，检查 `game_records/` 目录下是否正确生成 `.json` 存档文件。
-    *   使用 `--load-record` 和 `--load-round` 参数启动游戏，验证是否能从指定回合正确恢复状态和聊天记录，并继续游戏。
-2.  **测试 CompanionAgent 修复**: (优先级次高) 运行游戏，观察 `CompanionAgent` 是否能在等待后生成新目标并继续行动。
-3.  **对话生成优化**: (后续任务)
-    *   修改 `DialogueAction` 模型 (`src/models/action_models.py`)，增加 `minor_action: Optional[str]` 字段。
-    *   修改 `CompanionAgent` 生成对话的 Prompt (`build_decision_system_prompt`)，要求直接输出对话内容，并鼓励根据情境填充 `minor_action`。
-    *   更新 `CompanionAgent` 代码以解析和填充新的 `DialogueAction` 字段。
-3.  **审阅 `RefereeAgent`**: (后续任务) 检查其 Prompt 和数据源。
-4.  **检查数据源**: (穿插进行) 确认 `Context Builders` 提供正确数据。
+1.  **更新 Memory Bank 文档**: (当前正在进行)
+    *   更新 `systemPatterns.md` 以反映新的判定流程和 Agent 职责。(已完成)
+    *   更新 `activeContext.md` (本文件) 以反映新的工作焦点和计划。(当前步骤)
+    *   更新 `progress.md` 以添加新的开发任务。
+2.  **实现检定必要性评估**:
+    *   在 `src/agents/referee_agent.py` 中添加 `assess_check_necessity(action, game_state)` 方法，使用 LLM 推断是否需要检定，并确定检定属性。
+3.  **实现投骰交互**:
+    *   在 `src/agents/companion_agent.py` 中添加 `simulate_dice_roll(dice_type)` 方法。
+    *   扩展 `src/io/input_handler.py` (`UserInputHandler` 和 `CliInputHandler`)，添加 `get_dice_roll_input` 方法来处理玩家投骰输入。
+4.  **修改判定阶段逻辑**:
+    *   在 `src/engine/round_phases/judgement_phase.py` 中，在处理每个 `PlayerAction` 时，调用 `RefereeAgent.assess_check_necessity`。
+    *   根据评估结果，决定是跳过检定还是继续执行检定流程。
+    *   如果需要检定，调用相应的方法获取投骰结果 (从 `InputHandler` 或 `CompanionAgent`)。
+5.  **整合投骰结果进行判定**:
+    *   修改 `src/context/referee_context_builder.py` 中的 `build_action_resolve_system_prompt`，将投骰结果、检定属性和角色能力纳入上下文。
+    *   修改 `src/agents/referee_agent.py` 中的判定逻辑，使其能够利用包含投骰结果的新上下文进行最终判定。
+6.  **测试**: 运行游戏，测试不同场景下的检定触发、投骰交互和判定结果。
+7.  **(后续)** 测试游戏存档与加载功能。
+8.  **(后续)** 测试 CompanionAgent 修复。
+9.  **(后续)** 对话生成优化。
+10. **(后续)** 审阅 `RefereeAgent` Prompt 和数据源。
+11. **(后续)** 检查数据源。
 
 ## 待解决/考虑事项
 

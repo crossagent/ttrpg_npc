@@ -48,30 +48,37 @@
 
 ## 进行中 / 下一步 (按优先级)
 
-1.  **测试游戏存档与加载功能**: (当前最高优先级)
+1.  **实现行动检定与投骰机制**: (当前最高优先级)
+    *   **更新 Memory Bank 文档**: (已完成 `systemPatterns.md`, `activeContext.md`；进行中 `progress.md`)
+    *   **实现检定必要性评估**: 在 `RefereeAgent` 中添加 `assess_check_necessity` 方法。
+    *   **实现投骰交互**: 在 `CompanionAgent` 中添加 `simulate_dice_roll`；扩展 `InputHandler` 添加 `get_dice_roll_input`。
+    *   **修改判定阶段逻辑**: 在 `JudgementPhase` 中集成检定流程。
+    *   **整合投骰结果进行判定**: 修改 `RefereeContextBuilder` 和 `RefereeAgent` 的判定逻辑。
+    *   **测试**: 运行游戏进行测试。
+2.  **测试游戏存档与加载功能**: (已完成)
     *   运行新游戏，检查 `game_records/` 目录下是否正确生成 `.json` 存档文件。
     *   使用 `--load-record` 和 `--load-round` 参数启动游戏，验证是否能从指定回合正确恢复状态和聊天记录，并继续游戏。
-2.  **测试 CompanionAgent 修复**: (优先级次高) 运行游戏，观察 `CompanionAgent` 是否能在等待后生成新目标并继续行动。
-3.  **对话生成优化**: (优先级中)
+3.  **测试 CompanionAgent 修复**: (优先级调整) 运行游戏，观察 `CompanionAgent` 是否能在等待后生成新目标并继续行动。
+4.  **对话生成优化**: (优先级调整)
     *   修改 `DialogueAction` 模型 (`src/models/action_models.py`)，增加 `minor_action: Optional[str]` 字段。
     *   修改 `CompanionAgent` 生成对话的 Prompt (`build_decision_system_prompt`)，要求直接输出对话内容，并鼓励根据情境填充 `minor_action`。
     *   更新 `CompanionAgent` 代码以解析和填充新的 `DialogueAction` 字段。
-3.  **更新测试用例**: (优先级中) 修改或添加测试用例以覆盖新的逻辑和修复。
-4.  **实现未完成的 Handler**: (优先级中)
+5.  **更新测试用例**: (优先级调整) 修改或添加测试用例以覆盖新的逻辑和修复。
+6.  **实现未完成的 Handler**: (优先级调整)
     *   实现 `TriggerEventHandler`。
     *   将它们添加到 `HANDLER_REGISTRY`。
-5.  **更新数据模型 (Models):** (优先级中)
+7.  **更新数据模型 (Models):** (优先级调整)
     *   在 `CharacterTemplate` (`src/models/scenario_models.py`) 和 `CharacterInstance` (`src/models/game_state_models.py`) 中添加用于描述 NPC 内在设定的字段，例如 `values: List[str]`, `likes: List[str]`, `dislikes: List[str]`。
-7.  **实现基于 LLM 的关系评估 (RefereeAgent):** (优先级中)
+8.  **实现基于 LLM 的关系评估 (RefereeAgent):** (优先级调整)
     *   设计并实现 `RefereeAgent` 中的逻辑：调用 LLM 来解读玩家行动/对话与目标 NPC 内在设定 (`values`, `likes`, `dislikes` 等) 的匹配/冲突程度。
     *   定义 LLM 的输入（玩家行为、情境、NPC 设定、当前关系值）和结构化输出（例如 `RelationshipImpactAssessment` 模型，包含影响类型、强度、原因、建议变化值）。
     *   设计引导 LLM 进行评估的 Prompt。
     *   确定 `RefereeAgent` 如何结合 LLM 的建议和基础规则来最终决定 `relationship_player` 的变化量（可能生成 `CHANGE_RELATIONSHIP` 后果）。
-8.  **细化 `Context Builders` 逻辑:** (优先级中)
+9.  **细化 `Context Builders` 逻辑:** (优先级调整)
     *   实现从 `ChatHistoryManager` 智能提取/总结关键近期互动信息（记忆）的策略。
     *   确保能将 NPC 的目标、态度（关系值、内在设定）、状态 (`status`) 和关键记忆有效整合进给 Agent 的 Prompt。
-9.  **(已完成)** 实现完整的保存/加载流程。
-10. **(稍后)** 检查并清理可能冗余的 `src/models/record_models.py`。
+10. **(已完成)** 实现完整的保存/加载流程。
+11. **(稍后)** 检查并清理可能冗余的 `src/models/record_models.py`。
 
 ## 已知问题 / 待办
 
