@@ -360,7 +360,7 @@ class GameStateManager:
         self.logger.info(f"开始应用 {len(consequences)} 条后果...")
 
         for i, cons in enumerate(consequences):
-            self.logger.debug(f"处理后果 {i+1}/{len(consequences)}: {cons.type.value} - {cons.target_entity_id}")
+            self.logger.debug(f"处理后果 {i+1}/{len(consequences)}: {cons.type} - {cons.target_entity_id}")
             description = None
             handler = None
             try:

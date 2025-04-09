@@ -223,7 +223,11 @@ class RefereeAgent(BaseAgent):
                 for cons_data in response_data["attribute_consequences"]:
                     try:
                         # Use model_validate for Pydantic v2 discriminated unions
-                        consequence = AnyConsequence.model_validate(cons_data)
+                        from pydantic import TypeAdapter
+                        # 创建一个能处理 AnyConsequence Union 的适配器
+                        consequence_adapter = TypeAdapter(AnyConsequence)
+                        consequence = consequence_adapter.validate_python(cons_data)
+                        #consequence = AnyConsequence.model_validate(cons_data)
                         # **Crucially, filter out any UPDATE_FLAG consequences here**
                         # Note: If UPDATE_FLAG is removed from AnyConsequence union, this check becomes unnecessary
                         if consequence.type != ConsequenceType.UPDATE_FLAG:
