@@ -52,7 +52,6 @@ class PlayerAssessment(BaseModel):
     attitude_toward_self: AttitudeType = Field(AttitudeType.UNKNOWN, description="对自己的态度")
     trust_level: TrustLevel = Field(TrustLevel.UNKNOWN, description="信任程度")
     power_assessment: str = Field("", description="实力与资源评估")
-    last_interaction: Optional[datetime] = Field(None, description="最后交互时间")
 
 class InternalThoughts(BaseModel):
     """角色内心世界模型，表示角色的心理状态、观察和分析"""
@@ -116,6 +115,14 @@ class ActionResult(BaseModel):
     narrative: str = Field(..., description="结果叙述")
     dice_result: Optional[DiceResult] = Field(None, description="如果涉及掷骰，则包含骰子结果")
     consequences: List[AnyConsequence] = Field(default_factory=list, description="行动导致的结构化后果列表") # 更新类型
+
+
+class CheckNecessityAssessment(BaseModel):
+    """
+    LLM评估行动是否需要检定的响应模型。
+    """
+    needs_check: bool = Field(..., description="行动是否需要进行检定。")
+    check_attribute: Optional[str] = Field(None, description="如果需要检定，指定检定的属性或技能名称。如果不需要检定，则为 null 或省略。")
 
 
 class ActionResolutionRequest(BaseModel):

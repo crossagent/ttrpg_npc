@@ -2,20 +2,22 @@
 
 from autogen_agentchat.messages import TextMessage
 from autogen_core import CancellationToken
-# +++ Add Tuple +++
-from typing import Optional, Dict, Any, List, Tuple # Added List, Tuple
+from typing import Optional, Dict, Any, List, Tuple
 import json
 import re
-import uuid # Import uuid for unique assistant names
-import traceback # Import traceback for error logging
-import logging # Import logging
+import uuid
+import traceback
+import logging
 
-# +++ 更新导入 +++
-from src.models.scenario_models import Scenario, ScenarioCharacterInfo # Keep Scenario for context if needed by prompt, Add ScenarioCharacterInfo
-from src.models.game_state_models import GameState, CharacterInstance # Add CharacterInstance
-from src.models.action_models import PlayerAction, ActionResult, RelationshipImpactAssessment # Add RelationshipImpactAssessment
-# Import the new union type and specific types if needed for validation/logic
+# Models
+from src.models.scenario_models import Scenario, ScenarioCharacterInfo
+from src.models.game_state_models import GameState, CharacterInstance
+from src.models.action_models import PlayerAction, ActionResult, RelationshipImpactAssessment, CheckNecessityAssessment # Import CheckNecessityAssessment
 from src.models.consequence_models import AnyConsequence, ConsequenceType
+# Import validation tools and factory function
+from src.models.llm_validation import ModelValidator, LLMOutputError, create_validator_for 
+
+# Agents and Managers
 from src.agents.base_agent import BaseAgent
 from src.engine.scenario_manager import ScenarioManager # Import ScenarioManager
 from src.engine.chat_history_manager import ChatHistoryManager # Import ChatHistoryManager
@@ -61,10 +63,13 @@ class RefereeAgent(BaseAgent):
         # Setup logger for this agent
         self.logger = logging.getLogger(f"RefereeAgent_{agent_name}")
         # Configure logging level if needed, e.g., self.logger.setLevel(logging.DEBUG)
+        # No validator caching in __init__ per user feedback
+
 
     async def assess_check_necessity(self, action: PlayerAction, game_state: GameState) -> Tuple[bool, Optional[str]]:
         """
         使用LLM评估一个行动是否需要进行检定，并确定检定属性/技能。
+        使用 Pydantic 模型验证 LLM 的输出。
 
         Args:
             action (PlayerAction): 需要评估的行动。
@@ -88,62 +93,44 @@ class RefereeAgent(BaseAgent):
         )
         user_message = TextMessage(content=user_message_content, source="system")
 
-        response_content: str = ""
-        needs_check: bool = False
-        check_attribute: Optional[str] = None
-
         try:
             response = await assistant.on_messages([user_message], CancellationToken())
             if not response or not response.chat_message or not response.chat_message.content:
                 self.logger.warning(f"未能从LLM获取有效的检定必要性评估响应。Action: {action.content}")
-                # Default to needing a check if LLM fails? Or default to no check?
-                # Let's default to NO check for safety/simplicity for now.
-                return False, None
+                return False, None # Default to no check on LLM failure
 
             response_content = response.chat_message.content
 
-            json_str = response_content
-            json_match = re.search(r'```json\s*([\s\S]*?)\s*```', response_content, re.IGNORECASE)
-            if json_match:
-                json_str = json_match.group(1).strip()
-            else:
-                self.logger.warning(f"assess_check_necessity LLM响应未包含 ```json ``` 标记。尝试直接解析。响应: {response_content[:100]}...")
-
+            # 使用 ModelValidator 进行验证 (在方法内部创建验证器)
             try:
-                response_data = json.loads(json_str)
-                # Expected format: {"needs_check": true/false, "check_attribute": "attribute_name_or_null"}
-                if "needs_check" in response_data and isinstance(response_data["needs_check"], bool):
-                    needs_check = response_data["needs_check"]
-                    if needs_check:
-                        if "check_attribute" in response_data and isinstance(response_data["check_attribute"], str) and response_data["check_attribute"]:
-                            check_attribute = response_data["check_attribute"]
-                            # TODO: Add validation? Check if attribute exists on character?
-                            # For now, trust the LLM output if needs_check is true.
-                        else:
-                            self.logger.warning(f"LLM指示需要检定，但未提供有效的 'check_attribute'。响应: {response_data}")
-                            # Fallback: If check needed but attribute missing, maybe default to a general check or mark as error?
-                            # Let's still return True, but None for attribute, JudgementPhase needs to handle this.
-                            check_attribute = None
-                    else:
-                        # If needs_check is false, check_attribute should be None
-                        check_attribute = None
-                else:
-                    self.logger.warning(f"assess_check_necessity LLM响应JSON格式不正确或缺少 'needs_check'。响应数据: {response_data}")
-                    # Default to no check on format error
-                    return False, None
+                # Create validator instance dynamically using the factory
+                validator: ModelValidator[CheckNecessityAssessment] = create_validator_for(CheckNecessityAssessment)
+                validated_data: CheckNecessityAssessment = validator.validate_response(response_content)
 
-            except json.JSONDecodeError as e:
-                self.logger.error(f"assess_check_necessity JSON解析失败。错误: {e}。原始JSON: '{json_str}'. LLM响应: {response_content}")
-                # Default to no check on parse error
+                needs_check = validated_data.needs_check
+                check_attribute = validated_data.check_attribute
+
+                # 额外的逻辑检查：如果需要检定，但属性为空，记录警告
+                if needs_check and not check_attribute:
+                     self.logger.warning(f"LLM指示需要检定，但未提供有效的 'check_attribute'。响应模型: {validated_data.model_dump_json(indent=2)}")
+                     # 保持 needs_check=True，让 JudgementPhase 处理属性缺失的情况
+                     check_attribute = None # 确保返回 None
+
+                self.logger.info(f"行动 '{action.content}' 评估结果: 需要检定={needs_check}, 检定属性={check_attribute}")
+                return needs_check, check_attribute
+
+            except LLMOutputError as e:
+                self.logger.error(f"评估检定必要性时LLM输出验证失败: {e.message}")
+                self.logger.debug(f"原始LLM响应: {e.raw_output}")
+                if e.validation_errors:
+                    self.logger.debug(f"Pydantic验证错误详情: {e.validation_errors}")
+                # Default to no check on validation/parsing error
                 return False, None
 
         except Exception as e:
             self.logger.exception(f"评估检定必要性时发生意外错误: {str(e)}")
             # Default to no check on general error
             return False, None
-
-        self.logger.info(f"行动 '{action.content}' 评估结果: 需要检定={needs_check}, 检定属性={check_attribute}")
-        return needs_check, check_attribute
 
     # +++ Update method signature +++
     async def judge_action(
