@@ -24,10 +24,49 @@ class LLMOutputError(Exception):
         super().__init__(message)
 
 
+def _preprocess_json_string(json_str: str) -> str:
+    """
+    预处理JSON字符串，修复常见的LLM生成错误。
+    
+    Args:
+        json_str: 原始JSON字符串
+        
+    Returns:
+        str: 预处理后的JSON字符串
+    """
+    # 保存原始字符串以检测是否有变化
+    original_str = json_str
+    
+    # 1. 移除对象末尾的逗号: ,} -> }
+    json_str = re.sub(r",\s*}", "}", json_str)
+    
+    # 2. 移除数组末尾的逗号: ,] -> ]
+    json_str = re.sub(r",\s*]", "]", json_str)
+    
+    # 3. 修复数组属性缺少逗号的问题
+    # 例如: "type": "array" "options": [...] -> "type": "array", "options": [...]
+    json_str = re.sub(r'"(type|[a-zA-Z_]+)":\s*"([^"]+)"\s+"([a-zA-Z_]+)":', 
+                     r'"\1": "\2", "\3":', json_str)
+    
+    # 4. 修复属性之间缺少逗号的问题
+    # 例如: "prop1": "value1" "prop2": "value2" -> "prop1": "value1", "prop2": "value2"
+    json_str = re.sub(r'("[^"]+"\s*:\s*(?:"[^"]*"|true|false|\d+(?:\.\d+)?))\s+(")', r'\1, \2', json_str)
+    
+    # 5. 修复数组元素之间缺少逗号的问题
+    # 例如: [{"id":1} {"id":2}] -> [{"id":1}, {"id":2}]
+    json_str = re.sub(r'(}|"])\s+({"|\[)', r'\1, \2', json_str)
+    
+    if json_str != original_str:
+        logger.debug("JSON string preprocessed to fix common formatting issues.")
+    
+    return json_str
+
+
 def extract_json_from_llm_response(response: str) -> str:
     """
     严格从LLM响应中提取Markdown代码块内的JSON字符串。
     只接受被 ```json ... ``` 或 ``` ... ``` 包裹的内容。
+    会对提取的内容进行预处理以修复常见的JSON格式错误。
     
     Args:
         response: LLM的原始响应文本
@@ -41,45 +80,23 @@ def extract_json_from_llm_response(response: str) -> str:
     # 1. 尝试从Markdown代码块中提取JSON
     json_match_markdown = re.search(r'```(?:json)?\s*([\s\S]*?)\s*```', response_cleaned)
     if json_match_markdown:
-        json_str = json_match_markdown.group(1).strip()
-        # 尝试验证Markdown中的内容是否为有效JSON
+        raw_json_str = json_match_markdown.group(1).strip()
+        
+        # 2. 应用预处理以修复所有可能的JSON格式错误
+        preprocessed_json_str = _preprocess_json_string(raw_json_str)
+        
+        # 3. 尝试解析预处理后的JSON
         try:
-            # 尝试解析以确认有效性
-            # 这一步很重要，确保返回的确实是有效的JSON字符串
-            json.loads(json_str) 
-            return json_str
-        except json.JSONDecodeError:
-            # 如果Markdown块内容无效，则返回空字符串，表示提取失败
-            print(f"Warning: Found Markdown block, but content is not valid JSON: {json_str[:100]}...")
-            logger.warning(f"Markdown block content is not valid JSON after preprocessing: {json_str[:100]}...")
+            json.loads(preprocessed_json_str)  # 仅为验证有效性
+            return preprocessed_json_str
+        except json.JSONDecodeError as e:
+            # 如果修复失败，记录错误信息并返回空字符串
+            logger.warning(f"JSON解析错误({str(e)}): {raw_json_str[:100]}...")
             return ""
             
-    # 2. 如果没有找到Markdown代码块，直接返回空字符串
-    # 这将强制要求LLM必须使用Markdown块输出JSON
-    logger.warning("No valid JSON Markdown block found in LLM response.")
+    # 4. 如果没有找到Markdown代码块，直接返回空字符串
+    logger.warning("未在LLM响应中找到有效的JSON Markdown代码块。")
     return ""
-
-def _preprocess_json_string(json_str: str) -> str:
-    """
-    预处理JSON字符串，修复常见的LLM生成错误，例如尾随逗号。
-    
-    Args:
-        json_str: 原始JSON字符串
-        
-    Returns:
-        str: 预处理后的JSON字符串
-    """
-    # 移除对象末尾的逗号: ,} -> }
-    processed_str = re.sub(r",\s*}", "}", json_str)
-    # 移除数组末尾的逗号: ,] -> ]
-    processed_str = re.sub(r",\s*]", "]", processed_str)
-    
-    # 可以在这里添加更多预处理规则
-    
-    if processed_str != json_str:
-        logger.debug("JSON string preprocessed to remove trailing commas.")
-        
-    return processed_str
 
 
 class ModelValidator(Generic[T]):
@@ -134,7 +151,7 @@ class ModelValidator(Generic[T]):
         Raises:
             LLMOutputError: 当验证失败时抛出
         """
-        # 提取JSON字符串
+        # 提取JSON字符串 (已包含预处理步骤)
         json_str = extract_json_from_llm_response(response)
         
         if not json_str:
@@ -144,14 +161,11 @@ class ModelValidator(Generic[T]):
                 response
             )
 
-        # 预处理JSON字符串以修复常见错误
-        preprocessed_json_str = _preprocess_json_string(json_str)
-
-        # 尝试解析预处理后的JSON
+        # 尝试解析JSON
         try:
-            data = json.loads(preprocessed_json_str)
+            data = json.loads(json_str)
         except json.JSONDecodeError as e:
-            # 如果预处理后仍然解析失败，则抛出错误
+            # 如果解析失败，则抛出错误
             raise LLMOutputError(
                 f"JSON解析错误: {str(e)}", 
                 self.model_class, 
