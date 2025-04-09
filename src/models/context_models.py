@@ -9,7 +9,7 @@ class PlayerActionLLMOutput(BaseModel):
     """LLM输出的玩家行动模型"""
     observation: str = Field(..., description="观察到的环境和其他角色的信息")
     internal_thoughts: InternalThoughts = Field(..., description="内心活动")
-    action: str = Field(..., description="实际采取的行动") # Note: This field likely represents the main content/dialogue
+    context: str = Field(..., description="行为或者对话的内容") # Note: This field likely represents the main content/dialogue
     action_type: ActionType = Field(default=ActionType.TALK, description="行动类型：对话、行动或无视")
     target: Union[str, List[str]] = Field(default="all", description="行动目标")
     minor_action: Optional[str] = Field(None, description="伴随对话的微小动作 (例如: 叹气, 撩头发), 主要用于 TALK 类型")

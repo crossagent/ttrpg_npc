@@ -613,7 +613,7 @@ class CompanionAgent(BaseAgent):
                         character_id=self.character_id,
                         # internal_thoughts=None, # Field removed
                         action_type=validated_data.action_type,
-                        content=validated_data.action, # This is the main dialogue/action content
+                        content=validated_data.context, # This is the main dialogue/action content
                         target=validated_data.target,
                         minor_action=validated_data.minor_action, # +++ 添加 minor_action +++
                         generated_consequences=[] # 移除旧的后果列表
