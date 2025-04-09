@@ -49,7 +49,7 @@
 ## 进行中 / 下一步 (按优先级)
 
 1.  **实现行动检定与投骰机制**: (当前最高优先级)
-    *   **更新 Memory Bank 文档**: (已完成 `systemPatterns.md`, `activeContext.md`；进行中 `progress.md`)
+    *   **更新 Memory Bank 文档**: (已完成)
     *   **实现检定必要性评估**: 在 `RefereeAgent` 中添加 `assess_check_necessity` 方法。
     *   **实现投骰交互**: 在 `CompanionAgent` 中添加 `simulate_dice_roll`；扩展 `InputHandler` 添加 `get_dice_roll_input`。
     *   **修改判定阶段逻辑**: 在 `JudgementPhase` 中集成检定流程。

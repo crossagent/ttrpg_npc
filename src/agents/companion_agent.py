@@ -6,6 +6,8 @@ import re # +++ Import re +++
 import uuid # +++ Import uuid +++
 import traceback # +++ Import traceback +++
 import logging # +++ Import logging +++
+# +++ Import random +++
+import random
 from datetime import datetime
 # +++ Update imports +++
 from src.models.scenario_models import ScenarioCharacterInfo
@@ -66,6 +68,30 @@ class CompanionAgent(BaseAgent):
         )
         # +++ Setup logger +++
         self.logger = logging.getLogger(f"CompanionAgent_{agent_name}")
+
+    def simulate_dice_roll(self, dice_type: str) -> int:
+        """
+        模拟指定类型的骰子投掷。
+
+        Args:
+            dice_type (str): 骰子类型，格式如 "d20", "d6" 等。
+
+        Returns:
+            int: 投掷结果。如果骰子类型无效，返回 1。
+        """
+        match = re.match(r'd(\d+)', dice_type.lower())
+        if match:
+            num_sides = int(match.group(1))
+            if num_sides > 0:
+                result = random.randint(1, num_sides)
+                self.logger.info(f"{self.agent_name} 模拟投掷 {dice_type}，结果: {result}")
+                return result
+            else:
+                self.logger.warning(f"无效的骰子面数: {num_sides} (来自 {dice_type})。返回 1。")
+                return 1
+        else:
+            self.logger.warning(f"无法解析的骰子类型: '{dice_type}'。返回 1。")
+            return 1
 
     async def _trigger_deep_thinking(
         self,

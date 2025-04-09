@@ -3,6 +3,7 @@
 构建裁判代理 (Referee Agent) 所需的上下文和 Prompt。
 包括行动判定和事件触发判断的 Prompt。
 """
+# +++ Add Optional to imports +++
 from typing import List, Dict, Any, Optional
 from enum import Enum # Import Enum
 
@@ -32,23 +33,29 @@ def build_action_resolve_system_prompt(scenario: Optional[Scenario] = None) -> s
     **严格禁止** 判断 Flag 设置或事件触发。
     """
     base_prompt = """
-你是一个 TTRPG 游戏的裁判（Referee）。你的职责是根据玩家的行动描述和当前游戏状态，判断该行动的直接 **属性后果**。
+你是一个 TTRPG 游戏的裁判（Referee）。你的职责是根据玩家的行动描述、当前游戏状态以及可能的检定结果，判断该行动的直接 **属性后果**。
 你需要判断行动是否成功，并提供一段简洁的叙事来描述结果。
 【重要】你的判断【仅限于】该行动本身的直接 **属性效果** (例如HP变化、物品增减、关系值变化等)。
 【严格禁止】判断此行动是否会设置任何叙事 Flag 或触发任何剧本事件 (`ScenarioEvent`)。这些将由后续步骤处理。
 
-请根据用户提供的信息（游戏状态摘要、玩家行动）进行判断。
+请根据用户提供的信息（游戏状态摘要、玩家行动、可能的检定信息）进行判断。
+
+**关于检定信息：**
+如果用户提供了 `check_info` 字段，它会包含以下信息：
+- "check_attribute": 本次行动检定的属性/技能名称 (如果进行了检定)。
+- "dice_roll_result": 玩家或 AI 投掷的骰子结果 (如果进行了检定)。
+请在判断行动成功与否和生成叙述时，**考虑** 这个检定结果。通常，更高的投骰结果意味着更高的成功可能性或更好的效果。如果未提供 `check_info`，则表示本次行动无需检定，请基于常识和角色能力判断。
 
 输出一个 JSON 对象，包含以下键：
-- "success": 布尔值，表示行动是否成功。
-- "narrative": 字符串，描述行动的直接结果和叙述。
+- "success": 布尔值，表示行动是否成功（需要结合检定结果判断）。
+- "narrative": 字符串，描述行动的直接结果和叙述（需要结合检定结果）。
 - "attribute_consequences": 一个列表，包含由该行动直接引发的 **属性类** 结构化后果。如果无直接属性后果，则为空列表 `[]`。
 
 JSON 输出格式示例：
 ```json
 {
   "success": true,
-  "narrative": "你成功撬开了锁，门吱呀一声打开了。",
+  "narrative": "你集中精神，巧妙地撬开了锁 (检定: 巧手=18)，门吱呀一声打开了。",
   "attribute_consequences": []
 }
 ```
@@ -56,7 +63,7 @@ JSON 输出格式示例：
 ```json
 {
   "success": false,
-  "narrative": "你尝试说服守卫，但他毫不动摇，反而更加警惕。",
+  "narrative": "你尝试说服守卫 (检定: 说服=5)，但他毫不动摇，反而更加警惕。",
   "attribute_consequences": [
       {"type": "change_relationship", "target_entity_id": "guard_01", "secondary_entity_id": "player", "value": -5}
   ]
@@ -66,7 +73,7 @@ JSON 输出格式示例：
 ```json
 {
     "success": true,
-    "narrative": "你挥舞长剑击中了哥布林，它发出痛苦的嚎叫。",
+    "narrative": "你挥舞长剑 (检定: 攻击=15)，精准地击中了哥布林，它发出痛苦的嚎叫。",
     "attribute_consequences": [
         {"type": "update_attribute", "target_entity_id": "goblin_1", "attribute_name": "health", "value": -15}
     ]
@@ -100,7 +107,14 @@ JSON 输出格式示例：
 
     return base_prompt
 
-def build_action_resolve_user_prompt(game_state: GameState, action: PlayerAction, scenario_manager: ScenarioManager) -> str: # Add scenario_manager
+# +++ Update function signature +++
+def build_action_resolve_user_prompt(
+    game_state: GameState,
+    action: PlayerAction,
+    scenario_manager: ScenarioManager,
+    dice_roll_result: Optional[int] = None,
+    check_attribute: Optional[str] = None
+) -> str: # Add scenario_manager, dice_roll_result, check_attribute
     """
     构建用于裁判代理判断【单个行动的直接属性后果】的用户 Prompt。
     """
@@ -121,15 +135,24 @@ def build_action_resolve_user_prompt(game_state: GameState, action: PlayerAction
         actor_status_text = f"行动者 (ID: {action.character_id}) 状态未知。"
     # TODO: Handle target being a list or specific entity ID to fetch target status if needed
 
+    # +++ Format check info +++
+    check_info_text = ""
+    if dice_roll_result is not None:
+        check_info_text = f"""
+## 本次行动检定信息
+检定属性/技能: {check_attribute or '通用'}
+投骰结果: {dice_roll_result}
+"""
+
     prompt = f"""
 ## 当前游戏状态摘要
 {environment_info}
 {stage_summary}
 当前回合: {game_state.round_number}
 {actor_status_text}
-{format_current_stage_characters(game_state, scenario_manager)} 
+{format_current_stage_characters(game_state, scenario_manager)}
 {format_current_stage_locations(game_state, scenario_manager)}
-
+{check_info_text}
 ## 待判断的玩家行动
 玩家: {action.character_id}
 行动类型: {action.action_type.value if isinstance(action.action_type, Enum) else action.action_type}
@@ -137,8 +160,8 @@ def build_action_resolve_user_prompt(game_state: GameState, action: PlayerAction
 行动内容: {action.content}
 
 ## 你的任务
-请根据上述信息，判断该行动的直接 **属性后果**。输出 JSON 对象，包含 "success" (bool), "narrative" (str), 和 "attribute_consequences" (List[dict])。
-记住，【不要】判断 Flag 设置或事件触发。只关注直接的属性变化。
+请根据上述信息（包括检定信息，如果提供的话），判断该行动的直接 **属性后果**。输出 JSON 对象，包含 "success" (bool), "narrative" (str), 和 "attribute_consequences" (List[dict])。
+记住，【不要】判断 Flag 设置或事件触发。只关注直接的属性变化。请在 narrative 中体现检定结果的影响。
 """
     return prompt.strip()
 
@@ -200,11 +223,28 @@ def build_event_trigger_and_outcome_user_prompt(game_state: GameState, action_re
     action_summary_lines = []
     if action_results:
         for res in action_results:
-            consequence_summary = ", ".join([f"{c.type.value}({c.attribute_name}={c.value})" if c.type == ConsequenceType.UPDATE_ATTRIBUTE else f"{c.type.value}" for c in res.consequences])
+            # +++ Improved consequence summary +++
+            consequence_parts = []
+            for c in res.consequences:
+                part = f"{c.type.value}"
+                details = []
+                if hasattr(c, 'target_entity_id') and c.target_entity_id: details.append(f"target={c.target_entity_id}")
+                if hasattr(c, 'attribute_name') and c.attribute_name: details.append(f"attr={c.attribute_name}")
+                if hasattr(c, 'skill_name') and c.skill_name: details.append(f"skill={c.skill_name}")
+                if hasattr(c, 'item_id') and c.item_id: details.append(f"item={c.item_id}")
+                if hasattr(c, 'value') and c.value is not None: details.append(f"val={c.value}")
+                if details:
+                    part += f"({', '.join(details)})"
+                consequence_parts.append(part)
+            consequence_summary = ", ".join(consequence_parts) if consequence_parts else '无'
+            # +++ Get actor name +++
+            actor_instance = game_state.characters.get(res.character_id)
+            actor_name = actor_instance.name if actor_instance else res.character_id
+
             action_summary_lines.append(
-                f"- 玩家 {res.character_id} 执行 '{res.action.content}': {'成功' if res.success else '失败'}. "
+                f"- 玩家 {actor_name} ({res.character_id}) 执行 '{res.action.content}': {'成功' if res.success else '失败'}. "
                 f"叙述: {res.narrative}. "
-                f"属性后果: [{consequence_summary if consequence_summary else '无'}]"
+                f"属性后果: [{consequence_summary}]"
             )
     else:
         action_summary_lines.append("本回合无实质性玩家行动。")
@@ -244,14 +284,21 @@ def build_event_trigger_and_outcome_user_prompt(game_state: GameState, action_re
 
     active_events_text = "\n".join(active_events_details)
 
+    # +++ Format current flags +++
+    flags_text = json.dumps(game_state.flags, indent=2) if game_state.flags else "{}"
+
     prompt = f"""
 ## 当前游戏状态摘要
 {environment_info}
 {stage_summary}
 当前回合: {game_state.round_number}
-{format_current_stage_characters(game_state, scenario_manager)} 
+{format_current_stage_characters(game_state, scenario_manager)}
 {format_current_stage_locations(game_state, scenario_manager)}
 {format_character_list(game_state.characters)}
+当前 Flags:
+```json
+{flags_text}
+```
 
 ## 本回合行动的属性后果摘要
 {action_summary}
@@ -263,5 +310,66 @@ def build_event_trigger_and_outcome_user_prompt(game_state: GameState, action_re
 1.  根据本回合行动的 **属性后果** 和当前游戏状态（包括 **Flags**），判断【当前活动事件列表】中的哪些事件的 **自然语言触发条件** 被满足了。
 2.  对于每一个被触发的事件，从其“可能的结局”列表中选择一个最合理的结局 ID。
 3.  输出 JSON 对象，包含 `"triggered_events"` 列表，每个元素包含 `"event_id"` 和 `"chosen_outcome_id"`。
+"""
+    return prompt.strip()
+
+# +++ Placeholder for check necessity prompts +++
+def build_check_necessity_system_prompt() -> str:
+    """构建用于裁判代理评估【检定必要性】的系统 Prompt。"""
+    # TODO: Implement this prompt
+    return """
+你是一个 TTRPG 游戏的裁判（Referee）。你的职责是根据玩家的行动描述和当前情境，判断该行动是否需要进行一次属性或技能检定（投骰子）。
+通常，有风险、可能失败、或结果不确定的行动需要检定。简单的、必然成功的行动则不需要。
+
+请根据用户提供的行动信息进行判断。
+
+输出一个 JSON 对象，包含以下键：
+- "needs_check": 布尔值，表示是否需要进行检定。
+- "check_attribute": 字符串或 null。如果 needs_check 为 true，则指定最适合本次检定的属性或技能名称（例如 "力量", "敏捷", "说服", "潜行"）。如果该行动不需要特定属性/技能，或者你无法确定，可以返回 null 或一个通用描述如 "通用检定"。如果 needs_check 为 false，则此值应为 null。
+
+JSON 输出格式示例：
+```json
+{
+  "needs_check": true,
+  "check_attribute": "撬锁"
+}
+```
+或
+```json
+{
+  "needs_check": false,
+  "check_attribute": null
+}
+```
+或
+```json
+{
+  "needs_check": true,
+  "check_attribute": "力量"
+}
+```
+"""
+
+def build_check_necessity_user_prompt(game_state: GameState, action: PlayerAction, scenario_manager: ScenarioManager) -> str:
+    """构建用于裁判代理评估【检定必要性】的用户 Prompt。"""
+    # TODO: Implement this prompt, providing relevant context
+    actor_instance = game_state.characters.get(action.character_id)
+    actor_name = actor_instance.name if actor_instance else action.character_id
+    location_info = format_environment_info(game_state, scenario_manager) # Basic location info
+
+    prompt = f"""
+## 当前情境
+{location_info}
+当前回合: {game_state.round_number}
+
+## 待评估的行动
+行动者: {actor_name} ({action.character_id})
+行动类型: {action.action_type.value if isinstance(action.action_type, Enum) else action.action_type}
+行动目标: {action.target}
+行动内容: {action.content}
+
+## 你的任务
+根据上述行动描述和情境，判断这个行动是否需要进行一次属性或技能检定？
+输出 JSON 对象，包含 "needs_check" (bool) 和 "check_attribute" (str 或 null)。
 """
     return prompt.strip()

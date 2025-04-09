@@ -2,7 +2,8 @@
 
 from autogen_agentchat.messages import TextMessage
 from autogen_core import CancellationToken
-from typing import Optional, Dict, Any, List # Added List
+# +++ Add Tuple +++
+from typing import Optional, Dict, Any, List, Tuple # Added List, Tuple
 import json
 import re
 import uuid # Import uuid for unique assistant names
@@ -29,7 +30,10 @@ from src.context.referee_context_builder import (
     # build_relationship_assessment_user_prompt,
     # Import the new combined prompt builders
     build_event_trigger_and_outcome_system_prompt, # Will be used by determine_triggered_events_and_outcomes
-    build_event_trigger_and_outcome_user_prompt  # Will be used by determine_triggered_events_and_outcomes
+    build_event_trigger_and_outcome_user_prompt,  # Will be used by determine_triggered_events_and_outcomes
+    # +++ Placeholder for new prompt builders +++
+    build_check_necessity_system_prompt,
+    build_check_necessity_user_prompt
 )
 # from src.models.scenario_models import Scenario # Ensure Scenario is imported - Already imported above
 from autogen_agentchat.agents import AssistantAgent # Import AssistantAgent
@@ -58,7 +62,98 @@ class RefereeAgent(BaseAgent):
         self.logger = logging.getLogger(f"RefereeAgent_{agent_name}")
         # Configure logging level if needed, e.g., self.logger.setLevel(logging.DEBUG)
 
-    async def judge_action(self, action: PlayerAction, game_state: GameState, scenario: Optional[Scenario] = None) -> ActionResult:
+    async def assess_check_necessity(self, action: PlayerAction, game_state: GameState) -> Tuple[bool, Optional[str]]:
+        """
+        使用LLM评估一个行动是否需要进行检定，并确定检定属性/技能。
+
+        Args:
+            action (PlayerAction): 需要评估的行动。
+            game_state (GameState): 当前游戏状态。
+
+        Returns:
+            Tuple[bool, Optional[str]]: 一个元组，第一个元素表示是否需要检定，
+                                       第二个元素是需要检定的属性/技能名称（如果需要）。
+        """
+        self.logger.info(f"评估行动 '{action.content}' (来自 {action.character_id}) 是否需要检定...")
+
+        # TODO: Implement actual prompt builders in referee_context_builder.py
+        system_message_content = build_check_necessity_system_prompt()
+        user_message_content = build_check_necessity_user_prompt(game_state, action, self.scenario_manager)
+
+        assistant_name = f"{self.agent_name}_check_necessity_helper_{uuid.uuid4().hex}"
+        assistant = AssistantAgent(
+            name=assistant_name,
+            model_client=self.model_client,
+            system_message=system_message_content
+        )
+        user_message = TextMessage(content=user_message_content, source="system")
+
+        response_content: str = ""
+        needs_check: bool = False
+        check_attribute: Optional[str] = None
+
+        try:
+            response = await assistant.on_messages([user_message], CancellationToken())
+            if not response or not response.chat_message or not response.chat_message.content:
+                self.logger.warning(f"未能从LLM获取有效的检定必要性评估响应。Action: {action.content}")
+                # Default to needing a check if LLM fails? Or default to no check?
+                # Let's default to NO check for safety/simplicity for now.
+                return False, None
+
+            response_content = response.chat_message.content
+
+            json_str = response_content
+            json_match = re.search(r'```json\s*([\s\S]*?)\s*```', response_content, re.IGNORECASE)
+            if json_match:
+                json_str = json_match.group(1).strip()
+            else:
+                self.logger.warning(f"assess_check_necessity LLM响应未包含 ```json ``` 标记。尝试直接解析。响应: {response_content[:100]}...")
+
+            try:
+                response_data = json.loads(json_str)
+                # Expected format: {"needs_check": true/false, "check_attribute": "attribute_name_or_null"}
+                if "needs_check" in response_data and isinstance(response_data["needs_check"], bool):
+                    needs_check = response_data["needs_check"]
+                    if needs_check:
+                        if "check_attribute" in response_data and isinstance(response_data["check_attribute"], str) and response_data["check_attribute"]:
+                            check_attribute = response_data["check_attribute"]
+                            # TODO: Add validation? Check if attribute exists on character?
+                            # For now, trust the LLM output if needs_check is true.
+                        else:
+                            self.logger.warning(f"LLM指示需要检定，但未提供有效的 'check_attribute'。响应: {response_data}")
+                            # Fallback: If check needed but attribute missing, maybe default to a general check or mark as error?
+                            # Let's still return True, but None for attribute, JudgementPhase needs to handle this.
+                            check_attribute = None
+                    else:
+                        # If needs_check is false, check_attribute should be None
+                        check_attribute = None
+                else:
+                    self.logger.warning(f"assess_check_necessity LLM响应JSON格式不正确或缺少 'needs_check'。响应数据: {response_data}")
+                    # Default to no check on format error
+                    return False, None
+
+            except json.JSONDecodeError as e:
+                self.logger.error(f"assess_check_necessity JSON解析失败。错误: {e}。原始JSON: '{json_str}'. LLM响应: {response_content}")
+                # Default to no check on parse error
+                return False, None
+
+        except Exception as e:
+            self.logger.exception(f"评估检定必要性时发生意外错误: {str(e)}")
+            # Default to no check on general error
+            return False, None
+
+        self.logger.info(f"行动 '{action.content}' 评估结果: 需要检定={needs_check}, 检定属性={check_attribute}")
+        return needs_check, check_attribute
+
+    # +++ Update method signature +++
+    async def judge_action(
+        self,
+        action: PlayerAction,
+        game_state: GameState,
+        scenario: Optional[Scenario] = None,
+        dice_roll_result: Optional[int] = None,
+        check_attribute: Optional[str] = None
+    ) -> ActionResult:
         """
         使用LLM判断单个行动的直接 **属性后果** (成功/失败, 叙述, 属性类后果)。
         **注意：此方法严格不处理 Flag 设置或事件触发。**
@@ -67,15 +162,14 @@ class RefereeAgent(BaseAgent):
             action (PlayerAction): 需要判断的玩家行动
             game_state (GameState): 当前游戏状态
             scenario (Optional[Scenario]): 当前剧本 (可选)
+            dice_roll_result (Optional[int]): 本次行动的投骰结果 (如果进行了检定)
+            check_attribute (Optional[str]): 本次行动检定的属性/技能 (如果进行了检定)
 
         Returns:
             ActionResult: 行动结果 (只包含直接后果)
         """
-        # 生成系统消息 (需要简化 Prompt，只关注属性后果)
-        # TODO: Update build_action_resolve_system_prompt and build_action_resolve_user_prompt
-        #       in referee_context_builder.py to reflect this simplification.
-        #       The prompt should explicitly tell the LLM *not* to evaluate flags or events.
-        system_message_content: str = build_action_resolve_system_prompt(scenario) # Placeholder, needs update
+        # 生成系统消息 (Prompt 已在 context builder 中更新以处理检定信息)
+        system_message_content: str = build_action_resolve_system_prompt(scenario)
 
         # 创建临时的AssistantAgent实例用于本次调用
         assistant_name = f"{self.agent_name}_attribute_resolver_helper_{uuid.uuid4().hex}" # Renamed for clarity
@@ -85,9 +179,14 @@ class RefereeAgent(BaseAgent):
             system_message=system_message_content
         )
 
-        # 构建用户消息 (需要简化 Prompt, 并传递 scenario_manager)
-        # TODO: Update build_action_resolve_user_prompt
-        user_message_content: str = build_action_resolve_user_prompt(game_state, action, self.scenario_manager) # Pass scenario_manager
+        # 构建用户消息 (传递检定信息给 Prompt Builder)
+        user_message_content: str = build_action_resolve_user_prompt(
+            game_state,
+            action,
+            self.scenario_manager,
+            dice_roll_result=dice_roll_result, # Pass dice roll result
+            check_attribute=check_attribute   # Pass check attribute
+        )
         user_message = TextMessage(
             content=user_message_content,
             source="system" # 源头标记为系统，表示这是内部调用
@@ -193,7 +292,7 @@ class RefereeAgent(BaseAgent):
         """
         if not game_state.active_event_ids:
             self.logger.info("没有活动事件需要检查触发。")
-            self.logger.info("没有活动事件需要检查触发。")
+            # self.logger.info("没有活动事件需要检查触发。") # Duplicate log removed
             return []
 
         # 构建 Prompt (Prompt 需要知道本回合的行动结果和当前 flags)
